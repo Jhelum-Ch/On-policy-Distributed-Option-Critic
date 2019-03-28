@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+USE_TEAMGRID = True
 
 import argparse
 import gym
@@ -6,10 +7,10 @@ import time
 import torch
 from torch_rl.utils.penv import ParallelEnv
 
-try:
+if USE_TEAMGRID:
+    import teamgrid
+else:
     import gym_minigrid
-except ImportError:
-    pass
 
 import utils
 

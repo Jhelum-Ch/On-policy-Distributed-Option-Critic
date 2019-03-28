@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+USE_TEAMGRID = False
 
 import argparse
 import gym
@@ -7,11 +8,12 @@ import datetime
 import torch
 import torch_rl
 import sys
+from pathlib import Path
 
-try:
+if USE_TEAMGRID:
+    import teamgrid
+else:
     import gym_minigrid
-except ImportError:
-    pass
 
 import utils
 from model import ACModel
@@ -65,6 +67,8 @@ parser.add_argument("--recurrence", type=int, default=1,
                     help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
 parser.add_argument("--text", action="store_true", default=False,
                     help="add a GRU to the model to handle text input")
+parser.add_argument("--auto-resume", action="store_true", default=False,
+                    help="whether to automatically resume training when lauching the script on existing model")
 args = parser.parse_args()
 args.mem = args.recurrence > 1
 
@@ -113,10 +117,15 @@ except OSError:
 
 # Define actor-critic model
 
-try:
-    acmodel = utils.load_model(model_dir)
-    logger.info("Model successfully loaded\n")
-except OSError:
+if Path(utils.get_model_path(model_dir)).exists():
+    if args.auto_resume or \
+            input(f'Model named "{model_dir}" already exists. Resume training? [y or n]').lower() in ['y', 'yes']:
+        acmodel = utils.load_model(model_dir)
+        logger.info("Model successfully loaded\n")
+    else:
+        print("Aborting...")
+        sys.exit()
+else:
     acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text)
     logger.info("Model successfully created\n")
 logger.info("{}\n".format(acmodel))
