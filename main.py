@@ -74,8 +74,12 @@ def train_agent(episodes):
 	            # Step through environment using chosen action
 	            agent_next_state, reward, done, _ = env.step(agent_action.data[0])
 
+	            error_due_to_no_broadcast = np.linalg.norm([i-j for (i,j) in zip(self.env.tocellcoord[sample_agent_state],self.env.tocellcoord[agent_state])])
+
+				selfishness_penalty = env.selfishness_penalty*error_due_to_no_broadcast #*(error_due_to_no_broadcast > self.no_broadcast_threshold)
+
 	            # subject to change
-	            reward += env.broadcast_penalty*agent_broadcast_action + np.linalg.norm(sample_agent_state, agent_state)*env.selfishness_penalty*(1-agent_broadcast_action)
+	            reward += env.broadcast_penalty*agent_broadcast_action + selfishness_penalty*(1-agent_broadcast_action)
 	            
 	            # Save reward
 	            broadcast.reward_episode.append(reward)
