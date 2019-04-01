@@ -1,5 +1,5 @@
 import numpy as np
-from broadcast_net import *
+from network.broadcast_net import *
 
 '''import action_policy_net (or, pi_net) and broadcast_net that are trained elsewhere. E.g., 
 
