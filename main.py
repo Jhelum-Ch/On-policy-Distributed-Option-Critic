@@ -39,7 +39,7 @@ likelihood = {agent:np.random.uniform(agent_state_dim) for agent in range(n_agen
 # broadcst = Broadcast_net() imported from broadcast_net.py
 broadcast_nets = {agent:broadcast for agent in range(n_agent)} #initialize broadcast nets for all agents
 
-def train_agent(agent, agent_belief_pmf, episodes):
+def train_agent(episodes):
     #running_reward = 10
     for episode in range(episodes):
         
