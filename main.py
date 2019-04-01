@@ -1,0 +1,110 @@
+import numpy as np
+
+'''import action_policy_net (or, pi_net) and broadcast_net that are trained elsewhere. E.g., 
+
+broadcast_nets = {}, pi_nets = {}
+where
+
+broadcast net can be of the form 
+for agent in range(n_agent):
+	broadcast_nets[agent] = lambda: VanillaNet_LR(2, FCBody(agent_state_dim))
+	pi_nets[agent] = lambda: VanillaNet_LR(agent_action_dim, FCBody(agent_state_dim))
+'''
+
+
+maxIter = 1000
+
+n_agent = 3
+agent_states = [j for j in range(13)] # modify this
+agent_state_dim = len(agent_states)
+
+joint_state_list = [s for s in list(itertools.product(agent_states, repeat=n_agent))
+                            if len(s) == len(np.unique(s))]
+
+agent_action_dim = 4
+agent_actions = [j for j in range(agent_action_dim)]
+
+#optimizer_fn = lambda params: torch.optim.RMSprop(params, 0.001)
+
+# inital beliefs
+belief_pmfs = {agent:np.random.uniform(agent_state_dim) for agent in range(n_agent)} # subject to change
+
+
+# initial likelihood
+likelihood = {agent:np.random.uniform(agent_state_dim) for agent in range(n_agent)} # subject to change
+
+for i in range(maxIter):
+	joint_obs
+	for agent in range(n_agent):
+		
+		#likelihood[agent] = [l*(k/m) for (l,k,m) in zip(likelihood[agent], sample_average(belief_pmfs[agent], pi_nets[agent], broadcast_nets[agent], agent_states, agent_actions), (sample_average(belief_pmfs[agent], pi_nets[agent], broadcast_nets[agent], agent_states)))]
+
+		likelihood[agent] = Likelihood_fn(pi_nets[agent], broadcast_nets[agent], agents_states, agent_actions).update(belief_pmfs[agent])
+		
+		belief_pmfs[agent] = [j*k for (j,k) in zip(belief_pmfs[agent],likelihood[agent])]
+
+		belief_pmfs[agent] /= np.sum(belief_pmfs[agent]) # normalized
+
+		remarginalized_belief[agent] = remarginalize_belief(agent, belief_pmfs, joint_obs, Likelihood_fn(pi_nets[agent], broadcast_nets[agent], agents_states, agent_actions), agent_states)
+
+	curr_comm_bel_vec = [common_belief(joint_state,belief_pmfs) for joint_state in joint_state_list]
+
+
+
+def common_belief(joint_state, belief_pmfs):
+	res = 1.0
+	for j in range(len(joint_state)):
+		res *= belief_pmfs[j][joint_state[j]]
+	return res
+
+
+class Likelihood_fn:
+	def __init__(self, pi_net, broadcast_net, agents_states, agent_actions):
+		self. pi_net = pi_net
+		self.broadcast_net = broadcast_net
+		self.agent_states = agent_states
+		self.agent_actions = agent_actions
+
+	def update(belief_pmf):
+		return [l*(k/m) for (l,k,m) in zip(Likelihood_fn(pi_net, broadcast_net, agents_states, agent_actions), sample_average(belief_pmf, pi_net, broadcast_net, agent_states, agent_actions), (sample_average(belief_pmf, pi_net, broadcast_net, agent_states)))]
+
+def sample_average(belief_pmf, pi_net, broadcast_net, agent_states, agent_actions = None, num_samples = 1000):
+	counts_tuple = {i:0 for i in list(itertools.product(agent_states,agent_actions,[0,1]))}
+	counts_state = {i:0 for i in agent_states}
+	for _ in range(num_samples):
+		sample_agent_state = np.random.choice(agent_states, p = belief_pmf)
+		counts_state[sample_agent_state] += 1
+
+		if agent_actions is not None:
+			sample_agent_action = np.random.choice(agent_actions, p = pi_net[agent].forward(agent_actions))
+			sample_agent_broadcast = np.random.choice([0,1], p = broadcast_net.forward(agent_states))
+
+			sample_tuple = tuple(sample_agent_state,sample_agent_action,sample_agent_broadcast)
+			counts_tuple[sample_tuple] += 1
+
+			return list(counts_tuple.values())/num_samples
+		else:
+			return list(counts_state.values())/num_samples	
+
+
+
+def remarginalize_belief(agent, belief, obs, likelihood, agents_states, num_samples = 1000, iterations = 100):
+	for i in range(iterations):
+		vector = belief[agent]
+		for _ in range(num_samples):
+			sample_state = np.random.choice(agent_states, p = belief[agent])
+
+			other_agents = [ag for ag in range(len(obs)) if ag != agent]
+			prob = 1.0
+			for ag in other_agents:
+				if obs[ag] != None: 
+					prob *= 1- 1/agent_states # prob that obs[ag] != obs[agent]
+				else:
+					samples_oth_agent = np.choice(agent_states, num_sample, p = belief[ag]) 
+					prob *= np.sum([s != sample_state for s in samples_oth_agent])/num_sample
+			
+			vector[sample_state] = likelihood.update(belief[agent])[sample_state]*prob
+		belief[agent] /= vector/np.sum(vector) #normalized
+	return belief[agent]
+
+
