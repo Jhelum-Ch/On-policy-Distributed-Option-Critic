@@ -57,14 +57,13 @@ def train_agent(episodes):
 	            agent_broadcast_action = select_broadcast(agent_state)
 
             	# update factored belief
-            	likelihood[agent] = Likelihood_fn(pi, broadcast, agents_states, agent_actions).update(belief_pmfs[agent])
+            	likelihood[agent] = Likelihood_fn(pi_nets[agent], broadcast_nets[agent], agents_states, agent_actions).update(belief_pmfs[agent])
 		
 				belief_pmfs[agent] = [j*k for (j,k) in zip(belief_pmfs[agent],likelihood[agent])]
 
 				belief_pmfs[agent] /= np.sum(belief_pmfs[agent]) # normalized
 
-				remarginalized_belief[agent] = remarginalize_belief(agent, belief_pmfs, joint_obs, Likelihood_fn(pi_nets[agent], broadcast_nets[agent], agents_states, agent_actions), agent_states)
-
+				remarginalized_belief[agent] = remarginalize_belief(agent, belief_pmfs, joint_obs, likelihood[agent], agent_states)
             
 	            #sample agent_state according to agent's belief pmf
 	            sample_agent_state = np.random.choice(env.cell_list,p=remarginalized_belief[agent])
@@ -135,22 +134,20 @@ def sample_average(belief_pmf, pi_net, broadcast_net, agent_states, agent_action
 
 
 def remarginalize_belief(agent, belief, obs, likelihood, agents_states, num_samples = 1000, iterations = 100):
-	for i in range(iterations):
-		vector = belief[agent]
-		for _ in range(num_samples):
-			sample_state = np.random.choice(agent_states, p = belief[agent])
+    for i in range(iterations):
+        vector = belief[agent]
+        for _ in range(num_samples):
+            sample_state = np.random.choice(agent_states, p = belief[agent])
 
-			other_agents = [ag for ag in range(len(obs)) if ag != agent]
-			prob = 1.0
-			for ag in other_agents:
-				if obs[ag] != None: 
-					prob *= 1- 1/agent_states # prob that obs[ag] != obs[agent]
-				else:
-					samples_oth_agent = np.choice(agent_states, num_sample, p = belief[ag]) 
-					prob *= np.sum([s != sample_state for s in samples_oth_agent])/num_sample
-			
-			vector[sample_state] = likelihood.update(belief[agent])[sample_state]*prob
-		belief[agent] /= vector/np.sum(vector) #normalized
-	return belief[agent]
+            other_agents = [ag for ag in range(len(obs)) if ag != agent]
+            prob = 1.0
+            for ag in other_agents:
+                if obs[ag] != None: 
+                    prob *= 1- 1/agent_states # prob that obs[ag] != obs[agent]
+                else:
+                    samples_oth_agent = np.choice(agent_states, num_sample, p = belief[ag]) 
+                    prob *= np.sum([s != sample_state for s in samples_oth_agent])/num_sample
 
-
+            vector[sample_state] = likelihood*prob
+        belief[agent] /= vector/np.sum(vector) #normalized
+    return belief[agent]
