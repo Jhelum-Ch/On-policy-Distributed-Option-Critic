@@ -99,7 +99,7 @@ def train(episodes):
             # Step through environment using chosen action
             agent_next_state, reward, done, _ = env.step(action.data[0])
             # modify the following
-            reward += env.broadcast_penalty + np.linalg.norm(sample_agent_state, agent_state)
+            reward += env.broadcast_penalty + np.linalg.norm(sample_agent_state, agent_state)*env.selfishness_penalty
             
             # Save reward
             broadcast.reward_episode.append(reward)
