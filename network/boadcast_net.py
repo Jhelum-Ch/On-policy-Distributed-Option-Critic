@@ -48,7 +48,7 @@ def select_broadcast(state):
         broadcast.broadcast_history = (c.log_prob(broadcast_action))
     return broadcast_action
 
-def update_broadcast_policy():
+def update_broadcast_policy(broadcast):
     R = 0
     rewards_list = []
     
@@ -76,37 +76,37 @@ def update_broadcast_policy():
     broadcast.reward_episode= []
 
 
-def train(episodes):
-    running_reward = 10
-    for episode in range(episodes):
-        agent_state = env.reset()[0] # Reset environment and record the starting state
-        done = False 
+# def train_agent(agent, agent_belief_pmf, episodes):
+#     #running_reward = 10
+#     for episode in range(episodes):
         
-        for iteration in range(1000):
+        
+#         agent_state = env.reset()[agent] # Reset environment and record the starting state
+#         done = False 
+        
+#         for iteration in range(1000):
             
-            # TODO: augment belief
+#             # TODO: augment belief
             
-            # import agent's belief pmf which is part of the factored common belief
-            agent_belief_pmf
             
-            #sample agent_state according to agent's belief pmf
-            sample_agent_state = np.random.choice(env.cell_list,p=agent_belief_pmf)
+#             #sample agent_state according to agent's belief pmf
+#             sample_agent_state = np.random.choice(env.cell_list,p=agent_belief_pmf)
             
-            # TODO: augment action from pi-policy net
-            # take action according to 'pi_policy_net'
-            action = select_action(state)
-            broadcast_action = select_broadcast(state)
-            # Step through environment using chosen action
-            agent_next_state, reward, done, _ = env.step(action.data[0])
-            # modify the following
-            reward += env.broadcast_penalty + np.linalg.norm(sample_agent_state, agent_state)*env.selfishness_penalty
+#             # TODO: augment action from pi-policy net
+#             # take action according to 'pi_policy_net'
+#             agent_action = select_action(agent_state)
+#             agent_broadcast_action = select_broadcast(agent_state)
+#             # Step through environment using chosen action
+#             agent_next_state, reward, done, _ = env.step(agent_action.data[0])
+#             # modify the following
+#             reward += env.broadcast_penalty*agent_broadcast_action + np.linalg.norm(sample_agent_state, agent_state)*env.selfishness_penalty*(1-agent_broadcast_action)
             
-            # Save reward
-            broadcast.reward_episode.append(reward)
-            if done:
-                break
+#             # Save reward
+#             broadcast.reward_episode.append(reward)
+#             if done:
+#                 break
                 
-#         # Used to determine when the environment is solved.
-#         running_reward = (running_reward * 0.99) + (time * 0.01)
+# #         # Used to determine when the environment is solved.
+# #         running_reward = (running_reward * 0.99) + (time * 0.01)
             
-        update_broadcast_policy()
+#         update_broadcast_policy()

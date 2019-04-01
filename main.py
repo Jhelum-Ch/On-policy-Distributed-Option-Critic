@@ -1,20 +1,22 @@
 import numpy as np
+from broadcast_net import *
 
 '''import action_policy_net (or, pi_net) and broadcast_net that are trained elsewhere. E.g., 
 
-broadcast_nets = {}, pi_nets = {}
+pi_nets = {agent:pi_net for agent in range(n_agent)}
 where
 
-broadcast net can be of the form 
+pi_net can be of the form 
 for agent in range(n_agent):
-	broadcast_nets[agent] = lambda: VanillaNet_LR(2, FCBody(agent_state_dim))
 	pi_nets[agent] = lambda: VanillaNet_LR(agent_action_dim, FCBody(agent_state_dim))
 '''
 
 
-maxIter = 1000
+episodes = 100
 
 n_agent = 3
+
+
 agent_states = [j for j in range(13)] # modify this
 agent_state_dim = len(agent_states)
 
@@ -33,23 +35,67 @@ belief_pmfs = {agent:np.random.uniform(agent_state_dim) for agent in range(n_age
 # initial likelihood
 likelihood = {agent:np.random.uniform(agent_state_dim) for agent in range(n_agent)} # subject to change
 
-for i in range(maxIter):
-	joint_obs
-	for agent in range(n_agent):
+
+# broadcst = Broadcast_net() imported from broadcast_net.py
+broadcast_nets = {agent:broadcast for agent in range(n_agent)} #initialize broadcast nets for all agents
+
+def train_agent(agent, agent_belief_pmf, episodes):
+    #running_reward = 10
+    for episode in range(episodes):
+        
+        
+        joint_state = env.reset() # Reset environment and record the starting state
+        done = False 
+        
+        for iteration in range(1000):
+            
+           for agent in range(n_agent):
+            	
+            	agent_state = joint_state[agent]
+
+            	agent_action = select_action(agent_state)
+	            agent_broadcast_action = select_broadcast(agent_state)
+
+            	# update factored belief
+            	likelihood[agent] = Likelihood_fn(pi, broadcast, agents_states, agent_actions).update(belief_pmfs[agent])
 		
-		#likelihood[agent] = [l*(k/m) for (l,k,m) in zip(likelihood[agent], sample_average(belief_pmfs[agent], pi_nets[agent], broadcast_nets[agent], agent_states, agent_actions), (sample_average(belief_pmfs[agent], pi_nets[agent], broadcast_nets[agent], agent_states)))]
+				belief_pmfs[agent] = [j*k for (j,k) in zip(belief_pmfs[agent],likelihood[agent])]
 
-		likelihood[agent] = Likelihood_fn(pi_nets[agent], broadcast_nets[agent], agents_states, agent_actions).update(belief_pmfs[agent])
+				belief_pmfs[agent] /= np.sum(belief_pmfs[agent]) # normalized
+
+				remarginalized_belief[agent] = remarginalize_belief(agent, belief_pmfs, joint_obs, Likelihood_fn(pi_nets[agent], broadcast_nets[agent], agents_states, agent_actions), agent_states)
+
+            
+	            #sample agent_state according to agent's belief pmf
+	            sample_agent_state = np.random.choice(env.cell_list,p=remarginalized_belief[agent])
+	            
+	            # TODO: import pi_nets
+	            # sample agent_action from pi_nets[agent]
+	           
+	            # Step through environment using chosen action
+	            agent_next_state, reward, done, _ = env.step(agent_action.data[0])
+
+	            # subject to change
+	            reward += env.broadcast_penalty*agent_broadcast_action + np.linalg.norm(sample_agent_state, agent_state)*env.selfishness_penalty*(1-agent_broadcast_action)
+	            
+	            # Save reward
+	            broadcast.reward_episode.append(reward)
+	            if done:
+	                break
+
+                agent_state = agent_next_state
+                next_joint_state[agent] = agent_state
+	         joint_state = tuple(next_joint_state)      
+	#         # Used to determine when the environment is solved.
+	#         running_reward = (running_reward * 0.99) + (time * 0.01)
+	            
+        update_broadcast_policy(broadcast_nets[agent])
+        curr_comm_bel_vec = [common_belief(joint_state,belief_pmfs) for joint_state in joint_state_list] # We may not need this pmf
+
 		
-		belief_pmfs[agent] = [j*k for (j,k) in zip(belief_pmfs[agent],likelihood[agent])]
+	
 
-		belief_pmfs[agent] /= np.sum(belief_pmfs[agent]) # normalized
-
-		remarginalized_belief[agent] = remarginalize_belief(agent, belief_pmfs, joint_obs, Likelihood_fn(pi_nets[agent], broadcast_nets[agent], agents_states, agent_actions), agent_states)
-
-	curr_comm_bel_vec = [common_belief(joint_state,belief_pmfs) for joint_state in joint_state_list]
-
-
+#_________________________________________________________________________________________________________
 
 def common_belief(joint_state, belief_pmfs):
 	res = 1.0
@@ -60,7 +106,7 @@ def common_belief(joint_state, belief_pmfs):
 
 class Likelihood_fn:
 	def __init__(self, pi_net, broadcast_net, agents_states, agent_actions):
-		self. pi_net = pi_net
+		self.pi_net = pi_net
 		self.broadcast_net = broadcast_net
 		self.agent_states = agent_states
 		self.agent_actions = agent_actions
