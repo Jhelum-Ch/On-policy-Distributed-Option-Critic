@@ -49,7 +49,7 @@ def train_agent(episodes):
         
         for iteration in range(1000):
             
-           for agent in range(n_agent):
+            for agent in range(n_agent):
             	
             	agent_state = joint_state[agent]
 
@@ -85,7 +85,7 @@ def train_agent(episodes):
 
                 agent_state = agent_next_state
                 next_joint_state[agent] = agent_state
-	         joint_state = tuple(next_joint_state)      
+            joint_state = tuple(next_joint_state[agent])      
 	#         # Used to determine when the environment is solved.
 	#         running_reward = (running_reward * 0.99) + (time * 0.01)
 	            
