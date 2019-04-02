@@ -69,10 +69,12 @@ def train_agent(episodes):
 	            sample_agent_state = np.random.choice(env.cell_list,p=remarginalized_belief[agent])
 	            
 	            # TODO: import pi_nets
-	            # sample agent_action from pi_nets[agent]
+	            # sample agent_action from pi_nets[agent] for all agents; joint_action: the list of agent_action 
 	           
 	            # Step through environment using chosen action
-	            agent_next_state, reward, done, _ = env.step(agent_action.data[0])
+	            joint_next_state, reward, done, _ = env.step(joint_action.data[0])
+	           
+	            #agent_next_state = joint_next_state[agent]
 
 	            error_due_to_no_broadcast = np.linalg.norm([i-j for (i,j) in zip(self.env.tocellcoord[sample_agent_state],self.env.tocellcoord[agent_state])])
 
@@ -86,9 +88,9 @@ def train_agent(episodes):
 	            if done:
 	                break
 
-                agent_state = agent_next_state
-                next_joint_state[agent] = agent_state
-            joint_state = tuple(next_joint_state[agent])      
+                #agent_state = agent_next_state
+                #next_joint_state[agent] = agent_state
+            joint_state = tuple(joint_next_state)      
 	#         # Used to determine when the environment is solved.
 	#         running_reward = (running_reward * 0.99) + (time * 0.01)
 	            
