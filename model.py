@@ -2,8 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions.categorical import Categorical
+from torch.distributions.bernoulli import Bernoulli
 import torch_rl
 import gym
+import utils
 
 # Function from https://github.com/ikostrikov/pytorch-a2c-ppo-acktr/blob/master/model.py
 def initialize_parameters(m):
@@ -15,12 +17,19 @@ def initialize_parameters(m):
             m.bias.data.fill_(0)
 
 class ACModel(nn.Module, torch_rl.RecurrentACModel):
-    def __init__(self, obs_space, action_space, use_memory=False, use_text=False):
+    def __init__(self, obs_space, action_space, use_memory=False, use_text=False, num_options=1):
         super().__init__()
 
         # Decide which components are enabled
         self.use_text = use_text
         self.use_memory = use_memory
+        self.num_options = num_options
+        self.curr_opt = 0
+
+        if isinstance(action_space, gym.spaces.Discrete):
+            self.num_actions = action_space.n
+        else:
+            raise ValueError("Unknown action space: " + str(action_space))
 
         # Define image embedding
         self.image_conv = nn.Sequential(
@@ -52,22 +61,47 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         if self.use_text:
             self.embedding_size += self.text_embedding_size
 
-        # Define actor's model
-        if isinstance(action_space, gym.spaces.Discrete):
-            self.actor = nn.Sequential(
+        # Define actor's model(s)
+        self.actors = [
+            nn.Sequential(
                 nn.Linear(self.embedding_size, 64),
                 nn.Tanh(),
-                nn.Linear(64, action_space.n)
+                nn.Linear(64, self.num_actions)
             )
-        else:
-            raise ValueError("Unknown action space: " + str(action_space))
+            for _ in range(self.num_options)
+        ]
 
         # Define critic's model
-        self.critic = nn.Sequential(
-            nn.Linear(self.embedding_size, 64),
-            nn.Tanh(),
-            nn.Linear(64, 1)
-        )
+        if self.num_options > 1:
+            self.critic = nn.Sequential(
+                nn.Linear(self.embedding_size + self.num_options, 64),
+                nn.Tanh(),
+                nn.Linear(64, self.num_actions)
+            )
+
+        else:
+            self.critic = nn.Sequential(
+                nn.Linear(self.embedding_size, 64),
+                nn.Tanh(),
+                nn.Linear(64, 1)
+            )
+
+        # Define termination functions and option policy (policy over option)
+        if self.num_options > 1:
+            self.opt_pol = nn.Sequential(
+                nn.Linear(self.embedding_size, 64),
+                nn.Tanh(),
+                nn.Linear(64, self.num_options)
+            )
+
+            self.term_fns = [
+                nn.Sequential(
+                    nn.Linear(self.embedding_size, 64),
+                    nn.Tanh(),
+                    nn.Linear(64, 1)
+                )
+                for _ in range(self.num_options)
+            ]
 
         # Initialize parameters correctly
         self.apply(initialize_parameters)
@@ -80,7 +114,42 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
     def semi_memory_size(self):
         return self.image_embedding_size
 
-    def forward(self, obs, memory):
+    def forward(self, obs, memory, opt=None):
+        if opt is None:
+            opt = self.curr_opt
+
+        embedding, new_memory =self.embed_observation(obs, memory)
+
+        x = self.actors[opt](embedding)
+        act_dist = Categorical(logits=F.log_softmax(x, dim=1))
+
+        action = act_dist.sample()
+
+        if self.num_options > 1:
+            onehot_option = utils.idx_to_onehot(opt, self.num_options)
+            # state-option q-values
+            x = self.critic(torch.cat((embedding, onehot_option), dim=1))
+        else:
+            # state value
+            x = self.critic(embedding)
+
+        value = x.squeeze(1)
+
+        if self.num_options > 1:
+            x = self.term_fns[opt](embedding)
+            term_dist = Bernoulli(probs=F.sigmoid(x))
+
+            return action, act_dist, value, new_memory, term_dist
+
+        else:
+
+            return action, act_dist, value, new_memory
+
+    def _get_embed_text(self, text):
+        _, hidden = self.text_rnn(self.word_embedding(text))
+        return hidden[-1]
+
+    def embed_observation(self, obs, memory):
         x = torch.transpose(torch.transpose(obs.image, 1, 3), 2, 3)
         x = self.image_conv(x)
         x = x.reshape(x.shape[0], -1)
@@ -97,14 +166,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             embed_text = self._get_embed_text(obs.text)
             embedding = torch.cat((embedding, embed_text), dim=1)
 
-        x = self.actor(embedding)
-        dist = Categorical(logits=F.log_softmax(x, dim=1))
+        return embedding, memory
 
-        x = self.critic(embedding)
-        value = x.squeeze(1)
-
-        return dist, value, memory
-
-    def _get_embed_text(self, text):
-        _, hidden = self.text_rnn(self.word_embedding(text))
-        return hidden[-1]
+    def choose_option(self, opt_values):
+        self.curr_opt = torch.argmax(opt_values, dim=1)

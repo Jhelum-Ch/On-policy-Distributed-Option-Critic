@@ -78,3 +78,11 @@ class Vocabulary:
     def save(self):
         utils.create_folders_if_necessary(self.path)
         json.dump(self.vocab, open(self.path, "w"))
+
+def idx_to_onehot(idx, num_classes):
+    assert len(idx.shape) == 1
+    onehot = torch.eye(num_classes)
+    return onehot[idx]
+
+def onehot_to_idx(vect, dim):
+    return torch.argmax(vect, dim=dim)

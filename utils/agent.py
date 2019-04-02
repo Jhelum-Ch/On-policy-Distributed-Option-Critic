@@ -7,11 +7,13 @@ class Agent:
     - to choose an action given an observation,
     - to analyze the feedback (i.e. reward and done state) of its action."""
 
-    def __init__(self, env_id, obs_space, model_dir, argmax=False, num_envs=1):
+    def __init__(self, env_id, obs_space, model_dir, argmax=False, num_envs=1, num_options=1):
         _, self.preprocess_obss = utils.get_obss_preprocessor(env_id, obs_space, model_dir)
         self.acmodel = utils.load_model(model_dir)
         self.argmax = argmax
         self.num_envs = num_envs
+        self.num_options = num_options
+        self.curr_option = None
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         if self.acmodel.recurrent:
@@ -21,15 +23,19 @@ class Agent:
         preprocessed_obss = self.preprocess_obss(obss)
 
         with torch.no_grad():
-            if self.acmodel.recurrent:
-                dist, _, self.memories = self.acmodel(preprocessed_obss, self.memories)
+            if self.acmodel.recurrent and self.num_options > 1:
+                action, act_dist, _, memory, term_dist = self.acmodel(preprocessed_obss, self.memories)
+            elif self.acmodel.recurrent and not self.num_options > 1:
+                action, act_dist, _, memory = self.acmodel(preprocessed_obss, self.memories)
+            elif not self.acmodel.recurrent and self.num_options > 1:
+                action, act_dist, _, term_dist = self.acmodel(preprocessed_obss)
             else:
-                dist, _ = self.acmodel(preprocessed_obss)
+                action, act_dist, _ = self.acmodel(preprocessed_obss)
 
         if self.argmax:
-            actions = dist.probs.max(1, keepdim=True)[1]
+            actions = act_dist.probs.max(1, keepdim=True)[1]
         else:
-            actions = dist.sample()
+            actions = action
 
         if torch.cuda.is_available():
             actions = actions.cpu().numpy()

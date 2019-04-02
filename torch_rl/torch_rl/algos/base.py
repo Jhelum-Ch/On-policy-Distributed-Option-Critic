@@ -9,7 +9,8 @@ class BaseAlgo(ABC):
     """The base class for RL algorithms."""
 
     def __init__(self, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
-                 value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward):
+                 value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
+                 num_options=1, term_loss_coef=None, term_reg=None):
         """
         Initializes a `BaseAlgo` instance.
 
@@ -42,6 +43,13 @@ class BaseAlgo(ABC):
         reshape_reward : function
             a function that shapes the reward, takes an
             (observation, action, reward, done) tuple as an input
+        num_options : int
+            the number of options
+        term_loss_coef : float
+            the weight of the termination loss in the final objective
+        term_reg : float
+            a small constant added to the option advantage to promote
+            longer use of options (stretching)
         """
 
         # Store parameters
@@ -59,6 +67,9 @@ class BaseAlgo(ABC):
         self.recurrence = recurrence
         self.preprocess_obss = preprocess_obss or default_preprocess_obss
         self.reshape_reward = reshape_reward
+        self.num_options = num_options
+        self.term_loss_coef = term_loss_coef
+        self.term_reg = term_reg
 
         # Store helpers values
 
@@ -87,6 +98,12 @@ class BaseAlgo(ABC):
         self.rewards = torch.zeros(*shape, device=self.device)
         self.advantages = torch.zeros(*shape, device=self.device)
         self.log_probs = torch.zeros(*shape, device=self.device)
+        if self.num_options > 1:
+            self.current_options = torch.zeros(*shape, device=self.device, dtype=torch.int)
+            self.option = torch.zeros(*shape, device=self.device, dtype=torch.int)
+            self.terminates = torch.zeros(*shape, device=self.device, dtype=torch.int)
+            self.state_opt_values = torch.zeros((*shape, self.num_options), device=self.device)
+            self.selected_act_value = torch.zeros(*shape, device=self.device)
 
         # Initialize log values
 
@@ -119,19 +136,44 @@ class BaseAlgo(ABC):
             Useful stats about the training process, including the average
             reward, policy loss, value loss, etc.
         """
+        if not self.recurrence:
+            raise Exception("Deprecated: self.recurrence has to be True."
+                            "If no reccurence is used, we will still have self.recurrence=True"
+                            "but self.acmodel.use_memory will be set to False.")
 
         for i in range(self.num_frames_per_proc):
             # Do one agent-environment interaction
 
             preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
             with torch.no_grad():
-                if self.acmodel.recurrent:
-                    dist, value, memory = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
+                if self.num_options > 1:
+                    state_opt_value = torch.zeros[self.num_options, self.num_procs]
+                    for opt in range(self.num_options):
+                        if opt == self.acmodel.curr_opt:
+                            action, act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1), opt)
+                            act_value = act_values[torch.arange(action.shape[0]), action]
+                            state_opt_value[opt] = torch.sum(act_dist_tmp.prob() * act_values_tmp, dim=1)
+                        else:
+                            with torch.no_grad():
+                                _, act_dist_tmp, act_values_tmp, _, _ = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1), opt)
+                                state_opt_value[opt] = torch.sum(act_dist_tmp.prob() * act_values_tmp, dim=1)
+
+                    state_value = torch.mean(self.state_opt_values, dim=2)[i]
+                    terminate = term_dist.sample()
+
+                    for t in terminate:
+                        if t:
+
+
                 else:
-                    dist, value = self.acmodel(preprocessed_obs)
-            action = dist.sample()
+                    action, act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
 
             obs, reward, done, _ = self.env.step(action.cpu().numpy())
+
+            if self.num_options > 1:
+                for terminate_per_proc in terminate:
+                    if terminate_per_proc:
+                        self.acmodel.curr_opt = torch.argmax(, dim=1)
 
             # Update experiences values
 
@@ -143,7 +185,12 @@ class BaseAlgo(ABC):
             self.masks[i] = self.mask
             self.mask = 1 - torch.tensor(done, device=self.device, dtype=torch.float)
             self.actions[i] = action
-            self.values[i] = value
+            if self.num_options > 1:
+                self.selected_act_value[i] = act_value      # Q_U     (s,w,a)
+                self.state_opt_values[i] = state_opt_value  # Q_omega (s,w)
+                self.values[i] = state_value                # V_omega (s)
+            else:
+                self.values[i] = state_value
             if self.reshape_reward is not None:
                 self.rewards[i] = torch.tensor([
                     self.reshape_reward(obs_, action_, reward_, done_)
@@ -151,7 +198,10 @@ class BaseAlgo(ABC):
                 ], device=self.device)
             else:
                 self.rewards[i] = torch.tensor(reward, device=self.device)
-            self.log_probs[i] = dist.log_prob(action)
+            self.log_probs[i] = act_dist.log_prob(action)
+            if self.num_options > 1:
+                self.terminates_prob[i] = term_dist.prob()
+                self.terminates[i] = terminate
 
             # Update log values
 
@@ -174,18 +224,24 @@ class BaseAlgo(ABC):
 
         preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
         with torch.no_grad():
-            if self.acmodel.recurrent:
-                _, next_value, _ = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
+            if self.num_options > 1:
+                # TODO: figure out where we need gradient for next_state computations
+                next_action, next_act_dist, next_act_values, _, next_term_dist = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1), opt)
+
             else:
-                _, next_value = self.acmodel(preprocessed_obs)
+                _, _, next_value, _ = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
 
         for i in reversed(range(self.num_frames_per_proc)):
-            next_mask = self.masks[i+1] if i < self.num_frames_per_proc - 1 else self.mask
-            next_value = self.values[i+1] if i < self.num_frames_per_proc - 1 else next_value
-            next_advantage = self.advantages[i+1] if i < self.num_frames_per_proc - 1 else 0
+            if self.num_options > 1:
+                self.advantages[i] = delta
 
-            delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
-            self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
+            else:
+                next_mask = self.masks[i+1] if i < self.num_frames_per_proc - 1 else self.mask
+                next_value = self.values[i+1] if i < self.num_frames_per_proc - 1 else next_value
+                next_advantage = self.advantages[i+1] if i < self.num_frames_per_proc - 1 else 0
+
+                delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
+                self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
 
         # Define experiences:
         #   the whole experience is the concatenation of the experience

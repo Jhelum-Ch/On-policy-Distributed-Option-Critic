@@ -21,11 +21,11 @@ from model import ACModel
 # Parse arguments
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-parser.add_argument("--algo", required=True,
-                    help="algorithm to use: a2c | ppo (REQUIRED)")
-parser.add_argument("--env", required=True,
+parser.add_argument("--algo", default='a2c', #required=True,
+                    help="algorithm to use: a2c | ppo | oc (REQUIRED)")
+parser.add_argument("--env", default='MiniGrid-DoorKey-5x5-v0', #required=True,
                     help="name of the environment to train on (REQUIRED)")
-parser.add_argument("--model", default=None,
+parser.add_argument("--model", default="DEBUG",
                     help="name of the model (default: {ENV}_{ALGO}_{TIME})")
 parser.add_argument("--seed", type=int, default=1,
                     help="random seed (default: 1)")
@@ -35,7 +35,7 @@ parser.add_argument("--frames", type=int, default=10**7,
                     help="number of frames of training (default: 10e7)")
 parser.add_argument("--log-interval", type=int, default=1,
                     help="number of updates between two logs (default: 1)")
-parser.add_argument("--save-interval", type=int, default=0,
+parser.add_argument("--save-interval", type=int, default=10,
                     help="number of updates between two saves (default: 0, 0 means no saving)")
 parser.add_argument("--tb", action="store_true", default=False,
                     help="log into Tensorboard")
@@ -69,6 +69,12 @@ parser.add_argument("--text", action="store_true", default=False,
                     help="add a GRU to the model to handle text input")
 parser.add_argument("--auto-resume", action="store_true", default=False,
                     help="whether to automatically resume training when lauching the script on existing model")
+parser.add_argument("--num-options", type=int, default=1,
+                    help="number of options (default: 1, 1 means no options)")
+parser.add_argument("--term-loss-coef", type=float, default=0.5,
+                    help="termination loss term coefficient (default: 0.5)")
+parser.add_argument("--term-reg", type=float, default=0.01,
+                    help="termination regularization constant (default: 0.01)")
 args = parser.parse_args()
 args.mem = args.recurrence > 1
 
@@ -144,6 +150,11 @@ elif args.algo == "ppo":
     algo = torch_rl.PPOAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                             args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
                             args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss)
+elif args.algo == "oc":
+    algo = torch_rl.OCAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
+                            args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
+                            args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss,
+                            args.num_options, args.term_loss_coef, args.term_reg)
 else:
     raise ValueError("Incorrect algorithm name: {}".format(args.algo))
 
