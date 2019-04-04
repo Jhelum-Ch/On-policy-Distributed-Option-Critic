@@ -21,7 +21,7 @@ from model import ACModel
 # Parse arguments
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-parser.add_argument("--algo", default='a2c', #required=True,
+parser.add_argument("--algo", default='oc', #required=True,
                     help="algorithm to use: a2c | ppo | oc (REQUIRED)")
 parser.add_argument("--env", default='MiniGrid-DoorKey-5x5-v0', #required=True,
                     help="name of the environment to train on (REQUIRED)")
@@ -69,14 +69,16 @@ parser.add_argument("--text", action="store_true", default=False,
                     help="add a GRU to the model to handle text input")
 parser.add_argument("--auto-resume", action="store_true", default=False,
                     help="whether to automatically resume training when lauching the script on existing model")
-parser.add_argument("--num-options", type=int, default=1,
+parser.add_argument("--num-options", type=int, default=4,
                     help="number of options (default: 1, 1 means no options)")
-parser.add_argument("--term-loss-coef", type=float, default=0.5,
+parser.add_argument("--termination-loss-coef", type=float, default=0.5,
                     help="termination loss term coefficient (default: 0.5)")
-parser.add_argument("--term-reg", type=float, default=0.01,
+parser.add_argument("--termination-reg", type=float, default=0.01,
                     help="termination regularization constant (default: 0.01)")
 args = parser.parse_args()
 args.mem = args.recurrence > 1
+
+if args.algo in ['a2c', 'ppo']: assert args.num_options == 1
 
 # Define run dir
 
@@ -132,7 +134,7 @@ if Path(utils.get_model_path(model_dir)).exists():
         print("Aborting...")
         sys.exit()
 else:
-    acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text)
+    acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text, args.num_options)
     logger.info("Model successfully created\n")
 logger.info("{}\n".format(acmodel))
 
@@ -153,8 +155,8 @@ elif args.algo == "ppo":
 elif args.algo == "oc":
     algo = torch_rl.OCAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                             args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
-                            args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss,
-                            args.num_options, args.term_loss_coef, args.term_reg)
+                            args.optim_alpha, args.optim_eps, preprocess_obss,
+                            args.num_options, args.termination_loss_coef, args.termination_reg)
 else:
     raise ValueError("Incorrect algorithm name: {}".format(args.algo))
 

@@ -10,7 +10,7 @@ class BaseAlgo(ABC):
 
     def __init__(self, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
-                 num_options=1, term_loss_coef=None, term_reg=None):
+                 num_options=1, termination_loss_coef=None, termination_reg=None, option_epsilon=0.05):
         """
         Initializes a `BaseAlgo` instance.
 
@@ -45,11 +45,13 @@ class BaseAlgo(ABC):
             (observation, action, reward, done) tuple as an input
         num_options : int
             the number of options
-        term_loss_coef : float
+        termination_loss_coef : float
             the weight of the termination loss in the final objective
-        term_reg : float
+        termination_reg : float
             a small constant added to the option advantage to promote
             longer use of options (stretching)
+        option_epsilon : float
+            a small constant for the epsilon-soft policy over options
         """
 
         # Store parameters
@@ -68,8 +70,21 @@ class BaseAlgo(ABC):
         self.preprocess_obss = preprocess_obss or default_preprocess_obss
         self.reshape_reward = reshape_reward
         self.num_options = num_options
-        self.term_loss_coef = term_loss_coef
-        self.term_reg = term_reg
+        self.termination_loss_coef = termination_loss_coef
+        self.termination_reg = termination_reg
+        self.option_epsilon = option_epsilon
+
+
+        # Dimension convention
+
+        if self.num_options > 1:
+            self.batch_dim = 0
+            self.opt_dim = 1
+            self.act_dim = 2
+        else:
+            self.batch_dim = 0
+            self.act_dim = 1
+            self.opt_dim = None
 
         # Store helpers values
 
@@ -94,16 +109,22 @@ class BaseAlgo(ABC):
         self.mask = torch.ones(shape[1], device=self.device)
         self.masks = torch.zeros(*shape, device=self.device)
         self.actions = torch.zeros(*shape, device=self.device, dtype=torch.int)
-        self.values = torch.zeros(*shape, device=self.device)
         self.rewards = torch.zeros(*shape, device=self.device)
         self.advantages = torch.zeros(*shape, device=self.device)
         self.log_probs = torch.zeros(*shape, device=self.device)
+
         if self.num_options > 1:
             self.current_options = torch.zeros(*shape, device=self.device, dtype=torch.int)
-            self.option = torch.zeros(*shape, device=self.device, dtype=torch.int)
+
             self.terminates = torch.zeros(*shape, device=self.device, dtype=torch.int)
-            self.state_opt_values = torch.zeros((*shape, self.num_options), device=self.device)
-            self.selected_act_value = torch.zeros(*shape, device=self.device)
+            self.terminates_prob = torch.zeros(*shape, device=self.device)
+
+            self.values_s_w_a = torch.zeros(*shape, device=self.device)
+            self.values_s_w = torch.zeros(*shape, device=self.device)
+            self.values_s = torch.zeros(*shape, device=self.device)
+
+        else:
+            self.values = torch.zeros(*shape, device=self.device)
 
         # Initialize log values
 
@@ -141,39 +162,38 @@ class BaseAlgo(ABC):
                             "If no reccurence is used, we will still have self.recurrence=True"
                             "but self.acmodel.use_memory will be set to False.")
 
+        # TODO: initialize self.current_options.. how?
+        current_option = [0]*self.num_procs  # TODO: CHANGE THAT
+
         for i in range(self.num_frames_per_proc):
             # Do one agent-environment interaction
 
             preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
-            with torch.no_grad():
-                if self.num_options > 1:
-                    state_opt_value = torch.zeros[self.num_options, self.num_procs]
-                    for opt in range(self.num_options):
-                        if opt == self.acmodel.curr_opt:
-                            action, act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1), opt)
-                            act_value = act_values[torch.arange(action.shape[0]), action]
-                            state_opt_value[opt] = torch.sum(act_dist_tmp.prob() * act_values_tmp, dim=1)
-                        else:
-                            with torch.no_grad():
-                                _, act_dist_tmp, act_values_tmp, _, _ = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1), opt)
-                                state_opt_value[opt] = torch.sum(act_dist_tmp.prob() * act_values_tmp, dim=1)
 
-                    state_value = torch.mean(self.state_opt_values, dim=2)[i]
-                    terminate = term_dist.sample()
+            if self.num_options > 1:
+                act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
 
-                    for t in terminate:
-                        if t:
+            else:
+                act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
 
+            # select action
 
-                else:
-                    action, act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
+            action = act_dist.sample()
+            if self.num_options > 1:
+                action = action[range(self.num_procs), current_option]
+
+            # environment setp
 
             obs, reward, done, _ = self.env.step(action.cpu().numpy())
 
+            # compute OC-specific quantities
+
             if self.num_options > 1:
-                for terminate_per_proc in terminate:
-                    if terminate_per_proc:
-                        self.acmodel.curr_opt = torch.argmax(, dim=1)
+                terminate = term_dist.sample()[range(self.num_procs), current_option]
+
+                Q_U_swa    = act_values[torch.arange(self.num_procs), current_option, action]
+                Q_omega_sw = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)[range(self.num_procs), current_option, :]
+                V_omega_s  = torch.mean(torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True), dim=self.opt_dim, keepdim=True)
 
             # Update experiences values
 
@@ -186,9 +206,9 @@ class BaseAlgo(ABC):
             self.mask = 1 - torch.tensor(done, device=self.device, dtype=torch.float)
             self.actions[i] = action
             if self.num_options > 1:
-                self.selected_act_value[i] = act_value      # Q_U     (s,w,a)
-                self.state_opt_values[i] = state_opt_value  # Q_omega (s,w)
-                self.values[i] = state_value                # V_omega (s)
+                self.values_s_w_a[i] = Q_U_swa.squeeze()
+                self.values_s_w[i]   = Q_omega_sw.squeeze()
+                self.values_s[i]     = V_omega_s.squeeze()
             else:
                 self.values[i] = state_value
             if self.reshape_reward is not None:
@@ -198,10 +218,12 @@ class BaseAlgo(ABC):
                 ], device=self.device)
             else:
                 self.rewards[i] = torch.tensor(reward, device=self.device)
-            self.log_probs[i] = act_dist.log_prob(action)
             if self.num_options > 1:
-                self.terminates_prob[i] = term_dist.prob()
+                self.log_probs[i] = act_dist.logits[range(self.num_procs), current_option, action]
+                self.terminates_prob[i] = term_dist.probs[range(self.num_procs), current_option]
                 self.terminates[i] = terminate
+            else:
+                self.log_probs[i] = act_dist.log_prob(action)
 
             # Update log values
 
@@ -226,10 +248,10 @@ class BaseAlgo(ABC):
         with torch.no_grad():
             if self.num_options > 1:
                 # TODO: figure out where we need gradient for next_state computations
-                next_action, next_act_dist, next_act_values, _, next_term_dist = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1), opt)
+                next_act_dist, next_act_values, _, next_term_dist = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
 
             else:
-                _, _, next_value, _ = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
+                _, next_value, _ = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
 
         for i in reversed(range(self.num_frames_per_proc)):
             if self.num_options > 1:

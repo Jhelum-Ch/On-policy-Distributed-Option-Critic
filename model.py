@@ -24,7 +24,6 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         self.use_text = use_text
         self.use_memory = use_memory
         self.num_options = num_options
-        self.curr_opt = 0
 
         if isinstance(action_space, gym.spaces.Discrete):
             self.num_actions = action_space.n
@@ -62,46 +61,28 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             self.embedding_size += self.text_embedding_size
 
         # Define actor's model(s)
-        self.actors = [
-            nn.Sequential(
-                nn.Linear(self.embedding_size, 64),
-                nn.Tanh(),
-                nn.Linear(64, self.num_actions)
-            )
-            for _ in range(self.num_options)
-        ]
+        actor_output_size = self.num_actions * self.num_options if self.num_options > 1 else self.num_actions
+        self.actor = nn.Sequential(
+            nn.Linear(self.embedding_size, 64),
+            nn.Tanh(),
+            nn.Linear(64, actor_output_size)
+        )
 
         # Define critic's model
-        if self.num_options > 1:
-            self.critic = nn.Sequential(
-                nn.Linear(self.embedding_size + self.num_options, 64),
-                nn.Tanh(),
-                nn.Linear(64, self.num_actions)
-            )
-
-        else:
-            self.critic = nn.Sequential(
-                nn.Linear(self.embedding_size, 64),
-                nn.Tanh(),
-                nn.Linear(64, 1)
-            )
+        critic_output_size = actor_output_size if self.num_options > 1 else 1
+        self.critic = nn.Sequential(
+            nn.Linear(self.embedding_size, 64),
+            nn.Tanh(),
+            nn.Linear(64, critic_output_size)
+        )
 
         # Define termination functions and option policy (policy over option)
         if self.num_options > 1:
-            self.opt_pol = nn.Sequential(
+            self.term_fn = nn.Sequential(
                 nn.Linear(self.embedding_size, 64),
                 nn.Tanh(),
                 nn.Linear(64, self.num_options)
             )
-
-            self.term_fns = [
-                nn.Sequential(
-                    nn.Linear(self.embedding_size, 64),
-                    nn.Tanh(),
-                    nn.Linear(64, 1)
-                )
-                for _ in range(self.num_options)
-            ]
 
         # Initialize parameters correctly
         self.apply(initialize_parameters)
@@ -114,36 +95,23 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
     def semi_memory_size(self):
         return self.image_embedding_size
 
-    def forward(self, obs, memory, opt=None):
-        if opt is None:
-            opt = self.curr_opt
-
+    def forward(self, obs, memory):
         embedding, new_memory =self.embed_observation(obs, memory)
 
-        x = self.actors[opt](embedding)
+        x = self.actor(embedding).view((-1, self.num_options, self.num_actions)) if self.num_options > 1 else self.actor(embedding)
         act_dist = Categorical(logits=F.log_softmax(x, dim=1))
 
-        action = act_dist.sample()
+        x = self.critic(embedding)
+        value = x.view((-1, self.num_options, self.num_actions)) if self.num_options > 1 else x.squeeze(1)
 
         if self.num_options > 1:
-            onehot_option = utils.idx_to_onehot(opt, self.num_options)
-            # state-option q-values
-            x = self.critic(torch.cat((embedding, onehot_option), dim=1))
-        else:
-            # state value
-            x = self.critic(embedding)
-
-        value = x.squeeze(1)
-
-        if self.num_options > 1:
-            x = self.term_fns[opt](embedding)
+            x = self.term_fn(embedding).view((-1, self.num_options))
             term_dist = Bernoulli(probs=F.sigmoid(x))
 
-            return action, act_dist, value, new_memory, term_dist
+            return act_dist, value, new_memory, term_dist
 
         else:
-
-            return action, act_dist, value, new_memory
+            return act_dist, value, new_memory
 
     def _get_embed_text(self, text):
         _, hidden = self.text_rnn(self.word_embedding(text))
