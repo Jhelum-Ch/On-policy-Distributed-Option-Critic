@@ -165,17 +165,18 @@ class BaseAlgo(ABC):
                             "If no reccurence is used, we will still have self.recurrence=True"
                             "but self.acmodel.use_memory will be set to False.")
 
-        rollout_length = self.num_frames_per_proc + 1 if self.num_options > 1 else self.num_frames_per_proc
+        rollout_length = len(self.obss)
         for i in range(rollout_length):
             # Do one agent-environment interaction
 
             preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
 
-            if self.num_options > 1:
-                act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
+            with torch.no_grad():
+                if self.num_options > 1:
+                    act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
 
-            else:
-                act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
+                else:
+                    act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
 
             # select action
             action = act_dist.sample()
@@ -254,34 +255,25 @@ class BaseAlgo(ABC):
 
         # Add advantage and return to experiences
 
-        preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
-        # with torch.no_grad():
-        #     if self.num_options > 1:
-        #         next_act_dist, next_act_values, _, next_term_dist = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
-        #
-        #     else:
-        #         _, next_value, _ = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
-
         for i in reversed(range(self.num_frames_per_proc)):
-            with torch.no_grad(): # TODO: figure out where we need gradient for next_state computations
-                if self.num_options > 1:
+            if self.num_options > 1:
 
-                    self.deltas[i] = self.rewards[i] - self.values_s_w_a[i] + \
-                            (1. - self.done_masks[i+1]) * (1. - self.terminates[i+1]) * \
-                            (
-                                    self.discount * (1. - self.terminates_prob[i+1]) * self.values_s_w[i+1] +
-                                    self.discount * self.terminates_prob[i+1] * torch.max(self.values_s_w[i+1])
-                            )
+                self.deltas[i] = self.rewards[i] - self.values_s_w_a[i] + \
+                        (1. - self.done_masks[i+1]) * (1. - self.terminates[i+1]) * \
+                        (
+                                self.discount * (1. - self.terminates_prob[i+1]) * self.values_s_w[i+1] +
+                                self.discount * self.terminates_prob[i+1] * torch.max(self.values_s_w[i+1])
+                        )
 
-                    self.advantages[i] = self.values_s_w[i+1] - self.values_s[i+1]
+                self.advantages[i] = self.values_s_w[i+1] - self.values_s[i+1]
 
-                else:
-                    next_mask = self.done_masks[i + 1]
-                    next_value = self.values[i+1]
-                    next_advantage = self.advantages[i+1] if i < self.num_frames_per_proc else 0
+            else:
+                next_mask = self.done_masks[i + 1]
+                next_value = self.values[i+1]
+                next_advantage = self.advantages[i+1] if i < self.num_frames_per_proc else 0
 
-                    delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
-                    self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
+                delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
+                self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
 
         # Define experiences:
         #   the whole experience is the concatenation of the experience
