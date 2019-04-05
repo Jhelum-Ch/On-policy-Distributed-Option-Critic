@@ -99,29 +99,32 @@ class BaseAlgo(ABC):
 
         # Initialize experience values
 
-        shape = (self.num_frames_per_proc, self.num_procs)
+        shape = (self.num_frames_per_proc + 1, self.num_procs)
 
         self.obs = self.env.reset()
         self.obss = [None]*(shape[0])
         if self.acmodel.recurrent:
             self.memory = torch.zeros(shape[1], self.acmodel.memory_size, device=self.device)
             self.memories = torch.zeros(*shape, self.acmodel.memory_size, device=self.device)
-        self.mask = torch.ones(shape[1], device=self.device)
-        self.masks = torch.zeros(*shape, device=self.device)
+        self.done_mask = torch.ones(shape[1], device=self.device)
+        self.done_masks = torch.zeros(*shape, device=self.device)
         self.actions = torch.zeros(*shape, device=self.device, dtype=torch.int)
         self.rewards = torch.zeros(*shape, device=self.device)
         self.advantages = torch.zeros(*shape, device=self.device)
         self.log_probs = torch.zeros(*shape, device=self.device)
 
         if self.num_options > 1:
-            self.current_options = torch.zeros(*shape, device=self.device, dtype=torch.int)
+            self.current_option = torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float)
+            self.current_options = torch.zeros(*shape, device=self.device)
 
-            self.terminates = torch.zeros(*shape, device=self.device, dtype=torch.int)
+            self.terminates = torch.zeros(*shape, device=self.device)
             self.terminates_prob = torch.zeros(*shape, device=self.device)
 
             self.values_s_w_a = torch.zeros(*shape, device=self.device)
             self.values_s_w = torch.zeros(*shape, device=self.device)
             self.values_s = torch.zeros(*shape, device=self.device)
+
+            self.deltas = torch.zeros(*shape, device=self.device)
 
         else:
             self.values = torch.zeros(*shape, device=self.device)
@@ -162,25 +165,22 @@ class BaseAlgo(ABC):
                             "If no reccurence is used, we will still have self.recurrence=True"
                             "but self.acmodel.use_memory will be set to False.")
 
-        # TODO: initialize self.current_options.. how?
-        current_option = [0]*self.num_procs  # TODO: CHANGE THAT
-
-        for i in range(self.num_frames_per_proc):
+        rollout_length = self.num_frames_per_proc + 1 if self.num_options > 1 else self.num_frames_per_proc
+        for i in range(rollout_length):
             # Do one agent-environment interaction
 
             preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
 
             if self.num_options > 1:
-                act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
+                act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
 
             else:
-                act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
+                act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
 
             # select action
-
             action = act_dist.sample()
             if self.num_options > 1:
-                action = action[range(self.num_procs), current_option]
+                action = action[range(self.num_procs), self.current_option.long()]
 
             # environment setp
 
@@ -189,10 +189,14 @@ class BaseAlgo(ABC):
             # compute OC-specific quantities
 
             if self.num_options > 1:
-                terminate = term_dist.sample()[range(self.num_procs), current_option]
+                Q_omega_sw = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)
 
-                Q_U_swa    = act_values[torch.arange(self.num_procs), current_option, action]
-                Q_omega_sw = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)[range(self.num_procs), current_option, :]
+                terminate = term_dist.sample()[range(self.num_procs), self.current_option.long()]
+                # change current_option w.r.t. termination
+                self.current_option = (self.current_option * (1. - terminate)) + (terminate * torch.argmax(Q_omega_sw, dim=self.opt_dim).squeeze().float())
+
+                Q_U_swa    = act_values[range(self.num_procs), self.current_option.long(), action]
+                Q_omega_sw = Q_omega_sw[range(self.num_procs), self.current_option.long(), :]
                 V_omega_s  = torch.mean(torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True), dim=self.opt_dim, keepdim=True)
 
             # Update experiences values
@@ -202,15 +206,10 @@ class BaseAlgo(ABC):
             if self.acmodel.recurrent:
                 self.memories[i] = self.memory
                 self.memory = memory
-            self.masks[i] = self.mask
-            self.mask = 1 - torch.tensor(done, device=self.device, dtype=torch.float)
+            self.done_masks[i] = self.done_mask
+            self.done_mask = 1 - torch.tensor(done, device=self.device, dtype=torch.float)
             self.actions[i] = action
-            if self.num_options > 1:
-                self.values_s_w_a[i] = Q_U_swa.squeeze()
-                self.values_s_w[i]   = Q_omega_sw.squeeze()
-                self.values_s[i]     = V_omega_s.squeeze()
-            else:
-                self.values[i] = state_value
+
             if self.reshape_reward is not None:
                 self.rewards[i] = torch.tensor([
                     self.reshape_reward(obs_, action_, reward_, done_)
@@ -218,11 +217,22 @@ class BaseAlgo(ABC):
                 ], device=self.device)
             else:
                 self.rewards[i] = torch.tensor(reward, device=self.device)
+
             if self.num_options > 1:
-                self.log_probs[i] = act_dist.logits[range(self.num_procs), current_option, action]
-                self.terminates_prob[i] = term_dist.probs[range(self.num_procs), current_option]
+                self.values_s_w_a[i] = Q_U_swa
+                self.values_s_w[i]   = Q_omega_sw.squeeze()
+                self.values_s[i]     = V_omega_s.squeeze()
+
+                self.log_probs[i] = act_dist.logits[range(self.num_procs), self.current_option.long(), action]
+                self.terminates_prob[i] = term_dist.probs[range(self.num_procs), self.current_option.long()]
                 self.terminates[i] = terminate
+
+                self.current_options[i] = self.current_option
+                # change current_option w.r.t. episode ending
+                self.current_option = (self.current_option * (1. - self.done_mask)) + (self.done_mask * torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float))
+
             else:
+                self.values[i] = state_value
                 self.log_probs[i] = act_dist.log_prob(action)
 
             # Update log values
@@ -238,32 +248,40 @@ class BaseAlgo(ABC):
                     self.log_reshaped_return.append(self.log_episode_reshaped_return[i].item())
                     self.log_num_frames.append(self.log_episode_num_frames[i].item())
 
-            self.log_episode_return *= self.mask
-            self.log_episode_reshaped_return *= self.mask
-            self.log_episode_num_frames *= self.mask
+            self.log_episode_return *= self.done_mask
+            self.log_episode_reshaped_return *= self.done_mask
+            self.log_episode_num_frames *= self.done_mask
 
         # Add advantage and return to experiences
 
         preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
-        with torch.no_grad():
-            if self.num_options > 1:
-                # TODO: figure out where we need gradient for next_state computations
-                next_act_dist, next_act_values, _, next_term_dist = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
-
-            else:
-                _, next_value, _ = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
+        # with torch.no_grad():
+        #     if self.num_options > 1:
+        #         next_act_dist, next_act_values, _, next_term_dist = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
+        #
+        #     else:
+        #         _, next_value, _ = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
 
         for i in reversed(range(self.num_frames_per_proc)):
-            if self.num_options > 1:
-                self.advantages[i] = delta
+            with torch.no_grad(): # TODO: figure out where we need gradient for next_state computations
+                if self.num_options > 1:
 
-            else:
-                next_mask = self.masks[i+1] if i < self.num_frames_per_proc - 1 else self.mask
-                next_value = self.values[i+1] if i < self.num_frames_per_proc - 1 else next_value
-                next_advantage = self.advantages[i+1] if i < self.num_frames_per_proc - 1 else 0
+                    self.deltas[i] = self.rewards[i] - self.values_s_w_a[i] + \
+                            (1. - self.done_masks[i+1]) * (1. - self.terminates[i+1]) * \
+                            (
+                                    self.discount * (1. - self.terminates_prob[i+1]) * self.values_s_w[i+1] +
+                                    self.discount * self.terminates_prob[i+1] * torch.max(self.values_s_w[i+1])
+                            )
 
-                delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
-                self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
+                    self.advantages[i] = self.values_s_w[i+1] - self.values_s[i+1]
+
+                else:
+                    next_mask = self.done_masks[i + 1]
+                    next_value = self.values[i+1]
+                    next_advantage = self.advantages[i+1] if i < self.num_frames_per_proc else 0
+
+                    delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
+                    self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
 
         # Define experiences:
         #   the whole experience is the concatenation of the experience
@@ -279,16 +297,29 @@ class BaseAlgo(ABC):
                     for i in range(self.num_frames_per_proc)]
         if self.acmodel.recurrent:
             # T x P x D -> P x T x D -> (P * T) x D
-            exps.memory = self.memories.transpose(0, 1).reshape(-1, *self.memories.shape[2:])
+            exps.memory = self.memories[:-1].transpose(0, 1).reshape(-1, *self.memories.shape[2:])
             # T x P -> P x T -> (P * T) x 1
-            exps.mask = self.masks.transpose(0, 1).reshape(-1).unsqueeze(1)
+            exps.mask = self.done_masks[:-1].transpose(0, 1).reshape(-1).unsqueeze(1)
         # for all tensors below, T x P -> P x T -> P * T
-        exps.action = self.actions.transpose(0, 1).reshape(-1)
-        exps.value = self.values.transpose(0, 1).reshape(-1)
-        exps.reward = self.rewards.transpose(0, 1).reshape(-1)
-        exps.advantage = self.advantages.transpose(0, 1).reshape(-1)
-        exps.returnn = exps.value + exps.advantage
-        exps.log_prob = self.log_probs.transpose(0, 1).reshape(-1)
+        exps.action = self.actions[:-1].transpose(0, 1).reshape(-1)
+        exps.reward = self.rewards[:-1].transpose(0, 1).reshape(-1)
+        exps.advantage = self.advantages[:-1].transpose(0, 1).reshape(-1)
+        exps.log_prob = self.log_probs[:-1].transpose(0, 1).reshape(-1)
+        if self.num_options > 1:
+            exps.current_options = self.current_options[:-1].transpose(0, 1).reshape(-1)
+
+            exps.terminate = self.terminates[:-1].transpose(0, 1).reshape(-1)
+            exps.terminate_prob = self.terminates_prob[:-1].transpose(0, 1).reshape(-1)
+
+            exps.value_s_w_a = self.values_s_w_a[:-1].transpose(0, 1).reshape(-1)
+            exps.value_s_w = self.values_s_w[:-1].transpose(0, 1).reshape(-1)
+            exps.value_s = self.values_s[:-1].transpose(0, 1).reshape(-1)
+
+            exps.delta = self.deltas[:-1].transpose(0, 1).reshape(-1)
+
+        else:
+            exps.value = self.values[:-1].transpose(0, 1).reshape(-1)
+            exps.returnn = exps[:-1].value + exps[:-1].advantage
 
         # Preprocess experiences
 
