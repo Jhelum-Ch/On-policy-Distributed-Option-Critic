@@ -60,16 +60,16 @@ class OCAlgo(BaseAlgo):
 
             entropy = act_dist.entropy().mean()
 
-            policy_loss = -(act_dist.log_prob(sb.action) * sb.advantage).mean()
+            policy_loss = -(act_dist.log_prob(sb.action) * (sb.value_s_w_a.detach() - sb.value_s_w.detach())).mean()
 
-            value_loss = (value - sb.returnn).pow(2).mean()
+            value_loss = None # TODO
 
-            term_loss = None
+            termination_loss = term_dist.probs * (sb.advantage.detach() + self.termination_reg)
 
             loss = policy_loss \
                    - self.entropy_coef * entropy \
                    + self.value_loss_coef * value_loss \
-                   + self.term_loss_coeff * term_loss
+                   + self.term_loss_coeff * termination_loss
 
             # Update batch values
 
