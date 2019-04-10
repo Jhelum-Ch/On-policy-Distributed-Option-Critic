@@ -24,18 +24,18 @@ class Agent:
 
         with torch.no_grad():
             if self.acmodel.recurrent and self.num_options > 1:
-                action, act_dist, _, memory, term_dist = self.acmodel(preprocessed_obss, self.memories)
+                act_dist, _, memory, term_dist = self.acmodel(preprocessed_obss, self.memories)
             elif self.acmodel.recurrent and not self.num_options > 1:
-                action, act_dist, _, memory = self.acmodel(preprocessed_obss, self.memories)
+                act_dist, _, memory = self.acmodel(preprocessed_obss, self.memories)
             elif not self.acmodel.recurrent and self.num_options > 1:
-                action, act_dist, _, term_dist = self.acmodel(preprocessed_obss)
+                act_dist, _, term_dist = self.acmodel(preprocessed_obss)
             else:
-                action, act_dist, _ = self.acmodel(preprocessed_obss)
+                act_dist, _ = self.acmodel(preprocessed_obss)
 
         if self.argmax:
             actions = act_dist.probs.max(1, keepdim=True)[1]
         else:
-            actions = action
+            actions = act_dist.sample()
 
         if torch.cuda.is_available():
             actions = actions.cpu().numpy()

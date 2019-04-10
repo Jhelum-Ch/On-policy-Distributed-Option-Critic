@@ -311,7 +311,7 @@ class BaseAlgo(ABC):
 
         else:
             exps.value = self.values[:-1].transpose(0, 1).reshape(-1)
-            exps.returnn = exps[:-1].value + exps[:-1].advantage
+            exps.returnn = exps.value + exps.advantage
 
         # Preprocess experiences
 
