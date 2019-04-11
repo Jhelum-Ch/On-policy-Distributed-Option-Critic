@@ -47,34 +47,35 @@ class OCAlgo(BaseAlgo):
 
             sb = exps[inds + i]
 
-            # Compute loss
-
-            #TODO: 2 tricks from the OC paper:
-            # (1) option stretching
-            # (2) option baseline
+            # Forward propagation
 
             if self.acmodel.recurrent:
-                act_dist, value, memory, term_dist = self.acmodel(sb.obs, memory * sb.mask)
+                act_dist, act_values, memory, term_dist = self.acmodel(sb.obs, memory * sb.mask)
             else:
-                act_dist, value, _, term_dist = self.acmodel(sb.obs)
+                act_dist, act_values, _, term_dist = self.acmodel(sb.obs)
+
+            # Compute losses
 
             entropy = act_dist.entropy().mean()
 
-            policy_loss = -(act_dist.log_prob(sb.action) * (sb.value_s_w_a.detach() - sb.value_s_w.detach())).mean()
+            act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, 4))[range(sb.action.shape[0]), sb.current_options]
+            policy_loss = -(act_log_probs * (sb.value_s_w_a - sb.value_s_w)).mean()
 
-            value_loss = None # TODO
+            Q_U_swa = act_values[range(sb.action.shape[0]), sb.current_options, sb.action.long()]
+            value_loss = (Q_U_swa - sb.delta).pow(2).mean()
 
-            termination_loss = term_dist.probs * (sb.advantage.detach() + self.termination_reg)
+            term_prob = term_dist.probs[range(sb.action.shape[0]), sb.current_options]
+            termination_loss = (term_prob * (sb.advantage + self.termination_reg)).mean()
 
             loss = policy_loss \
                    - self.entropy_coef * entropy \
                    + self.value_loss_coef * value_loss \
-                   + self.term_loss_coeff * termination_loss
+                   + self.term_loss_coef * termination_loss
 
             # Update batch values
 
             update_entropy += entropy.item()
-            update_value += value.mean().item()
+            update_value += Q_U_swa.mean().item()
             update_policy_loss += policy_loss.item()
             update_value_loss += value_loss.item()
             update_loss += loss

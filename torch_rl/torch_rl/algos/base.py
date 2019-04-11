@@ -70,7 +70,7 @@ class BaseAlgo(ABC):
         self.preprocess_obss = preprocess_obss or default_preprocess_obss
         self.reshape_reward = reshape_reward
         self.num_options = num_options
-        self.termination_loss_coef = termination_loss_coef
+        self.term_loss_coef = termination_loss_coef
         self.termination_reg = termination_reg
         self.option_epsilon = option_epsilon
 
@@ -258,7 +258,7 @@ class BaseAlgo(ABC):
         for i in reversed(range(self.num_frames_per_proc)):
             if self.num_options > 1:
 
-                self.deltas[i] = self.rewards[i] - self.values_s_w_a[i] + \
+                self.deltas[i] = self.rewards[i] + \
                         (1. - self.done_masks[i+1]) * (1. - self.terminates[i+1]) * \
                         (
                                 self.discount * (1. - self.terminates_prob[i+1]) * self.values_s_w[i+1] +
@@ -298,7 +298,7 @@ class BaseAlgo(ABC):
         exps.advantage = self.advantages[:-1].transpose(0, 1).reshape(-1)
         exps.log_prob = self.log_probs[:-1].transpose(0, 1).reshape(-1)
         if self.num_options > 1:
-            exps.current_options = self.current_options[:-1].transpose(0, 1).reshape(-1)
+            exps.current_options = self.current_options[:-1].transpose(0, 1).reshape(-1).long()
 
             exps.terminate = self.terminates[:-1].transpose(0, 1).reshape(-1)
             exps.terminate_prob = self.terminates_prob[:-1].transpose(0, 1).reshape(-1)
