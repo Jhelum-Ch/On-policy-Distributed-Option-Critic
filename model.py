@@ -99,7 +99,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         embedding, new_memory =self._embed_observation(obs, memory)
 
         x = self.actor(embedding).view((-1, self.num_options, self.num_actions)) if self.num_options is not None else self.actor(embedding)
-        act_dist = Categorical(logits=F.log_softmax(x, dim=1))
+        act_dist = Categorical(logits=F.log_softmax(x, dim=-1))
 
         x = self.critic(embedding)
         value = x.view((-1, self.num_options, self.num_actions)) if self.num_options is not None else x.squeeze(1)
