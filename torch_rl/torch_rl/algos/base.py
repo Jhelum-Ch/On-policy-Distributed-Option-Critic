@@ -114,7 +114,7 @@ class BaseAlgo(ABC):
         self.log_probs = torch.zeros(*shape, device=self.device)
 
         if self.num_options is not None:
-            self.current_option = torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float)
+            self.current_option = torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float)  # TODO: get rid of that
             self.current_options = torch.zeros(*shape, device=self.device)
 
             self.terminates = torch.zeros(*shape, device=self.device)
@@ -180,6 +180,39 @@ class BaseAlgo(ABC):
                 else:
                     act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
 
+                # option-critic specific computations
+
+                if self.num_options is not None:
+
+                    # check termination
+
+                    terminate = term_dist.sample()[range(self.num_procs), self.current_option.long()]
+
+                    # get option values for current state
+
+                    Q_omega_sw = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)
+
+                    # select option (for those that terminate)
+
+                    x = torch.rand(self.num_procs)
+                    y = self.option_epsilon
+
+                    random_mask = terminate * (x < y).float()
+                    chosen_mask = terminate * (1. - random_mask)
+                    assert all(torch.ones(self.num_procs) == random_mask + chosen_mask + (1. - terminate))
+
+                    random_options = random_mask * torch.randint(self.num_options, size=(self.num_procs,)).float()
+                    chosen_options = chosen_mask * torch.argmax(Q_omega_sw, dim=self.opt_dim).squeeze().float()
+                    current_option = random_options + chosen_options + (1. - terminate) * self.current_option
+
+                    # compute useful quantities
+
+                    Q_omega_sw = Q_omega_sw[range(self.num_procs), self.current_option.long()]
+                    V_omega_s = torch.max(torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True),
+                                          dim=self.opt_dim,
+                                          keepdim=True
+                                          )[0]
+
                 # select action
 
                 action = act_dist.sample()
@@ -189,30 +222,6 @@ class BaseAlgo(ABC):
                 # environment setp
 
                 obs, reward, done, _ = self.env.step(action.cpu().numpy())
-
-                # compute OC-specific quantities
-
-                if self.num_options is not None:
-                    all_Q_omega_sw = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)
-
-                    terminate = term_dist.sample()[range(self.num_procs), self.current_option.long()]
-
-                    # change current_option w.r.t. termination
-
-                    random_mask = terminate * (torch.rand(self.num_procs) < self.option_epsilon).float()
-                    chosen_mask = terminate * (1. - random_mask)
-                    assert all(torch.ones(self.num_procs) == random_mask + chosen_mask + (1. - terminate))
-
-                    random_options = random_mask * torch.randint(self.num_options, size=(self.num_procs,)).float()
-                    chosen_options = chosen_mask * torch.argmax(all_Q_omega_sw, dim=self.opt_dim).squeeze().float()
-                    self.current_option = random_options + chosen_options + (1. - terminate) * self.current_option
-
-                    # compute option values
-
-                    Q_U_swa    = act_values[range(self.num_procs), self.current_option.long(), action]
-                    Q_omega_sw = all_Q_omega_sw[range(self.num_procs), self.current_option.long()]
-                    x = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)
-                    V_omega_s = torch.max(x, dim=self.opt_dim, keepdim=True)[0]
 
                 # Update experiences values
 
@@ -234,7 +243,6 @@ class BaseAlgo(ABC):
                     self.rewards[i] = torch.tensor(reward, device=self.device)
 
                 if self.num_options is not None:
-                    self.values_swa[i] = Q_U_swa
                     self.values_sw[i]  = Q_omega_sw.squeeze()
                     self.values_s[i]   = V_omega_s.squeeze()
 
@@ -243,6 +251,7 @@ class BaseAlgo(ABC):
                     self.terminates[i] = terminate
 
                     self.current_options[i] = self.current_option
+
                     # change current_option w.r.t. episode ending
                     self.current_option = self.current_option * (1. - self.done_mask) + self.done_mask * torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float)
 
@@ -273,10 +282,10 @@ class BaseAlgo(ABC):
                 if self.num_options is not None:
 
                     self.deltas[i] = self.rewards[i] + \
-                            (1. - self.done_masks[i+1]) * (1. - self.terminates[i+1]) * \
+                            (1. - self.done_masks[i+1]) * \
                             (
                                     self.discount * (1. - self.terminates_prob[i+1]) * self.values_sw[i+1] +
-                                    self.discount * self.terminates_prob[i+1] * torch.max(self.values_sw[i+1])
+                                    self.discount * self.terminates_prob[i+1] * torch.max(self.values_sw[i+1], dim=0)[0]
                             )
 
                     self.advantages[i] = self.values_sw[i+1] - self.values_s[i+1]
