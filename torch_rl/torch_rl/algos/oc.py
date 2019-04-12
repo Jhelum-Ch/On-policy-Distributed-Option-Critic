@@ -58,14 +58,14 @@ class OCAlgo(BaseAlgo):
 
             entropy = act_dist.entropy().mean()
 
-            act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, 4))[range(sb.action.shape[0]), sb.current_options]
-            policy_loss = -(act_log_probs * (sb.value_s_w_a - sb.value_s_w)).mean()
+            act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, self.num_options))[range(sb.action.shape[0]), sb.current_options]
+            policy_loss = -(act_log_probs * (sb.value_swa - sb.value_sw)).mean()
 
             Q_U_swa = act_values[range(sb.action.shape[0]), sb.current_options, sb.action.long()]
             value_loss = (Q_U_swa - sb.delta).pow(2).mean()
 
             term_prob = term_dist.probs[range(sb.action.shape[0]), sb.current_options]
-            termination_loss = (term_prob * (sb.advantage + self.termination_reg)).mean()
+            termination_loss = - (term_prob * (sb.advantage + self.termination_reg)).mean()
 
             loss = policy_loss \
                    - self.entropy_coef * entropy \
