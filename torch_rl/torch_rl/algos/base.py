@@ -243,6 +243,7 @@ class BaseAlgo(ABC):
                     self.rewards[i] = torch.tensor(reward, device=self.device)
 
                 if self.num_options is not None:
+                    self.values_swa[i] = act_values[range(self.num_procs), self.current_option.long(), action]
                     self.values_sw[i]  = Q_omega_sw.squeeze()
                     self.values_s[i]   = V_omega_s.squeeze()
 
