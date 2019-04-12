@@ -10,7 +10,7 @@ class BaseAlgo(ABC):
 
     def __init__(self, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
-                 num_options=1, termination_loss_coef=None, termination_reg=None, option_epsilon=0.05):
+                 num_options=None, termination_loss_coef=None, termination_reg=None, option_epsilon=0.05):
         """
         Initializes a `BaseAlgo` instance.
 
@@ -77,7 +77,7 @@ class BaseAlgo(ABC):
 
         # Dimension convention
 
-        if self.num_options > 1:
+        if self.num_options is not None:
             self.batch_dim = 0
             self.opt_dim = 1
             self.act_dim = 2
@@ -113,15 +113,15 @@ class BaseAlgo(ABC):
         self.advantages = torch.zeros(*shape, device=self.device)
         self.log_probs = torch.zeros(*shape, device=self.device)
 
-        if self.num_options > 1:
+        if self.num_options is not None:
             self.current_option = torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float)
             self.current_options = torch.zeros(*shape, device=self.device)
 
             self.terminates = torch.zeros(*shape, device=self.device)
             self.terminates_prob = torch.zeros(*shape, device=self.device)
 
-            self.values_s_w_a = torch.zeros(*shape, device=self.device)
-            self.values_s_w = torch.zeros(*shape, device=self.device)
+            self.values_swa = torch.zeros(*shape, device=self.device)
+            self.values_sw = torch.zeros(*shape, device=self.device)
             self.values_s = torch.zeros(*shape, device=self.device)
 
             self.deltas = torch.zeros(*shape, device=self.device)
@@ -165,173 +165,187 @@ class BaseAlgo(ABC):
                             "If no reccurence is used, we will still have self.recurrence=True"
                             "but self.acmodel.use_memory will be set to False.")
 
-        rollout_length = len(self.obss)
-        for i in range(rollout_length):
-            # Do one agent-environment interaction
+        with torch.no_grad():
 
-            preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
+            rollout_length = len(self.obss)
+            for i in range(rollout_length):
 
-            with torch.no_grad():
-                if self.num_options > 1:
+                # Do one agent-environment interaction
+
+                preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
+
+                if self.num_options is not None:
                     act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
 
                 else:
                     act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
 
-            # select action
-            action = act_dist.sample()
-            if self.num_options > 1:
-                action = action[range(self.num_procs), self.current_option.long()]
+                # select action
 
-            # environment setp
+                action = act_dist.sample()
+                if self.num_options is not None:
+                    action = action[range(self.num_procs), self.current_option.long()]
 
-            obs, reward, done, _ = self.env.step(action.cpu().numpy())
+                # environment setp
 
-            # compute OC-specific quantities
+                obs, reward, done, _ = self.env.step(action.cpu().numpy())
 
-            if self.num_options > 1:
-                Q_omega_sw = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)
+                # compute OC-specific quantities
 
-                terminate = term_dist.sample()[range(self.num_procs), self.current_option.long()]
-                # change current_option w.r.t. termination
-                self.current_option = (self.current_option * (1. - terminate)) + (terminate * torch.argmax(Q_omega_sw, dim=self.opt_dim).squeeze().float())
+                if self.num_options is not None:
+                    all_Q_omega_sw = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)
 
-                Q_U_swa    = act_values[range(self.num_procs), self.current_option.long(), action]
-                Q_omega_sw = Q_omega_sw[range(self.num_procs), self.current_option.long(), :]
-                V_omega_s  = torch.mean(torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True), dim=self.opt_dim, keepdim=True)
+                    terminate = term_dist.sample()[range(self.num_procs), self.current_option.long()]
 
-            # Update experiences values
+                    # change current_option w.r.t. termination
 
-            self.obss[i] = self.obs
-            self.obs = obs
+                    random_mask = terminate * (torch.rand(self.num_procs) < self.option_epsilon).float()
+                    chosen_mask = terminate * (1. - random_mask)
+                    assert all(torch.ones(self.num_procs) == random_mask + chosen_mask + (1. - terminate))
+
+                    random_options = random_mask * torch.randint(self.num_options, size=(self.num_procs,)).float()
+                    chosen_options = chosen_mask * torch.argmax(all_Q_omega_sw, dim=self.opt_dim).squeeze().float()
+                    self.current_option = random_options + chosen_options + (1. - terminate) * self.current_option
+
+                    # compute option values
+
+                    Q_U_swa    = act_values[range(self.num_procs), self.current_option.long(), action]
+                    Q_omega_sw = all_Q_omega_sw[range(self.num_procs), self.current_option.long()]
+                    x = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)
+                    V_omega_s = torch.max(x, dim=self.opt_dim, keepdim=True)[0]
+
+                # Update experiences values
+
+                self.obss[i] = self.obs
+                self.obs = obs
+                if self.acmodel.recurrent:
+                    self.memories[i] = self.memory
+                    self.memory = memory
+                self.done_masks[i] = self.done_mask
+                self.done_mask = 1 - torch.tensor(done, device=self.device, dtype=torch.float)
+                self.actions[i] = action
+
+                if self.reshape_reward is not None:
+                    self.rewards[i] = torch.tensor([
+                        self.reshape_reward(obs_, action_, reward_, done_)
+                        for obs_, action_, reward_, done_ in zip(obs, action, reward, done)
+                    ], device=self.device)
+                else:
+                    self.rewards[i] = torch.tensor(reward, device=self.device)
+
+                if self.num_options is not None:
+                    self.values_swa[i] = Q_U_swa
+                    self.values_sw[i]  = Q_omega_sw.squeeze()
+                    self.values_s[i]   = V_omega_s.squeeze()
+
+                    self.log_probs[i] = act_dist.logits[range(self.num_procs), self.current_option.long(), action]
+                    self.terminates_prob[i] = term_dist.probs[range(self.num_procs), self.current_option.long()]
+                    self.terminates[i] = terminate
+
+                    self.current_options[i] = self.current_option
+                    # change current_option w.r.t. episode ending
+                    self.current_option = self.current_option * (1. - self.done_mask) + self.done_mask * torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float)
+
+                else:
+                    self.values[i] = state_value
+                    self.log_probs[i] = act_dist.log_prob(action)
+
+                # Update log values
+
+                self.log_episode_return += torch.tensor(reward, device=self.device, dtype=torch.float)
+                self.log_episode_reshaped_return += self.rewards[i]
+                self.log_episode_num_frames += torch.ones(self.num_procs, device=self.device)
+
+                for i, done_ in enumerate(done):
+                    if done_:
+                        self.log_done_counter += 1
+                        self.log_return.append(self.log_episode_return[i].item())
+                        self.log_reshaped_return.append(self.log_episode_reshaped_return[i].item())
+                        self.log_num_frames.append(self.log_episode_num_frames[i].item())
+
+                self.log_episode_return *= self.done_mask
+                self.log_episode_reshaped_return *= self.done_mask
+                self.log_episode_num_frames *= self.done_mask
+
+            # Add advantage and return to experiences
+
+            for i in reversed(range(self.num_frames_per_proc)):
+                if self.num_options is not None:
+
+                    self.deltas[i] = self.rewards[i] + \
+                            (1. - self.done_masks[i+1]) * (1. - self.terminates[i+1]) * \
+                            (
+                                    self.discount * (1. - self.terminates_prob[i+1]) * self.values_sw[i+1] +
+                                    self.discount * self.terminates_prob[i+1] * torch.max(self.values_sw[i+1])
+                            )
+
+                    self.advantages[i] = self.values_sw[i+1] - self.values_s[i+1]
+
+                else:
+                    next_mask = self.done_masks[i + 1]
+                    next_value = self.values[i+1]
+                    next_advantage = self.advantages[i+1] if i < self.num_frames_per_proc else 0
+
+                    delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
+                    self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
+
+            # Define experiences:
+            #   the whole experience is the concatenation of the experience
+            #   of each process.
+            # In comments below:
+            #   - T is self.num_frames_per_proc,
+            #   - P is self.num_procs,
+            #   - D is the dimensionality.
+
+            exps = DictList()
+            exps.obs = [self.obss[i][j]
+                        for j in range(self.num_procs)
+                        for i in range(self.num_frames_per_proc)]
             if self.acmodel.recurrent:
-                self.memories[i] = self.memory
-                self.memory = memory
-            self.done_masks[i] = self.done_mask
-            self.done_mask = 1 - torch.tensor(done, device=self.device, dtype=torch.float)
-            self.actions[i] = action
+                # T x P x D -> P x T x D -> (P * T) x D
+                exps.memory = self.memories[:-1].transpose(0, 1).reshape(-1, *self.memories.shape[2:])
+                # T x P -> P x T -> (P * T) x 1
+                exps.mask = self.done_masks[:-1].transpose(0, 1).reshape(-1).unsqueeze(1)
+            # for all tensors below, T x P -> P x T -> P * T
+            exps.action = self.actions[:-1].transpose(0, 1).reshape(-1)
+            exps.reward = self.rewards[:-1].transpose(0, 1).reshape(-1)
+            exps.advantage = self.advantages[:-1].transpose(0, 1).reshape(-1)
+            exps.log_prob = self.log_probs[:-1].transpose(0, 1).reshape(-1)
+            if self.num_options is not None:
+                exps.current_options = self.current_options[:-1].transpose(0, 1).reshape(-1).long()
 
-            if self.reshape_reward is not None:
-                self.rewards[i] = torch.tensor([
-                    self.reshape_reward(obs_, action_, reward_, done_)
-                    for obs_, action_, reward_, done_ in zip(obs, action, reward, done)
-                ], device=self.device)
-            else:
-                self.rewards[i] = torch.tensor(reward, device=self.device)
+                exps.terminate = self.terminates[:-1].transpose(0, 1).reshape(-1)
+                exps.terminate_prob = self.terminates_prob[:-1].transpose(0, 1).reshape(-1)
 
-            if self.num_options > 1:
-                self.values_s_w_a[i] = Q_U_swa
-                self.values_s_w[i]   = Q_omega_sw.squeeze()
-                self.values_s[i]     = V_omega_s.squeeze()
+                exps.value_swa = self.values_swa[:-1].transpose(0, 1).reshape(-1)
+                exps.value_sw = self.values_sw[:-1].transpose(0, 1).reshape(-1)
+                exps.value_s = self.values_s[:-1].transpose(0, 1).reshape(-1)
 
-                self.log_probs[i] = act_dist.logits[range(self.num_procs), self.current_option.long(), action]
-                self.terminates_prob[i] = term_dist.probs[range(self.num_procs), self.current_option.long()]
-                self.terminates[i] = terminate
-
-                self.current_options[i] = self.current_option
-                # change current_option w.r.t. episode ending
-                self.current_option = (self.current_option * (1. - self.done_mask)) + (self.done_mask * torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float))
+                exps.delta = self.deltas[:-1].transpose(0, 1).reshape(-1)
 
             else:
-                self.values[i] = state_value
-                self.log_probs[i] = act_dist.log_prob(action)
+                exps.value = self.values[:-1].transpose(0, 1).reshape(-1)
+                exps.returnn = exps.value + exps.advantage
 
-            # Update log values
+            # Preprocess experiences
 
-            self.log_episode_return += torch.tensor(reward, device=self.device, dtype=torch.float)
-            self.log_episode_reshaped_return += self.rewards[i]
-            self.log_episode_num_frames += torch.ones(self.num_procs, device=self.device)
+            exps.obs = self.preprocess_obss(exps.obs, device=self.device)
 
-            for i, done_ in enumerate(done):
-                if done_:
-                    self.log_done_counter += 1
-                    self.log_return.append(self.log_episode_return[i].item())
-                    self.log_reshaped_return.append(self.log_episode_reshaped_return[i].item())
-                    self.log_num_frames.append(self.log_episode_num_frames[i].item())
+            # Log some values
 
-            self.log_episode_return *= self.done_mask
-            self.log_episode_reshaped_return *= self.done_mask
-            self.log_episode_num_frames *= self.done_mask
+            keep = max(self.log_done_counter, self.num_procs)
 
-        # Add advantage and return to experiences
+            log = {
+                "return_per_episode": self.log_return[-keep:],
+                "reshaped_return_per_episode": self.log_reshaped_return[-keep:],
+                "num_frames_per_episode": self.log_num_frames[-keep:],
+                "num_frames": self.num_frames
+            }
 
-        for i in reversed(range(self.num_frames_per_proc)):
-            if self.num_options > 1:
-
-                self.deltas[i] = self.rewards[i] + \
-                        (1. - self.done_masks[i+1]) * (1. - self.terminates[i+1]) * \
-                        (
-                                self.discount * (1. - self.terminates_prob[i+1]) * self.values_s_w[i+1] +
-                                self.discount * self.terminates_prob[i+1] * torch.max(self.values_s_w[i+1])
-                        )
-
-                self.advantages[i] = self.values_s_w[i+1] - self.values_s[i+1]
-
-            else:
-                next_mask = self.done_masks[i + 1]
-                next_value = self.values[i+1]
-                next_advantage = self.advantages[i+1] if i < self.num_frames_per_proc else 0
-
-                delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
-                self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
-
-        # Define experiences:
-        #   the whole experience is the concatenation of the experience
-        #   of each process.
-        # In comments below:
-        #   - T is self.num_frames_per_proc,
-        #   - P is self.num_procs,
-        #   - D is the dimensionality.
-
-        exps = DictList()
-        exps.obs = [self.obss[i][j]
-                    for j in range(self.num_procs)
-                    for i in range(self.num_frames_per_proc)]
-        if self.acmodel.recurrent:
-            # T x P x D -> P x T x D -> (P * T) x D
-            exps.memory = self.memories[:-1].transpose(0, 1).reshape(-1, *self.memories.shape[2:])
-            # T x P -> P x T -> (P * T) x 1
-            exps.mask = self.done_masks[:-1].transpose(0, 1).reshape(-1).unsqueeze(1)
-        # for all tensors below, T x P -> P x T -> P * T
-        exps.action = self.actions[:-1].transpose(0, 1).reshape(-1)
-        exps.reward = self.rewards[:-1].transpose(0, 1).reshape(-1)
-        exps.advantage = self.advantages[:-1].transpose(0, 1).reshape(-1)
-        exps.log_prob = self.log_probs[:-1].transpose(0, 1).reshape(-1)
-        if self.num_options > 1:
-            exps.current_options = self.current_options[:-1].transpose(0, 1).reshape(-1).long()
-
-            exps.terminate = self.terminates[:-1].transpose(0, 1).reshape(-1)
-            exps.terminate_prob = self.terminates_prob[:-1].transpose(0, 1).reshape(-1)
-
-            exps.value_s_w_a = self.values_s_w_a[:-1].transpose(0, 1).reshape(-1)
-            exps.value_s_w = self.values_s_w[:-1].transpose(0, 1).reshape(-1)
-            exps.value_s = self.values_s[:-1].transpose(0, 1).reshape(-1)
-
-            exps.delta = self.deltas[:-1].transpose(0, 1).reshape(-1)
-
-        else:
-            exps.value = self.values[:-1].transpose(0, 1).reshape(-1)
-            exps.returnn = exps.value + exps.advantage
-
-        # Preprocess experiences
-
-        exps.obs = self.preprocess_obss(exps.obs, device=self.device)
-
-        # Log some values
-
-        keep = max(self.log_done_counter, self.num_procs)
-
-        log = {
-            "return_per_episode": self.log_return[-keep:],
-            "reshaped_return_per_episode": self.log_reshaped_return[-keep:],
-            "num_frames_per_episode": self.log_num_frames[-keep:],
-            "num_frames": self.num_frames
-        }
-
-        self.log_done_counter = 0
-        self.log_return = self.log_return[-self.num_procs:]
-        self.log_reshaped_return = self.log_reshaped_return[-self.num_procs:]
-        self.log_num_frames = self.log_num_frames[-self.num_procs:]
+            self.log_done_counter = 0
+            self.log_return = self.log_return[-self.num_procs:]
+            self.log_reshaped_return = self.log_reshaped_return[-self.num_procs:]
+            self.log_num_frames = self.log_num_frames[-self.num_procs:]
 
         return exps, log
 

@@ -23,11 +23,11 @@ class Agent:
         preprocessed_obss = self.preprocess_obss(obss)
 
         with torch.no_grad():
-            if self.acmodel.recurrent and self.num_options > 1:
+            if self.acmodel.recurrent and self.num_options is not None:
                 act_dist, _, memory, term_dist = self.acmodel(preprocessed_obss, self.memories)
-            elif self.acmodel.recurrent and not self.num_options > 1:
+            elif self.acmodel.recurrent and not self.num_options is not None:
                 act_dist, _, memory = self.acmodel(preprocessed_obss, self.memories)
-            elif not self.acmodel.recurrent and self.num_options > 1:
+            elif not self.acmodel.recurrent and self.num_options is not None:
                 act_dist, _, term_dist = self.acmodel(preprocessed_obss)
             else:
                 act_dist, _ = self.acmodel(preprocessed_obss)

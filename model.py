@@ -61,7 +61,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             self.embedding_size += self.text_embedding_size
 
         # Define actor's model(s)
-        actor_output_size = self.num_actions * self.num_options if self.num_options > 1 else self.num_actions
+        actor_output_size = self.num_actions * self.num_options if self.num_options is not None else self.num_actions
         self.actor = nn.Sequential(
             nn.Linear(self.embedding_size, 64),
             nn.Tanh(),
@@ -69,7 +69,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         )
 
         # Define critic's model
-        critic_output_size = actor_output_size if self.num_options > 1 else 1
+        critic_output_size = actor_output_size if self.num_options is not None else 1
         self.critic = nn.Sequential(
             nn.Linear(self.embedding_size, 64),
             nn.Tanh(),
@@ -77,7 +77,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         )
 
         # Define termination functions and option policy (policy over option)
-        if self.num_options > 1:
+        if self.num_options is not None:
             self.term_fn = nn.Sequential(
                 nn.Linear(self.embedding_size, 64),
                 nn.Tanh(),
@@ -96,15 +96,15 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         return self.image_embedding_size
 
     def forward(self, obs, memory):
-        embedding, new_memory =self.embed_observation(obs, memory)
+        embedding, new_memory =self._embed_observation(obs, memory)
 
-        x = self.actor(embedding).view((-1, self.num_options, self.num_actions)) if self.num_options > 1 else self.actor(embedding)
+        x = self.actor(embedding).view((-1, self.num_options, self.num_actions)) if self.num_options is not None else self.actor(embedding)
         act_dist = Categorical(logits=F.log_softmax(x, dim=1))
 
         x = self.critic(embedding)
-        value = x.view((-1, self.num_options, self.num_actions)) if self.num_options > 1 else x.squeeze(1)
+        value = x.view((-1, self.num_options, self.num_actions)) if self.num_options is not None else x.squeeze(1)
 
-        if self.num_options > 1:
+        if self.num_options is not None:
             x = self.term_fn(embedding).view((-1, self.num_options))
             term_dist = Bernoulli(probs=F.sigmoid(x))
 
@@ -117,7 +117,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         _, hidden = self.text_rnn(self.word_embedding(text))
         return hidden[-1]
 
-    def embed_observation(self, obs, memory):
+    def _embed_observation(self, obs, memory):
         x = torch.transpose(torch.transpose(obs.image, 1, 3), 2, 3)
         x = self.image_conv(x)
         x = x.reshape(x.shape[0], -1)
