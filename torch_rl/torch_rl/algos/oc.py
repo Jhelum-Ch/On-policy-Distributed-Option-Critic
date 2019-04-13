@@ -62,7 +62,7 @@ class OCAlgo(BaseAlgo):
             policy_loss = -(act_log_probs * (sb.value_swa - sb.value_sw)).mean()
 
             Q_U_swa = act_values[range(sb.action.shape[0]), sb.current_options, sb.action.long()]
-            value_loss = (Q_U_swa - sb.delta).pow(2).mean()
+            value_loss = (Q_U_swa - sb.target).pow(2).mean()
 
             term_prob = term_dist.probs[range(sb.action.shape[0]), sb.current_options]
             termination_loss = (term_prob * (sb.advantage + self.termination_reg)).mean()

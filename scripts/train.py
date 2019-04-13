@@ -26,7 +26,7 @@ parser.add_argument("--algo", default='oc', #required=True,
                     help="algorithm to use: a2c | ppo | oc (REQUIRED)")
 parser.add_argument("--env", default='MiniGrid-DoorKey-5x5-v0', #required=True,
                     help="name of the environment to train on (REQUIRED)")
-parser.add_argument("--desc", default=None,
+parser.add_argument("--desc", default="",
                     help="string added as suffix to model_name to explain the experiment")
 parser.add_argument("--seed", type=int, default=1,
                     help="random seed (default: 1)")
@@ -38,7 +38,7 @@ parser.add_argument("--log-interval", type=int, default=1,
                     help="number of updates between two logs (default: 1)")
 parser.add_argument("--save-interval", type=int, default=10,
                     help="number of updates between two saves (default: 0, 0 means no saving)")
-parser.add_argument("--tb", action="store_true", default=False,
+parser.add_argument("--tb", action="store_true", default=True,
                     help="log into Tensorboard")
 parser.add_argument("--frames-per-proc", type=int, default=None,
                     help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
@@ -70,7 +70,7 @@ parser.add_argument("--text", action="store_true", default=False,
                     help="add a GRU to the model to handle text input")
 parser.add_argument("--auto-resume", action="store_true", default=False,
                     help="whether to automatically resume training when lauching the script on existing model")
-parser.add_argument("--num-options", type=int, default=4,
+parser.add_argument("--num-options", type=int, default=None,
                     help="number of options (default: 1, 1 means no options)")
 parser.add_argument("--termination-loss-coef", type=float, default=0.5,
                     help="termination loss term coefficient (default: 0.5)")
@@ -79,7 +79,7 @@ parser.add_argument("--termination-reg", type=float, default=0.01,
 args = parser.parse_args()
 args.mem = args.recurrence > 1
 
-if args.algo in ['a2c', 'ppo']: assert args.num_options == 1
+if args.algo in ['a2c', 'ppo']: assert args.num_options is None
 
 # Define run dir
 
