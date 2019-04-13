@@ -123,8 +123,9 @@ class BaseAlgo(ABC):
             self.values_swa = torch.zeros(*shape, device=self.device)
             self.values_sw = torch.zeros(*shape, device=self.device)
             self.values_s = torch.zeros(*shape, device=self.device)
+            self.values_sw_max = torch.zeros(*shape, device=self.device)
 
-            self.deltas = torch.zeros(*shape, device=self.device)
+            self.targets = torch.zeros(*shape, device=self.device)
 
         else:
             self.values = torch.zeros(*shape, device=self.device)
@@ -190,7 +191,8 @@ class BaseAlgo(ABC):
 
                     # get option values for current state
 
-                    Q_omega_sw = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)
+                    all_Q_omega_sw = torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True)
+                    Q_omega_sw_max, Q_omega_sw_argmax = torch.max(all_Q_omega_sw, dim=self.opt_dim, keepdim=True)
 
                     # select option (for those that terminate)
 
@@ -202,16 +204,16 @@ class BaseAlgo(ABC):
                     assert all(torch.ones(self.num_procs) == random_mask + chosen_mask + (1. - terminate))
 
                     random_options = random_mask * torch.randint(self.num_options, size=(self.num_procs,)).float()
-                    chosen_options = chosen_mask * torch.argmax(Q_omega_sw, dim=self.opt_dim).squeeze().float()
-                    current_option = random_options + chosen_options + (1. - terminate) * self.current_option
+                    chosen_options = chosen_mask * Q_omega_sw_argmax.squeeze().float()
+                    self.current_option = random_options + chosen_options + (1. - terminate) * self.current_option
 
                     # compute useful quantities
 
-                    Q_omega_sw = Q_omega_sw[range(self.num_procs), self.current_option.long()]
-                    V_omega_s = torch.max(torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True),
-                                          dim=self.opt_dim,
-                                          keepdim=True
-                                          )[0]
+                    Q_omega_sw  = all_Q_omega_sw[range(self.num_procs), self.current_option.long()]
+                    V_omega_s   = torch.max(torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True),
+                                            dim=self.opt_dim,
+                                            keepdim=True
+                                            )[0]
 
                 # select action
 
@@ -243,9 +245,10 @@ class BaseAlgo(ABC):
                     self.rewards[i] = torch.tensor(reward, device=self.device)
 
                 if self.num_options is not None:
-                    self.values_swa[i] = act_values[range(self.num_procs), self.current_option.long(), action]
+                    self.values_swa[i] = act_values[range(self.num_procs), self.current_option.long(), action].squeeze()
                     self.values_sw[i]  = Q_omega_sw.squeeze()
                     self.values_s[i]   = V_omega_s.squeeze()
+                    self.values_sw_max[i] = Q_omega_sw_max.squeeze()
 
                     self.log_probs[i] = act_dist.logits[range(self.num_procs), self.current_option.long(), action]
                     self.terminates_prob[i] = term_dist.probs[range(self.num_procs), self.current_option.long()]
@@ -282,12 +285,16 @@ class BaseAlgo(ABC):
             for i in reversed(range(self.num_frames_per_proc)):
                 if self.num_options is not None:
 
-                    self.deltas[i] = self.rewards[i] + \
-                            (1. - self.done_masks[i+1]) * \
-                            (
-                                    self.discount * (1. - self.terminates_prob[i+1]) * self.values_sw[i+1] +
-                                    self.discount * self.terminates_prob[i+1] * torch.max(self.values_sw[i+1], dim=0)[0]
-                            )
+                    # target for q-learning objective
+
+                    self.targets[i] = self.rewards[i] + \
+                                     (1. - self.done_masks[i+1]) * self.discount * \
+                                     (
+                                             (1. - self.terminates_prob[i+1]) * self.values_sw[i+1] + \
+                                             self.terminates_prob[i+1] * self.values_sw_max[i+1]
+                                     )
+
+                    # option-advantage
 
                     self.advantages[i] = self.values_sw[i+1] - self.values_s[i+1]
 
@@ -331,7 +338,7 @@ class BaseAlgo(ABC):
                 exps.value_sw = self.values_sw[:-1].transpose(0, 1).reshape(-1)
                 exps.value_s = self.values_s[:-1].transpose(0, 1).reshape(-1)
 
-                exps.delta = self.deltas[:-1].transpose(0, 1).reshape(-1)
+                exps.target = self.targets[:-1].transpose(0, 1).reshape(-1)
 
             else:
                 exps.value = self.values[:-1].transpose(0, 1).reshape(-1)
