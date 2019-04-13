@@ -8,6 +8,7 @@ import datetime
 import torch
 import torch_rl
 import sys
+import os
 from pathlib import Path
 
 if USE_TEAMGRID:
@@ -25,8 +26,8 @@ parser.add_argument("--algo", default='oc', #required=True,
                     help="algorithm to use: a2c | ppo | oc (REQUIRED)")
 parser.add_argument("--env", default='MiniGrid-DoorKey-5x5-v0', #required=True,
                     help="name of the environment to train on (REQUIRED)")
-parser.add_argument("--model", default="DEBUG",
-                    help="name of the model (default: {ENV}_{ALGO}_{TIME})")
+parser.add_argument("--desc", default=None,
+                    help="string added as suffix to model_name to explain the experiment")
 parser.add_argument("--seed", type=int, default=1,
                     help="random seed (default: 1)")
 parser.add_argument("--procs", type=int, default=16,
@@ -82,9 +83,9 @@ if args.algo in ['a2c', 'ppo']: assert args.num_options == 1
 
 # Define run dir
 
-suffix = datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")
-default_model_name = "{}_{}_seed{}_{}".format(args.env, args.algo, args.seed, suffix)
-model_name = args.model or default_model_name
+git_hash = "{0}_{1}".format(utils.get_git_hash(path='.'),
+                            utils.get_git_hash(path=str(os.path.dirname(gym_minigrid.__file__))))
+model_name = f"{git_hash}_{args.algo.upper()}_{args.env}_{args.desc}"
 model_dir = utils.get_model_dir(model_name)
 
 # Define logger, CSV writer and Tensorboard writer
@@ -141,6 +142,10 @@ logger.info("{}\n".format(acmodel))
 if torch.cuda.is_available():
     acmodel.cuda()
 logger.info("CUDA available: {}\n".format(torch.cuda.is_available()))
+
+# Saves config
+
+utils.save_config_to_json(args, filename=Path(model_dir)/"args.json")
 
 # Define actor-critic algo
 

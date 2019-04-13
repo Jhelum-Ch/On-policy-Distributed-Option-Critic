@@ -4,6 +4,7 @@ import torch
 import json
 import logging
 import sys
+import subprocess
 
 import utils
 
@@ -64,3 +65,16 @@ def get_csv_writer(model_dir):
     utils.create_folders_if_necessary(csv_path)
     csv_file = open(csv_path, "a")
     return csv_file, csv.writer(csv_file)
+
+def get_git_hash(path):
+    return subprocess.check_output(["git", "-C", path, "rev-parse", "--short", "HEAD"]).decode("utf-8").strip()
+
+def save_config_to_json(config, filename):
+    """
+    Saves a set of commandline arguments (config) to json file
+    :param config: parser.parse_args() object
+    :param config: full filename to json file in which to save config
+    :return: None
+    """
+    with open(filename, 'w+') as f:
+        json.dump(vars(config), f)
