@@ -196,10 +196,7 @@ class BaseAlgo(ABC):
 
                     # select option (for those that terminate)
 
-                    x = torch.rand(self.num_procs)
-                    y = self.option_epsilon
-
-                    random_mask = terminate * (x < y).float()
+                    random_mask = terminate * (torch.rand(self.num_procs) < self.option_epsilon).float()
                     chosen_mask = terminate * (1. - random_mask)
                     assert all(torch.ones(self.num_procs) == random_mask + chosen_mask + (1. - terminate))
 
@@ -210,10 +207,7 @@ class BaseAlgo(ABC):
                     # compute useful quantities
 
                     Q_omega_sw  = all_Q_omega_sw[range(self.num_procs), self.current_option.long()]
-                    V_omega_s   = torch.max(torch.sum(act_dist.probs * act_values, dim=self.act_dim, keepdim=True),
-                                            dim=self.opt_dim,
-                                            keepdim=True
-                                            )[0]
+                    V_omega_s   = Q_omega_sw_max
 
                 # select action
 
@@ -233,7 +227,7 @@ class BaseAlgo(ABC):
                     self.memories[i] = self.memory
                     self.memory = memory
                 self.done_masks[i] = self.done_mask
-                self.done_mask = 1 - torch.tensor(done, device=self.device, dtype=torch.float)
+                self.done_mask = torch.tensor(done, device=self.device, dtype=torch.float)
                 self.actions[i] = action
 
                 if self.reshape_reward is not None:
@@ -303,8 +297,8 @@ class BaseAlgo(ABC):
                     next_value = self.values[i+1]
                     next_advantage = self.advantages[i+1] if i < self.num_frames_per_proc else 0
 
-                    delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
-                    self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
+                    delta = self.rewards[i] + self.discount * next_value * (1. - next_mask) - self.values[i]
+                    self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * (1. - next_mask)
 
             # Define experiences:
             #   the whole experience is the concatenation of the experience
