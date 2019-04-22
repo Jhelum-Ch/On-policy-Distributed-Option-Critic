@@ -136,5 +136,5 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
         return embedding, memory
 
-    def choose_option(self, opt_values):
-        self.curr_opt = torch.argmax(opt_values, dim=1)
+    def get_number_of_params(self):
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)

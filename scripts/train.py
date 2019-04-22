@@ -10,6 +10,7 @@ import torch_rl
 import sys
 import os
 from pathlib import Path
+import numpy as np
 
 if USE_TEAMGRID:
     import teamgrid
@@ -70,7 +71,7 @@ parser.add_argument("--text", action="store_true", default=False,
                     help="add a GRU to the model to handle text input")
 parser.add_argument("--auto-resume", action="store_true", default=False,
                     help="whether to automatically resume training when lauching the script on existing model")
-parser.add_argument("--num-options", type=int, default=None,
+parser.add_argument("--num-options", type=int, default=1,
                     help="number of options (default: 1, 1 means no options)")
 parser.add_argument("--termination-loss-coef", type=float, default=0.5,
                     help="termination loss term coefficient (default: 0.5)")
@@ -138,6 +139,7 @@ else:
     acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text, args.num_options)
     logger.info("Model successfully created\n")
 logger.info("{}\n".format(acmodel))
+logger.info(f"Numer of params: {acmodel.get_number_of_params()}")
 
 if torch.cuda.is_available():
     acmodel.cuda()
