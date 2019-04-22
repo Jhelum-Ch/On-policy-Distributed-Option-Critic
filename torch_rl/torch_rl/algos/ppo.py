@@ -26,7 +26,7 @@ class PPOAlgo(BaseAlgo):
         self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=adam_eps)
         self.batch_num = 0
 
-    def update_parameters(self):
+    def update_parameters(self, update_i):
         # Collect experiences
 
         exps, logs = self.collect_experiences()

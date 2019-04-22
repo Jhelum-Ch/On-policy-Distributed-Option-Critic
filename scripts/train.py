@@ -84,6 +84,10 @@ def get_training_args(overwritten_args=None):
                         help="termination loss term coefficient (default: 0.5)")
     parser.add_argument("--termination_reg", type=float, default=0.01,
                         help="termination regularization constant (default: 0.01)")
+    parser.add_argument("--tau", type=float, default=1.,
+                        help="Parameter for updating target model."
+                             "If tau > 1: a hard_update will be applied every tau updates "
+                             "If tau < 1: a soft_update will be applied every wrt tau")
 
     return parser.parse_args(overwritten_args)
 
@@ -182,7 +186,7 @@ def train(args, dir_manager=None, logger=None, pbar=None):
         algo = torch_rl.OCAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                                 args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
                                 args.optim_alpha, args.optim_eps, preprocess_obss,
-                                args.num_options, args.termination_loss_coef, args.termination_reg)
+                                args.num_options, args.termination_loss_coef, args.termination_reg, args.tau)
     else:
         raise ValueError("Incorrect algorithm name: {}".format(args.algo))
 
@@ -218,7 +222,7 @@ def train(args, dir_manager=None, logger=None, pbar=None):
         # Update model parameters
 
         update_start_time = time.time()
-        logs = algo.update_parameters()
+        logs = algo.update_parameters(update_i=update)
         update_end_time = time.time()
 
         num_frames += logs["num_frames"]

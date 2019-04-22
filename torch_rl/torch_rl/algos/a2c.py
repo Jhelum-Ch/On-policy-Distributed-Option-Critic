@@ -18,7 +18,7 @@ class A2CAlgo(BaseAlgo):
         self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
                                              alpha=rmsprop_alpha, eps=rmsprop_eps)
 
-    def update_parameters(self):
+    def update_parameters(self, update_i):
         # Collect experiences
 
         exps, logs = self.collect_experiences()

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import torch
-import numpy
+import copy
 
 from torch_rl.format import default_preprocess_obss
 from torch_rl.utils import DictList, ParallelEnv
@@ -10,7 +10,7 @@ class BaseAlgo(ABC):
 
     def __init__(self, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
-                 num_options=None, termination_loss_coef=None, termination_reg=None, option_epsilon=0.05):
+                 num_options=None, termination_loss_coef=None, termination_reg=None, tau=None, option_epsilon=0.05):
         """
         Initializes a `BaseAlgo` instance.
 
@@ -73,7 +73,12 @@ class BaseAlgo(ABC):
         self.term_loss_coef = termination_loss_coef
         self.termination_reg = termination_reg
         self.option_epsilon = option_epsilon
+        self.tau = tau
 
+        # Initializes target model to critic model
+
+        if self.num_options is not None:
+            self.acmodel.hard_update_target()
 
         # Dimension convention
 
@@ -124,6 +129,11 @@ class BaseAlgo(ABC):
             self.values_sw = torch.zeros(*shape, device=self.device)
             self.values_s = torch.zeros(*shape, device=self.device)
             self.values_sw_max = torch.zeros(*shape, device=self.device)
+
+            self.target_values_swa = torch.zeros(*shape, device=self.device)
+            self.target_values_sw = torch.zeros(*shape, device=self.device)
+            self.target_values_s = torch.zeros(*shape, device=self.device)
+            self.target_values_sw_max = torch.zeros(*shape, device=self.device)
 
             self.targets = torch.zeros(*shape, device=self.device)
 
@@ -176,7 +186,7 @@ class BaseAlgo(ABC):
                 preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
 
                 if self.num_options is not None:
-                    act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
+                    act_dist, act_values, memory, term_dist, target_act_values = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
 
                 else:
                     act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
@@ -208,6 +218,12 @@ class BaseAlgo(ABC):
 
                     Q_omega_sw  = all_Q_omega_sw[range(self.num_procs), self.current_option.long()]
                     V_omega_s   = Q_omega_sw_max
+
+                    target_all_Q_omega_sw = torch.sum(act_dist.probs * target_act_values, dim=self.act_dim, keepdim=True)
+                    target_Q_omega_sw_max, _ = torch.max(target_all_Q_omega_sw, dim=self.opt_dim, keepdim=True)
+
+                    target_Q_omega_sw  = target_all_Q_omega_sw[range(self.num_procs), self.current_option.long()]
+                    target_V_omega_s   = target_Q_omega_sw_max
 
                 # select action
 
@@ -243,6 +259,11 @@ class BaseAlgo(ABC):
                     self.values_sw[i]  = Q_omega_sw.squeeze()
                     self.values_s[i]   = V_omega_s.squeeze()
                     self.values_sw_max[i] = Q_omega_sw_max.squeeze()
+
+                    self.target_values_swa[i]    = target_act_values[range(self.num_procs), self.current_option.long(), action].squeeze()
+                    self.target_values_sw[i]     = target_Q_omega_sw.squeeze()
+                    self.target_values_s[i]      = target_V_omega_s.squeeze()
+                    self.target_values_sw_max[i] = target_Q_omega_sw_max.squeeze()
 
                     self.log_probs[i] = act_dist.logits[range(self.num_procs), self.current_option.long(), action]
                     self.terminates_prob[i] = term_dist.probs[range(self.num_procs), self.current_option.long()]
@@ -284,13 +305,13 @@ class BaseAlgo(ABC):
                     self.targets[i] = self.rewards[i] + \
                                      (1. - self.done_masks[i+1]) * self.discount * \
                                      (
-                                             (1. - self.terminates_prob[i+1]) * self.values_sw[i+1] + \
-                                             self.terminates_prob[i+1] * self.values_sw_max[i+1]
+                                             (1. - self.terminates_prob[i+1]) * self.target_values_sw[i+1] + \
+                                             self.terminates_prob[i+1] * self.target_values_sw_max[i+1]
                                      )
 
                     # option-advantage
 
-                    self.advantages[i] = self.values_sw[i+1] - self.values_s[i+1]
+                    self.advantages[i] = self.target_values_sw[i+1] - self.target_values_s[i+1]
 
                 else:
                     next_mask = self.done_masks[i + 1]

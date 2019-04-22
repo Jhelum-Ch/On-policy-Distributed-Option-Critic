@@ -5,7 +5,6 @@ from torch.distributions.categorical import Categorical
 from torch.distributions.bernoulli import Bernoulli
 import torch_rl
 import gym
-import utils
 
 # Function from https://github.com/ikostrikov/pytorch-a2c-ppo-acktr/blob/master/model.py
 def initialize_parameters(m):
@@ -17,7 +16,7 @@ def initialize_parameters(m):
             m.bias.data.fill_(0)
 
 class ACModel(nn.Module, torch_rl.RecurrentACModel):
-    def __init__(self, obs_space, action_space, use_memory=False, use_text=False, num_options=1):
+    def __init__(self, obs_space, action_space, use_memory=False, use_text=False, num_options=1, tau=None):
         super().__init__()
 
         # Decide which components are enabled
@@ -76,6 +75,18 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             nn.Linear(64, critic_output_size)
         )
 
+        # Defines critic's target model
+        if self.num_options is not None:
+            self.target_critic = nn.Sequential(
+                nn.Linear(self.embedding_size, 64),
+                nn.Tanh(),
+                nn.Linear(64, critic_output_size)
+            )
+
+            for param in self.target_critic.parameters():
+                param.requires_grad = False
+
+
         # Define termination functions and option policy (policy over option)
         if self.num_options is not None:
             self.term_fn = nn.Sequential(
@@ -105,10 +116,14 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         value = x.view((-1, self.num_options, self.num_actions)) if self.num_options is not None else x.squeeze(1)
 
         if self.num_options is not None:
-            x = self.term_fn(embedding).view((-1, self.num_options))
-            term_dist = Bernoulli(probs=F.sigmoid(x))
 
-            return act_dist, value, new_memory, term_dist
+            x = self.target_critic(embedding)
+            target_value = x.view((-1, self.num_options, self.num_actions)) if self.num_options is not None else x.squeeze(1)
+
+            x = self.term_fn(embedding).view((-1, self.num_options))
+            term_dist = Bernoulli(probs=torch.sigmoid(x))
+
+            return act_dist, value, new_memory, term_dist, target_value
 
         else:
             return act_dist, value, new_memory
@@ -138,3 +153,22 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
     def get_number_of_params(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    # https://github.com/ikostrikov/pytorch-ddpg-naf/blob/master/ddpg.py#L11
+    def soft_update_target(self, tau):
+        """
+        Perform soft update (move target params toward source based on weight factor tau)
+        Inputs:
+            tau (float, 0 < x < 1): Weight factor for update
+        """
+        assert 0. < tau and tau <= 1.
+        for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
+            target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
+
+    # https://github.com/ikostrikov/pytorch-ddpg-naf/blob/master/ddpg.py#L15
+    def hard_update_target(self):
+        """
+        Copy network parameters from source to target
+        """
+        for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
+            target_param.data.copy_(param.data)

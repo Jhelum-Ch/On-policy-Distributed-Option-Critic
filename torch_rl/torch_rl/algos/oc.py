@@ -10,17 +10,17 @@ class OCAlgo(BaseAlgo):
     def __init__(self, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
                  rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=4,
-                 termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None):
+                 termination_loss_coef=0.5, termination_reg=0.01, tau=1., reshape_reward=None):
         num_frames_per_proc = num_frames_per_proc or 8
 
         super().__init__(envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
                          value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
-                         num_options, termination_loss_coef, termination_reg)
+                         num_options, termination_loss_coef, termination_reg, tau)
 
         self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
                                              alpha=rmsprop_alpha, eps=rmsprop_eps)
 
-    def update_parameters(self):
+    def update_parameters(self, update_i):
         # Collect experiences
 
         exps, logs = self.collect_experiences()
@@ -50,9 +50,9 @@ class OCAlgo(BaseAlgo):
             # Forward propagation
 
             if self.acmodel.recurrent:
-                act_dist, act_values, memory, term_dist = self.acmodel(sb.obs, memory * sb.mask)
+                act_dist, act_values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
             else:
-                act_dist, act_values, _, term_dist = self.acmodel(sb.obs)
+                act_dist, act_values, _, term_dist, _ = self.acmodel(sb.obs)
 
             # Compute losses
 
@@ -64,7 +64,7 @@ class OCAlgo(BaseAlgo):
             Q_U_swa = act_values[range(sb.action.shape[0]), sb.current_options, sb.action.long()]
             value_loss = (Q_U_swa - sb.target).pow(2).mean()
 
-            term_prob = term_dist.probs[range(sb.action.shape[0]), sb.current_options]
+            term_prob = term_dist.probs[range(sb.action.shape[0]), sb.current_options]  # TODO: here term_prob should be computed for NEXT_STATE (or should it?)
             termination_loss = (term_prob * (sb.advantage + self.termination_reg)).mean()
 
             loss = policy_loss \
@@ -92,9 +92,16 @@ class OCAlgo(BaseAlgo):
 
         self.optimizer.zero_grad()
         update_loss.backward()
-        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
+        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters() if p.requires_grad) ** 0.5
         torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
         self.optimizer.step()
+
+        # Update target model
+
+        if self.tau <= 1.:
+            self.acmodel.soft_update_target(self.tau)
+        elif update_i % int(self.tau) == 0:
+            self.acmodel.hard_update_target()
 
         # Log some values
 
