@@ -18,6 +18,7 @@ else:
     import gym_minigrid
 
 import utils
+from utils import parse_bool
 from model import ACModel
 
 # Parse arguments
@@ -28,7 +29,10 @@ parser.add_argument("--algo", default='oc', #required=True,
 parser.add_argument("--env", default='MiniGrid-DoorKey-5x5-v0', #required=True,
                     help="name of the environment to train on (REQUIRED)")
 parser.add_argument("--desc", default="",
-                    help="string added as suffix to model_name to explain the experiment")
+                    help="string added as suffix to git_hash to explain the experiments in this folder")
+parser.add_argument("--experiment_dir", type=int, default=None,
+                    help="the experiment number (inside storage_dir folder)"
+                         "if that experiment already exists, you will be offered to resume training")
 parser.add_argument("--seed", type=int, default=1,
                     help="random seed (default: 1)")
 parser.add_argument("--procs", type=int, default=16,
@@ -39,7 +43,7 @@ parser.add_argument("--log-interval", type=int, default=1,
                     help="number of updates between two logs (default: 1)")
 parser.add_argument("--save-interval", type=int, default=10,
                     help="number of updates between two saves (default: 0, 0 means no saving)")
-parser.add_argument("--tb", action="store_true", default=True,
+parser.add_argument("--tb", type=parse_bool, default=True,
                     help="log into Tensorboard")
 parser.add_argument("--frames-per-proc", type=int, default=None,
                     help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
@@ -71,7 +75,7 @@ parser.add_argument("--text", action="store_true", default=False,
                     help="add a GRU to the model to handle text input")
 parser.add_argument("--auto-resume", action="store_true", default=False,
                     help="whether to automatically resume training when lauching the script on existing model")
-parser.add_argument("--num-options", type=int, default=1,
+parser.add_argument("--num-options", type=int, default=None,
                     help="number of options (default: 1, 1 means no options)")
 parser.add_argument("--termination-loss-coef", type=float, default=0.5,
                     help="termination loss term coefficient (default: 0.5)")
@@ -86,16 +90,17 @@ if args.algo in ['a2c', 'ppo']: assert args.num_options is None
 
 git_hash = "{0}_{1}".format(utils.get_git_hash(path='.'),
                             utils.get_git_hash(path=str(os.path.dirname(gym_minigrid.__file__))))
-model_name = f"{git_hash}_{args.algo.upper()}_{args.env}_{args.desc}"
-model_dir = utils.get_model_dir(model_name)
+storage_dir = f"{git_hash}_{args.desc}"
+dir_manager = utils.DirectoryManager(storage_dir, args.seed, args.experiment_dir)
+dir_manager.create_directories()
 
 # Define logger, CSV writer and Tensorboard writer
 
-logger = utils.get_logger(model_dir)
-csv_file, csv_writer = utils.get_csv_writer(model_dir)
+logger = utils.create_logger(save_dir=dir_manager.seed_dir)
+csv_file, csv_writer = utils.get_csv_writer(save_dir=dir_manager.seed_dir)
 if args.tb:
     from tensorboardX import SummaryWriter
-    tb_writer = SummaryWriter(model_dir)
+    tb_writer = SummaryWriter(str(dir_manager.seed_dir))
 
 # Log command and all script arguments
 
@@ -116,21 +121,21 @@ for i in range(args.procs):
 
 # Define obss preprocessor
 
-obs_space, preprocess_obss = utils.get_obss_preprocessor(args.env, envs[0].observation_space, model_dir)
+obs_space, preprocess_obss = utils.get_obss_preprocessor(args.env, envs[0].observation_space, dir_manager.seed_dir)
 
 # Load training status
 
 try:
-    status = utils.load_status(model_dir)
+    status = utils.load_status(save_dir=dir_manager.seed_dir)
 except OSError:
     status = {"num_frames": 0, "update": 0}
 
 # Define actor-critic model
 
-if Path(utils.get_model_path(model_dir)).exists():
+if Path(utils.get_model_path(save_dir=dir_manager.seed_dir)).exists():
     if args.auto_resume or \
-            input(f'Model named "{model_dir}" already exists. Resume training? [y or n]').lower() in ['y', 'yes']:
-        acmodel = utils.load_model(model_dir)
+            input(f'Model in "{dir_manager.seed_dir}" already exists. Resume training? [y or n]').lower() in ['y', 'yes']:
+        acmodel = utils.load_model(save_dir=dir_manager.seed_dir)
         logger.info("Model successfully loaded\n")
     else:
         print("Aborting...")
@@ -147,7 +152,7 @@ logger.info("CUDA available: {}\n".format(torch.cuda.is_available()))
 
 # Saves config
 
-utils.save_config_to_json(args, filename=Path(model_dir)/"args.json")
+utils.save_config_to_json(args, filename=Path(dir_manager.seed_dir)/"args.json")
 
 # Define actor-critic algo
 
@@ -226,9 +231,9 @@ while num_frames < args.frames:
 
         if torch.cuda.is_available():
             acmodel.cpu()
-        utils.save_model(acmodel, model_dir)
+        utils.save_model(acmodel, save_dir=dir_manager.seed_dir)
         logger.info("Model successfully saved")
         if torch.cuda.is_available():
             acmodel.cuda()
 
-        utils.save_status(status, model_dir)
+        utils.save_status(status, save_dir=dir_manager.seed_dir)

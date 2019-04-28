@@ -1,21 +1,7 @@
 import random
-import os
 import numpy
 import torch
 import collections
-
-def get_storage_dir():
-    if "TORCH_RL_STORAGE" in os.environ:
-        return os.environ["TORCH_RL_STORAGE"]
-    return "storage"
-
-def get_model_dir(model_name):
-    return os.path.join(get_storage_dir(), model_name)
-
-def create_folders_if_necessary(path):
-    dirname = os.path.dirname(path)
-    if not os.path.isdir(dirname):
-        os.makedirs(dirname)
 
 def seed(seed):
     random.seed(seed)

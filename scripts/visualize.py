@@ -16,12 +16,18 @@ import utils
 # Parse arguments
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--env", required=True,
-                    help="name of the environment to be run (REQUIRED)")
-parser.add_argument("--model", required=True,
-                    help="name of the trained model (REQUIRED)")
+parser.add_argument("--storage_dir", required=True,
+                    help="name of the storage folder in which the model is saved (REQUIRED)")
+parser.add_argument("--experiment_dir", type=int, default=1,
+                    help="number of the experiment folder inside in which the model is saved")
+parser.add_argument("--seed_dir", type=int, default=1,
+                    help="number of the seed folder inside in which the model is saved")
 parser.add_argument("--seed", type=int, default=0,
-                    help="random seed (default: 0)")
+                    help="random seed (default: 0) for the evaluation run")
+parser.add_argument("--env", default=None,
+                    help="name of the environment to be run"
+                         "if None, env will be taken from saved args.json"
+                         "which is the env on which the model was trained")
 parser.add_argument("--shift", type=int, default=0,
                     help="number of times the environment is reset at the beginning (default: 0)")
 parser.add_argument("--argmax", action="store_true", default=False,
@@ -34,7 +40,16 @@ args = parser.parse_args()
 
 utils.seed(args.seed)
 
+# Creates directory manager
+
+dir_manager = utils.DirectoryManager(args.storage_dir, args.seed_dir, args.experiment_dir)
+
 # Generate environment
+
+train_args = utils.load_config_from_json(filename=dir_manager.seed_dir/"args.json")
+
+if args.env is None:
+    args.env = train_args.env
 
 env = gym.make(args.env)
 env.seed(args.seed)
@@ -43,8 +58,7 @@ for _ in range(args.shift):
 
 # Define agent
 
-model_dir = utils.get_model_dir(args.model)
-agent = utils.Agent(args.env, env.observation_space, model_dir, args.argmax)
+agent = utils.Agent(args.env, env.observation_space, dir_manager.seed_dir, args.argmax)
 
 # Run the agent
 

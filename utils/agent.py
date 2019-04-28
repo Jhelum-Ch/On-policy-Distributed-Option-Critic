@@ -8,9 +8,9 @@ class Agent:
     - to choose an action given an observation,
     - to analyze the feedback (i.e. reward and done state) of its action."""
 
-    def __init__(self, env_id, obs_space, model_dir, argmax=False, num_envs=1):
-        _, self.preprocess_obss = utils.get_obss_preprocessor(env_id, obs_space, model_dir)
-        self.acmodel = utils.load_model(model_dir)
+    def __init__(self, env_id, obs_space, save_dir, argmax=False, num_envs=1):
+        _, self.preprocess_obss = utils.get_obss_preprocessor(env_id, obs_space, save_dir)
+        self.acmodel = utils.load_model(save_dir)
         assert self.acmodel.recurrent  # just to avoid supporting both
         self.argmax = argmax
         self.num_envs = num_envs
@@ -33,7 +33,7 @@ class Agent:
             if self.num_options is not None:
                 act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obss, self.memories)
             else:
-                act_dist, _, memory = self.acmodel(preprocessed_obss)
+                act_dist, _, memory = self.acmodel(preprocessed_obss, self.memories)
 
         if self.num_options is not None:
 

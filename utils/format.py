@@ -8,12 +8,12 @@ import gym
 
 import utils
 
-def get_obss_preprocessor(env_id, obs_space, model_dir):
+def get_obss_preprocessor(env_id, obs_space, save_dir):
     # Check if it is a MiniGrid environment
     if re.match("MiniGrid-.*", env_id):
         obs_space = {"image": obs_space.spaces['image'].shape, "text": 100}
 
-        vocab = Vocabulary(model_dir, obs_space["text"])
+        vocab = Vocabulary(save_dir, obs_space["text"])
         def preprocess_obss(obss, device=None):
             return torch_rl.DictList({
                 "image": preprocess_images([obs["image"] for obs in obss], device=device),
@@ -61,8 +61,8 @@ class Vocabulary:
     """A mapping from tokens to ids with a capacity of `max_size` words.
     It can be saved in a `vocab.json` file."""
 
-    def __init__(self, model_dir, max_size):
-        self.path = utils.get_vocab_path(model_dir)
+    def __init__(self, save_dir, max_size):
+        self.path = utils.get_vocab_path(save_dir)
         self.max_size = max_size
         self.vocab = {}
         if os.path.exists(self.path):
@@ -76,7 +76,6 @@ class Vocabulary:
         return self.vocab[token]
 
     def save(self):
-        utils.create_folders_if_necessary(self.path)
         json.dump(self.vocab, open(self.path, "w"))
 
 def idx_to_onehot(idx, num_classes):
