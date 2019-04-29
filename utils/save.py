@@ -5,6 +5,7 @@ import json
 import logging
 import sys
 import subprocess
+import pickle
 
 import utils
 
@@ -20,6 +21,20 @@ def load_model(save_dir):
 def save_model(model, save_dir):
     path = get_model_path(save_dir)
     torch.save(model, path)
+
+def get_graph_data_path(save_dir):
+    return os.path.join(save_dir, "graph_data.pkl")
+
+def save_graph_data(graph_data, save_dir):
+    path = get_graph_data_path(save_dir)
+    with open(path, 'wb') as f:
+        pickle.dump(graph_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+def load_graph_data(save_dir):
+    path = get_graph_data_path(save_dir)
+    with open(path, 'rb') as f:
+        graph_data = pickle.load(f)
+    return graph_data
 
 def get_status_path(save_dir):
     return os.path.join(save_dir, "status.json")

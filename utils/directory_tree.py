@@ -8,17 +8,17 @@ class DirectoryManager(object):
         self.root = Path('./storage')
 
         # Level 2
-        self.model_dir = self.root / storage_name
+        self.storage_dir = self.root / storage_name
 
         if experiment_num is not None:
             self.current_experiment = f'experiment{experiment_num}'
         else:
             # Checks how many experiments already exist for this environment and storage_dir
-            if not self.model_dir.exists():
+            if not self.storage_dir.exists():
                 self.current_experiment = 'experiment1'
             else:
                 exst_run_nums = [int(str(folder.name).split('experiment')[1]) for folder in
-                                 self.model_dir.iterdir() if
+                                 self.storage_dir.iterdir() if
                                  str(folder.name).startswith('experiment')]
                 if len(exst_run_nums) == 0:
                     self.current_experiment = 'experiment1'
@@ -26,16 +26,13 @@ class DirectoryManager(object):
                     self.current_experiment = f'experiment{(max(exst_run_nums) + 1)}'
 
         # Level 3
-        self.experiment_dir = self.model_dir / self.current_experiment
+        self.experiment_dir = self.storage_dir / self.current_experiment
 
         # Level 4
         self.seed_dir = self.experiment_dir / f"seed{seed}"
 
-        # Level 5
-        self.recorders_dir = self.seed_dir / 'recorders'
-
     def create_directories(self):
-        os.makedirs(str(self.recorders_dir), exist_ok=True)
+        os.makedirs(str(self.seed_dir), exist_ok=True)
 
     @staticmethod
     def get_all_experiments(storage_dir):
