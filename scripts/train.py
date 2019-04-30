@@ -142,12 +142,6 @@ def train(args, dir_manager=None, logger=None, pbar=None):
     except OSError:
         status = {"num_frames": 0, "update": 0}
 
-
-    # Creates a progress-bar
-
-    if pbar is None:
-        pbar = tqdm(total=args.frames)
-
     # Define actor-critic model
 
     if Path(utils.get_model_path(save_dir=dir_manager.seed_dir)).exists():
@@ -192,10 +186,19 @@ def train(args, dir_manager=None, logger=None, pbar=None):
     else:
         raise ValueError("Incorrect algorithm name: {}".format(args.algo))
 
+
+
+    # Creates a progress-bar
+
+    if pbar is None:
+        pbar = tqdm()
+    pbar.n = status["num_frames"]
+    pbar.total = args.frames
+    pbar.desc = f'{dir_manager.storage_dir.name}/{dir_manager.experiment_dir.name}/{dir_manager.seed_dir.name}'
+
     # Train model
 
     num_frames = status["num_frames"]
-    pbar.n = status["num_frames"]
     total_start_time = time.time()
     update = status["update"]
 

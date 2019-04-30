@@ -19,7 +19,7 @@ def get_run_schedule_args():
     parser.add_argument('--n_processes', type=int, default=1)
     return parser.parse_args()
 
-def run_schedule(serial_args, pbar=None):
+def run_schedule(serial_args, process_i=0):
     # Finds all directories containing an UNHATCHED file and sorts them numerically
     storage_dir = Path('storage') / serial_args.storage_dir
 
@@ -52,9 +52,7 @@ def run_schedule(serial_args, pbar=None):
                 streamHandle=False
                 )
 
-            if pbar is not None:
-                pbar.desc = f'{dir_manager.storage_dir.name}/{dir_manager.experiment_dir.name}/{dir_manager.seed_dir.name}'
-                pbar.total = args.frames
+            pbar = tqdm(position=process_i + (1 + serial_args.n_processes) * call_i)
             train(args, dir_manager, logger, pbar)
 
             open(str(seed_dir / 'COMPLETED'), 'w+').close()
@@ -67,7 +65,6 @@ def run_schedule(serial_args, pbar=None):
 
         # Creates a comparative figure showing total reward
         # for each episode of each agent of each experiment
-        print('\nUpdating comparative graph\n')
         create_comparative_figure(storage_dir, create_logger(streamHandle=False))
 
 if __name__ == '__main__':
@@ -81,7 +78,7 @@ if __name__ == '__main__':
         processes = []
         # create processes
         for i in range(serial_args.n_processes):
-            processes.append(Process(target=run_schedule, args=(serial_args, tqdm(position=i+1))))
+            processes.append(Process(target=run_schedule, args=(serial_args, i)))
 
         # start processes
         for p in processes:
@@ -95,4 +92,4 @@ if __name__ == '__main__':
         print("All processes are done. Closing '__main__'")
 
     else:
-        run_schedule(serial_args, pbar=tqdm())
+        run_schedule(serial_args)
