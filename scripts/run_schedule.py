@@ -63,9 +63,14 @@ def run_schedule(serial_args, process_i=0):
                 f.write(str(e))
                 f.write(traceback.format_exc())
 
-        # Creates a comparative figure showing total reward
-        # for each episode of each agent of each experiment
-        create_comparative_figure(storage_dir, create_logger(streamHandle=False))
+        try:
+            # Creates a comparative figure showing total reward
+            # for each episode of each agent of each experiment
+            create_comparative_figure(storage_dir, create_logger(streamHandle=False))
+
+        except Exception as e:
+            print(f"WARNING: Process {process_i} was not able to create comparative graphs: '{e}'")
+            continue
 
 if __name__ == '__main__':
 
