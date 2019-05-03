@@ -91,6 +91,12 @@ def create_comparative_figure(storage_dir, logger):
         i_max, j_max = properties['ax_array_shape']
         ax_array_dim = properties['ax_array_dim']
 
+        first_exp = group_key.split('-')[0] if group_key != "all" else 0
+        for seed_idx, seed_dir in enumerate(all_seeds_dir):
+            if seed_dir.parent.stem.strip('experiment') == first_exp:
+                first_seed_idx = seed_idx
+                break
+
         for current_comparative_plot in PLOTS_TO_MAKE:
             logger.info(f'\nMaking comparative plot for {current_comparative_plot}:')
 
@@ -110,8 +116,7 @@ def create_comparative_figure(storage_dir, logger):
                         raise Exception('ax_array should not have more than two dimensions')
 
                     try:
-                        first_exp = int(group_key.split('-')[0]) - 1 if group_key != "all" else 0
-                        seed_dir = all_seeds_dir[first_exp + (i*j_max + j)]
+                        seed_dir = all_seeds_dir[first_seed_idx + (i*j_max + j)]
                         if group_key != 'all'  \
                         and (int(str(seed_dir.parent).split('experiment')[1]) < int(group_key.split('-')[0]) \
                         or  int(str(seed_dir.parent).split('experiment')[1]) > int(group_key.split('-')[1])):
@@ -195,5 +200,5 @@ def create_comparative_figure(storage_dir, logger):
 if __name__ == '__main__':
     logger = create_logger("PLOTS", logging.INFO, save_dir=None)
     serial_args = get_make_plots_args()
-    storage_dir = Path('models') / serial_args.env_id / serial_args.model_name
+    storage_dir = Path('storage') / serial_args.storage_dir
     create_comparative_figure(storage_dir, logger)
