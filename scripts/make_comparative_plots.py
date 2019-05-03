@@ -92,10 +92,13 @@ def create_comparative_figure(storage_dir, logger):
         ax_array_dim = properties['ax_array_dim']
 
         first_exp = group_key.split('-')[0] if group_key != "all" else 0
-        for seed_idx, seed_dir in enumerate(all_seeds_dir):
-            if seed_dir.parent.stem.strip('experiment') == first_exp:
-                first_seed_idx = seed_idx
-                break
+        if first_exp != 0:
+            for seed_idx, seed_dir in enumerate(all_seeds_dir):
+                if seed_dir.parent.stem.strip('experiment') == first_exp:
+                    first_seed_idx = seed_idx
+                    break
+        else:
+            first_seed_idx = 0
 
         for current_comparative_plot in PLOTS_TO_MAKE:
             logger.info(f'\nMaking comparative plot for {current_comparative_plot}:')
