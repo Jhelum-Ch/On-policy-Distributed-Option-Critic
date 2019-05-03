@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-USE_TEAMGRID = False
+USE_TEAMGRID = True
 
 import argparse
 import gym

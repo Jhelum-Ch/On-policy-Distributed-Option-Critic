@@ -8,9 +8,10 @@ import gym
 
 import utils
 
-def get_obss_preprocessor(env_id, obs_space, save_dir):
+def get_obss_preprocessor(env_id, obs_space, save_dir, use_teamgrid=False):
     # Check if it is a MiniGrid environment
-    if re.match("MiniGrid-.*", env_id):
+    prefix = "TEAMGrid" if use_teamgrid else "MiniGrid"
+    if re.match(f"{prefix}-.*", env_id):
         obs_space = {"image": obs_space.spaces['image'].shape, "text": 100}
 
         vocab = Vocabulary(save_dir, obs_space["text"])

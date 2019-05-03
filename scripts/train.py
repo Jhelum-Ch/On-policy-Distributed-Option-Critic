@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-USE_TEAMGRID = False
+USE_TEAMGRID = True
 
 import argparse
 import gym
@@ -29,7 +29,7 @@ def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--algo", default='oc', #required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='MiniGrid-DoorKey-5x5-v0', #required=True,
+    parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)")
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -78,12 +78,16 @@ def get_training_args(overwritten_args=None):
                         help="add a GRU to the model to handle text input")
     parser.add_argument("--auto_resume", action="store_true", default=False,
                         help="whether to automatically resume training when lauching the script on existing model")
+    # Option-Critic configs
     parser.add_argument("--num_options", type=int, default=1,
                         help="number of options (default: 1, 1 means no options)")
     parser.add_argument("--termination_loss_coef", type=float, default=0.5,
                         help="termination loss term coefficient (default: 0.5)")
     parser.add_argument("--termination_reg", type=float, default=0.01,
                         help="termination regularization constant (default: 0.01)")
+    # Multi-Agent configs
+    parser.add_argument("--num_agents", type=int, default=2,
+                        help="number of trainable agents interacting with the teamgrid environment")
 
     return parser.parse_args(overwritten_args)
 
