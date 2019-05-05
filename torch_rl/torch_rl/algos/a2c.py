@@ -7,13 +7,13 @@ from torch_rl.algos.base import BaseAlgo
 class A2CAlgo(BaseAlgo):
     """The class for the Advantage Actor-Critic algorithm."""
 
-    def __init__(self, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
+    def __init__(self, num_agents, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
-                 rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, reshape_reward=None):
+                 rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=None, reshape_reward=None):
         num_frames_per_proc = num_frames_per_proc or 8
 
-        super().__init__(envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
-                         value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward)
+        super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
+                         value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward, num_options)
 
         self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
                                              alpha=rmsprop_alpha, eps=rmsprop_eps)

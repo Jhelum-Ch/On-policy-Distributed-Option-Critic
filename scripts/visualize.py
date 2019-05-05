@@ -51,29 +51,34 @@ train_args = utils.load_config_from_json(filename=dir_manager.seed_dir/"args.jso
 if args.env is None:
     args.env = train_args.env
 
-env = gym.make(args.env)
+env = gym.make(args.env, num_agents=train_args.num_agents)
 env.seed(args.seed)
 for _ in range(args.shift):
     env.reset()
 
 # Define agent
 
-agent = utils.Agent(args.env, env.observation_space, dir_manager.seed_dir, args.argmax)
+agent = utils.Agent(args.env, env.observation_space, dir_manager.seed_dir, train_args.num_agents, args.argmax, train_args.num_agents)
 
 # Run the agent
 
 done = True
 
+i = 0
 while True:
+    i += 1
     if done:
-        obs = env.reset()
+        obss = env.reset()
 
     time.sleep(args.pause)
     renderer = env.render()
 
-    action = agent.get_action(obs)
-    obs, reward, done, _ = env.step(action)
-    agent.analyze_feedback(reward, done)
+    actions = agent.get_action(obss)
+
+    obss, rewards, done, _ = env.step(actions)
+
+    for j, reward in enumerate(rewards):
+        agent.analyze_feedback(reward, done)
 
     if renderer.window is None:
         break

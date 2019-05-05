@@ -38,16 +38,19 @@ class ParallelEnv(gym.Env):
         for local in self.locals:
             local.send(("reset", None))
         results = [self.envs[0].reset()] + [local.recv() for local in self.locals]
-        return results
+        # for multi-agent envs, we invert the processes and agents dimensions
+        # final dimensions: list of lists of lengths (num_agents, num_procs)
+        return list(map(list, zip(*results)))
 
     def step(self, actions):
         for local, action in zip(self.locals, actions[1:]):
             local.send(("step", action))
-        obs, reward, done, info = self.envs[0].step(actions[0])
+        obss, rewards, done, info = self.envs[0].step(actions[0])
         if done:
-            obs = self.envs[0].reset()
-        results = zip(*[(obs, reward, done, info)] + [local.recv() for local in self.locals])
-        return results
+            obss = self.envs[0].reset()
+        results = zip(*[(obss, rewards, done, info)] + [local.recv() for local in self.locals])
+        obss, rewards, done, info = results
+        return list(map(list, zip(*obss))), list(map(list, zip(*rewards))), done, info
 
     def render(self):
         raise NotImplementedError

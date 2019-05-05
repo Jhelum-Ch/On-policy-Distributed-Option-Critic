@@ -12,8 +12,8 @@ def seed(seed):
 
 def synthesize(array):
     d = collections.OrderedDict()
-    d["mean"] = numpy.mean(array)
-    d["std"] = numpy.std(array)
-    d["min"] = numpy.amin(array)
-    d["max"] = numpy.amax(array)
+    d["mean"] = numpy.mean(array, axis=1)
+    d["std"] = numpy.std(array, axis=1)
+    d["min"] = numpy.amin(array, axis=1)
+    d["max"] = numpy.amax(array, axis=1)
     return d

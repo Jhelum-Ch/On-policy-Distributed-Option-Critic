@@ -17,13 +17,22 @@ def initialize_parameters(m):
             m.bias.data.fill_(0)
 
 class ACModel(nn.Module, torch_rl.RecurrentACModel):
-    def __init__(self, obs_space, action_space, use_memory=False, use_text=False, num_options=1):
+    def __init__(self,
+                 obs_space,
+                 action_space,
+                 use_memory=False,
+                 use_text=False,
+                 num_options=1,
+                 use_act_values=False,
+                 use_term_fn=False):
         super().__init__()
 
         # Decide which components are enabled
+        self.use_act_values = use_act_values
         self.use_text = use_text
         self.use_memory = use_memory
         self.num_options = num_options
+        self.use_term_fn = use_term_fn
 
         if isinstance(action_space, gym.spaces.Discrete):
             self.num_actions = action_space.n
@@ -61,7 +70,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             self.embedding_size += self.text_embedding_size
 
         # Define actor's model(s)
-        actor_output_size = self.num_actions * self.num_options if self.num_options is not None else self.num_actions
+        actor_output_size = self.num_actions * self.num_options
         self.actor = nn.Sequential(
             nn.Linear(self.embedding_size, 64),
             nn.Tanh(),
@@ -69,7 +78,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         )
 
         # Define critic's model
-        critic_output_size = actor_output_size if self.num_options is not None else 1
+        critic_output_size = actor_output_size if self.use_act_values else self.num_options
         self.critic = nn.Sequential(
             nn.Linear(self.embedding_size, 64),
             nn.Tanh(),
@@ -77,7 +86,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         )
 
         # Define termination functions and option policy (policy over option)
-        if self.num_options is not None:
+        if self.use_term_fn:
             self.term_fn = nn.Sequential(
                 nn.Linear(self.embedding_size, 64),
                 nn.Tanh(),
@@ -98,20 +107,20 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
     def forward(self, obs, memory):
         embedding, new_memory =self._embed_observation(obs, memory)
 
-        x = self.actor(embedding).view((-1, self.num_options, self.num_actions)) if self.num_options is not None else self.actor(embedding)
+        x = self.actor(embedding).view((-1, self.num_options, self.num_actions))
         act_dist = Categorical(logits=F.log_softmax(x, dim=-1))
 
         x = self.critic(embedding)
-        value = x.view((-1, self.num_options, self.num_actions)) if self.num_options is not None else x.squeeze(1)
+        values = x.view((-1, self.num_options, self.num_actions)) if self.use_act_values else x.view((-1, self.num_options))
 
-        if self.num_options is not None:
+        if self.use_term_fn:
             x = self.term_fn(embedding).view((-1, self.num_options))
             term_dist = Bernoulli(probs=F.sigmoid(x))
 
-            return act_dist, value, new_memory, term_dist
-
         else:
-            return act_dist, value, new_memory
+            term_dist = None
+
+        return act_dist, values, new_memory, term_dist
 
     def _get_embed_text(self, text):
         _, hidden = self.text_rnn(self.word_embedding(text))

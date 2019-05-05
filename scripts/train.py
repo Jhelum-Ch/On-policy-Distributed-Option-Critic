@@ -27,8 +27,8 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='oc', #required=True,
-                        help="algorithm to use: a2c | ppo | oc (REQUIRED)")
+    parser.add_argument("--algo", default='ppo', choices=['doc', 'a2c', 'ppo'],#required=True,
+                        help="algorithm to use: a2c | ppo | doc (REQUIRED)")
     parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)")
     parser.add_argument("--desc", default="",
@@ -79,7 +79,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--auto_resume", action="store_true", default=False,
                         help="whether to automatically resume training when lauching the script on existing model")
     # Option-Critic configs
-    parser.add_argument("--num_options", type=int, default=1,
+    parser.add_argument("--num_options", type=int, default=2,
                         help="number of options (default: 1, 1 means no options)")
     parser.add_argument("--termination_loss_coef", type=float, default=0.5,
                         help="termination loss term coefficient (default: 0.5)")
@@ -95,15 +95,22 @@ def get_training_args(overwritten_args=None):
 def train(args, dir_manager=None, logger=None, pbar=None):
 
     args.mem = args.recurrence > 1
-    if args.algo in ['a2c', 'ppo']:
-        args.num_options = None
+    # In the multi-agent setup, for DOC, different agents really are empty slots in which options are executed
+    # Therefore, the number of options (policies) needs to be greater or equal to the number of agents (slots)
+    if args.algo == 'doc':
+        assert args.num_options >= args.num_agents
+    # In the multi-agent setup, for baseline algorithms, each agent has its own policy
+    # However, for implementation uniformity, we will consider them as if they were different options
+    # (but each agent will always keep the same "option")
+    else:
+        args.num_options = args.num_agents
 
     if dir_manager is None:
 
         # Define save dir
 
         git_hash = "{0}_{1}".format(utils.get_git_hash(path='.'),
-                                    utils.get_git_hash(path=str(os.path.dirname(gym_minigrid.__file__))))
+                                    utils.get_git_hash(path=str(os.path.dirname(teamgrid.__file__))))
         storage_dir = f"{git_hash}_{args.desc}"
         dir_manager = utils.DirectoryManager(storage_dir, args.seed, args.experiment_dir)
         dir_manager.create_directories()
@@ -131,7 +138,7 @@ def train(args, dir_manager=None, logger=None, pbar=None):
 
     envs = []
     for i in range(args.procs):
-        env = gym.make(args.env)
+        env = gym.make(args.env, num_agents=args.num_agents)
         env.seed(args.seed + 10000*i)
         envs.append(env)
 
@@ -159,7 +166,9 @@ def train(args, dir_manager=None, logger=None, pbar=None):
             print("Aborting...")
             sys.exit()
     else:
-        acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text, args.num_options)
+        acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text, args.num_options,
+                          use_act_values=True if args.algo == "doc" else False,
+                          use_term_fn=True if args.algo == "doc" else False)
         logger.info("Model successfully created\n")
         utils.save_config_to_json(args, filename=Path(dir_manager.seed_dir) / "args.json")
 
@@ -175,15 +184,15 @@ def train(args, dir_manager=None, logger=None, pbar=None):
     # Define actor-critic algo
 
     if args.algo == "a2c":
-        algo = torch_rl.A2CAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
+        algo = torch_rl.A2CAlgo(args.num_agents, envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                                 args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
-                                args.optim_alpha, args.optim_eps, preprocess_obss)
+                                args.optim_alpha, args.optim_eps, preprocess_obss, args.num_options)
     elif args.algo == "ppo":
-        algo = torch_rl.PPOAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
+        algo = torch_rl.PPOAlgo(args.num_agents, envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                                 args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
-                                args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss)
-    elif args.algo == "oc":
-        algo = torch_rl.OCAlgo(envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
+                                args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss, args.num_options)
+    elif args.algo == "doc":
+        algo = torch_rl.OCAlgo(args.num_agents, envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                                 args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
                                 args.optim_alpha, args.optim_eps, preprocess_obss,
                                 args.num_options, args.termination_loss_coef, args.termination_reg)
@@ -225,43 +234,18 @@ def train(args, dir_manager=None, logger=None, pbar=None):
         logs = algo.update_parameters()
         update_end_time = time.time()
 
-        num_frames += logs["num_frames"]
-        pbar.update(logs["num_frames"])
+        num_frames += logs["num_frames"][0]
+        pbar.update(logs["num_frames"][0])
         update += 1
 
         # Print logs
 
         if update % args.log_interval == 0:
-            fps = logs["num_frames"]/(update_end_time - update_start_time)
+            fps = logs["num_frames"][0]/(update_end_time - update_start_time)
             duration = int(time.time() - total_start_time)
             return_per_episode = utils.synthesize(logs["return_per_episode"])
             rreturn_per_episode = utils.synthesize(logs["reshaped_return_per_episode"])
             num_frames_per_episode = utils.synthesize(logs["num_frames_per_episode"])
-
-            header = ["update", "frames", "FPS", "duration"]
-            data = [update, num_frames, fps, duration]
-            header += ["rreturn_" + key for key in rreturn_per_episode.keys()]
-            data += rreturn_per_episode.values()
-            header += ["num_frames_" + key for key in num_frames_per_episode.keys()]
-            data += num_frames_per_episode.values()
-            header += ["entropy", "value", "policy_loss", "value_loss", "grad_norm"]
-            data += [logs["entropy"], logs["value"], logs["policy_loss"], logs["value_loss"], logs["grad_norm"]]
-
-            logger.info(
-                "U {} | F {:06} | FPS {:04.0f} | D {} | rR:μσmM {:.2f} {:.2f} {:.2f} {:.2f} | F:μσmM {:.1f} {:.1f} {} {} | H {:.3f} | V {:.3f} | pL {:.3f} | vL {:.3f} | ∇ {:.3f}"
-                .format(*data))
-
-            header += ["return_" + key for key in return_per_episode.keys()]
-            data += return_per_episode.values()
-
-            if status["num_frames"] == 0:
-                csv_writer.writerow(header)
-            csv_writer.writerow(data)
-            csv_file.flush()
-
-            if args.tb:
-                for field, value in zip(header, data):
-                    tb_writer.add_scalar(field, value, num_frames)
 
             status = {"num_frames": num_frames, "update": update}
 
@@ -280,7 +264,8 @@ def train(args, dir_manager=None, logger=None, pbar=None):
         # Save vocabulary and model
 
         if args.save_interval > 0 and update % args.save_interval == 0:
-            preprocess_obss.vocab.save()
+            if hasattr(preprocess_obss, "vocab"):
+                preprocess_obss.vocab.save()
 
             if torch.cuda.is_available():
                 acmodel.cpu()
@@ -295,19 +280,21 @@ def train(args, dir_manager=None, logger=None, pbar=None):
 
                 # Losses
             fig, axes = create_fig((2,2))
-            plot_curve(axes[0,0], graph_data["num_frames"], np.array(graph_data["policy_loss"])[np.newaxis, :], labels=["agent 1"], xlabel="frames", title="Policy Loss")
-            plot_curve(axes[0,1], graph_data["num_frames"], np.array(graph_data["value_loss"])[np.newaxis, :], labels=["agent 1"], xlabel="frames", title="Value Loss")
-            plot_curve(axes[1,0], graph_data["num_frames"], np.array(graph_data["entropy"])[np.newaxis, :], labels=["agent 1"], xlabel="frames", title="Entropy")
-            plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"])[np.newaxis, :], labels=["agent 1"], xlabel="frames", title="Gradient Norm")
+            plot_curve(axes[0,0], graph_data["num_frames"], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(args.num_options)], colors=[envs[0].agents[j].color for j in range(args.num_agents)], xlabel="frames", title="Policy Loss")
+            plot_curve(axes[0,1], graph_data["num_frames"], np.array(graph_data["value_loss"]).T, labels=[f"agent {i}" for i in range(args.num_options)], colors=[envs[0].agents[j].color for j in range(args.num_agents)], xlabel="frames", title="Value Loss")
+            plot_curve(axes[1,0], graph_data["num_frames"], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(args.num_options)], colors=[envs[0].agents[j].color for j in range(args.num_agents)], xlabel="frames", title="Entropy")
+            plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(args.num_options)], colors=[envs[0].agents[j].color for j in range(args.num_agents)], xlabel="frames", title="Gradient Norm")
             fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
             plt.close(fig)
 
                 # Return
             fig, ax = create_fig((1, 1))
             plot_curve(ax, graph_data["num_frames"],
-                       np.array(graph_data["return_mean"])[np.newaxis, :],
-                       stds=np.array(graph_data["return_std"])[np.newaxis, :],
-                       labels=["agent 1"], xlabel="frames", title="Average Return")
+                       np.array(graph_data["return_mean"]).T,
+                       stds=np.array(graph_data["return_std"]).T,
+                       colors=[envs[0].agents[j].color for j in range(args.num_agents)],
+                       labels=[f"agent {i}" for i in range(args.num_options)],
+                       xlabel="frames", title="Average Return")
             fig.savefig(str(dir_manager.seed_dir / 'return.png'))
             plt.close(fig)
 
