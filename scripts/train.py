@@ -88,7 +88,7 @@ def get_training_args(overwritten_args=None):
     return parser.parse_args(overwritten_args)
 
 
-def train(args, dir_manager=None, logger=None, pbar=None):
+def train(args, dir_manager=None, logger=None, pbar=tqdm()):
 
     args.mem = args.recurrence > 1
     if args.algo in ['a2c', 'ppo']:
@@ -190,11 +190,10 @@ def train(args, dir_manager=None, logger=None, pbar=None):
 
     # Creates a progress-bar
 
-    if pbar is None:
-        pbar = tqdm()
-    pbar.n = status["num_frames"]
-    pbar.total = args.frames
-    pbar.desc = f'{dir_manager.storage_dir.name}/{dir_manager.experiment_dir.name}/{dir_manager.seed_dir.name}'
+    if pbar is not None:
+        pbar.n = status["num_frames"]
+        pbar.total = args.frames
+        pbar.desc = f'{dir_manager.storage_dir.name}/{dir_manager.experiment_dir.name}/{dir_manager.seed_dir.name}'
 
     # Train model
 
@@ -222,7 +221,8 @@ def train(args, dir_manager=None, logger=None, pbar=None):
         update_end_time = time.time()
 
         num_frames += logs["num_frames"]
-        pbar.update(logs["num_frames"])
+        if pbar is not None:
+            pbar.update(logs["num_frames"])
         update += 1
 
         # Print logs

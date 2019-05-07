@@ -106,7 +106,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
         if self.num_options is not None:
             x = self.term_fn(embedding).view((-1, self.num_options))
-            term_dist = Bernoulli(probs=F.sigmoid(x))
+            term_dist = Bernoulli(probs=torch.sigmoid(x))
 
             return act_dist, value, new_memory, term_dist
 
