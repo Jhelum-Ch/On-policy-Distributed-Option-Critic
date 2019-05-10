@@ -88,7 +88,7 @@ def get_training_args(overwritten_args=None):
     return parser.parse_args(overwritten_args)
 
 
-def train(args, dir_manager=None, logger=None, pbar=tqdm()):
+def train(args, dir_manager=None, logger=None, pbar="default_pbar"):
 
     args.mem = args.recurrence > 1
     if args.algo in ['a2c', 'ppo']:
@@ -189,6 +189,10 @@ def train(args, dir_manager=None, logger=None, pbar=tqdm()):
 
 
     # Creates a progress-bar
+
+    if type(pbar) is str:
+        if pbar == "default_pbar":
+            pbar = tqdm()
 
     if pbar is not None:
         pbar.n = status["num_frames"]
