@@ -263,12 +263,12 @@ class BaseAlgo(ABC):
                 self.log_episode_reshaped_return += self.rewards[i]
                 self.log_episode_num_frames += torch.ones(self.num_procs, device=self.device)
 
-                for i, done_ in enumerate(done):
+                for k, done_ in enumerate(done):
                     if done_:
                         self.log_done_counter += 1
-                        self.log_return.append(self.log_episode_return[i].item())
-                        self.log_reshaped_return.append(self.log_episode_reshaped_return[i].item())
-                        self.log_num_frames.append(self.log_episode_num_frames[i].item())
+                        self.log_return.append(self.log_episode_return[k].item())
+                        self.log_reshaped_return.append(self.log_episode_reshaped_return[k].item())
+                        self.log_num_frames.append(self.log_episode_num_frames[k].item())
 
                 self.log_episode_return *= self.mask
                 self.log_episode_reshaped_return *= self.mask
