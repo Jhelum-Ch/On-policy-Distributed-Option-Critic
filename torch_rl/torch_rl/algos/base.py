@@ -106,8 +106,8 @@ class BaseAlgo(ABC):
         if self.acmodel.recurrent:
             self.memory = torch.zeros(shape[1], self.acmodel.memory_size, device=self.device)
             self.memories = torch.zeros(*shape, self.acmodel.memory_size, device=self.device)
-        self.done_mask = torch.ones(shape[1], device=self.device)
-        self.done_masks = torch.zeros(*shape, device=self.device)
+        self.mask = torch.ones(shape[1], device=self.device)
+        self.masks = torch.zeros(*shape, device=self.device)
         self.actions = torch.zeros(*shape, device=self.device, dtype=torch.int)
         self.rewards = torch.zeros(*shape, device=self.device)
         self.advantages = torch.zeros(*shape, device=self.device)
@@ -176,10 +176,10 @@ class BaseAlgo(ABC):
                 preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
 
                 if self.num_options is not None:
-                    act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
+                    act_dist, act_values, memory, term_dist = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
 
                 else:
-                    act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.done_mask.unsqueeze(1))
+                    act_dist, state_value, memory = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
 
                 # option-critic specific computations
 
@@ -226,8 +226,8 @@ class BaseAlgo(ABC):
                 if self.acmodel.recurrent:
                     self.memories[i] = self.memory
                     self.memory = memory
-                self.done_masks[i] = self.done_mask
-                self.done_mask = torch.tensor(done, device=self.device, dtype=torch.float)
+                self.masks[i] = self.mask
+                self.mask = 1. - torch.tensor(done, device=self.device, dtype=torch.float)
                 self.actions[i] = action
 
                 if self.reshape_reward is not None:
@@ -251,7 +251,7 @@ class BaseAlgo(ABC):
                     self.current_options[i] = self.current_option
 
                     # change current_option w.r.t. episode ending
-                    self.current_option = self.current_option * (1. - self.done_mask) + self.done_mask * torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float)
+                    self.current_option = self.mask * self.current_option + (1. - self.mask) * torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float)
 
                 else:
                     self.values[i] = state_value
@@ -270,9 +270,9 @@ class BaseAlgo(ABC):
                         self.log_reshaped_return.append(self.log_episode_reshaped_return[i].item())
                         self.log_num_frames.append(self.log_episode_num_frames[i].item())
 
-                self.log_episode_return *= self.done_mask
-                self.log_episode_reshaped_return *= self.done_mask
-                self.log_episode_num_frames *= self.done_mask
+                self.log_episode_return *= self.mask
+                self.log_episode_reshaped_return *= self.mask
+                self.log_episode_num_frames *= self.mask
 
             # Add advantage and return to experiences
 
@@ -282,7 +282,7 @@ class BaseAlgo(ABC):
                     # target for q-learning objective
 
                     self.targets[i] = self.rewards[i] + \
-                                     (1. - self.done_masks[i+1]) * self.discount * \
+                                     self.masks[i+1] * self.discount * \
                                      (
                                              (1. - self.terminates_prob[i+1]) * self.values_sw[i+1] + \
                                              self.terminates_prob[i+1] * self.values_sw_max[i+1]
@@ -293,12 +293,12 @@ class BaseAlgo(ABC):
                     self.advantages[i] = self.values_sw[i+1] - self.values_s[i+1]
 
                 else:
-                    next_mask = self.done_masks[i + 1]
+                    next_mask = self.masks[i+1]
                     next_value = self.values[i+1]
                     next_advantage = self.advantages[i+1] if i < self.num_frames_per_proc else 0
 
-                    delta = self.rewards[i] + self.discount * next_value * (1. - next_mask) - self.values[i]
-                    self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * (1. - next_mask)
+                    delta = self.rewards[i] + self.discount * next_value * next_mask - self.values[i]
+                    self.advantages[i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
 
             # Define experiences:
             #   the whole experience is the concatenation of the experience
@@ -316,7 +316,7 @@ class BaseAlgo(ABC):
                 # T x P x D -> P x T x D -> (P * T) x D
                 exps.memory = self.memories[:-1].transpose(0, 1).reshape(-1, *self.memories.shape[2:])
                 # T x P -> P x T -> (P * T) x 1
-                exps.mask = self.done_masks[:-1].transpose(0, 1).reshape(-1).unsqueeze(1)
+                exps.mask = self.masks[:-1].transpose(0, 1).reshape(-1).unsqueeze(1)
             # for all tensors below, T x P -> P x T -> P * T
             exps.action = self.actions[:-1].transpose(0, 1).reshape(-1)
             exps.reward = self.rewards[:-1].transpose(0, 1).reshape(-1)
