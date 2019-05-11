@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import torch
-import numpy
+import numpy as np
 
 from torch_rl.format import default_preprocess_obss
 from torch_rl.utils import DictList, ParallelEnv
@@ -252,7 +252,6 @@ class BaseAlgo(ABC):
                 self.rollout_masks[i] = self.current_mask
                 self.current_mask = 1. - torch.tensor(done, device=self.device, dtype=torch.float)
 
-                self.log_done_counter = 0
                 for j, reward in enumerate(rewards):
 
                     if self.reshape_reward is not None:
@@ -279,9 +278,7 @@ class BaseAlgo(ABC):
                     self.log_episode_reshaped_return[j] += self.rollout_rewards[j][i]
                     self.log_episode_num_frames[j] += torch.ones(self.num_procs, device=self.device)
 
-                    self.log_episode_return[j] *= self.current_mask
-                    self.log_episode_reshaped_return[j] *= self.current_mask
-                    self.log_episode_num_frames[j] *= self.current_mask
+                    self.log_done_counter = 0
 
                     for k, done_ in enumerate(done):
                         if done_:
@@ -289,6 +286,10 @@ class BaseAlgo(ABC):
                             self.log_return[j].append(self.log_episode_return[j][k].item())
                             self.log_reshaped_return[j].append(self.log_episode_reshaped_return[j][k].item())
                             self.log_num_frames[j].append(self.log_episode_num_frames[j][k].item())
+
+                    self.log_episode_return[j] *= self.current_mask
+                    self.log_episode_reshaped_return[j] *= self.current_mask
+                    self.log_episode_num_frames[j] *= self.current_mask
 
 
             # Add advantage and return to experiences
@@ -312,7 +313,7 @@ class BaseAlgo(ABC):
                         self.rollout_advantages[j][i] = self.rollout_values_sw[j][i+1] - self.rollout_values_s[j][i+1]
 
                     elif not self.acmodel.use_term_fn and not self.acmodel.use_act_values:
-                        next_mask = self.rollout_masks[i + 1]
+                        next_mask = self.rollout_masks[i+1]
                         next_value = self.rollout_values[j][i+1]
                         next_advantage = self.rollout_advantages[j][i+1] if i < self.num_frames_per_proc else 0
 
