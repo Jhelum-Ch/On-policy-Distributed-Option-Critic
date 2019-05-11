@@ -234,7 +234,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         # Print logs
 
         n_updates = config.frames // (algo.num_frames_per_proc * config.procs)
-        if num_frames != config.frames and update % (n_updates // 3) == 0:
+        if update == 1 or (num_frames != config.frames and update % (n_updates // 3) == 0):
             logger.info(f"Frames {num_frames}/{config.frames}, speed={round_to_two(logs['num_frames']/(update_end_time - update_start_time))}fps")
 
         if update % config.log_interval == 0:
