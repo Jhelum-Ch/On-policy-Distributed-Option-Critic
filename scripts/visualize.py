@@ -4,6 +4,10 @@ USE_TEAMGRID = True
 import argparse
 import gym
 import time
+from utils.config import parse_bool
+import imageio
+
+import matplotlib.pyplot as plt
 
 if USE_TEAMGRID:
     import teamgrid
@@ -28,12 +32,16 @@ parser.add_argument("--env", default=None,
                     help="name of the environment to be run"
                          "if None, env will be taken from saved args.json"
                          "which is the env on which the model was trained")
+parser.add_argument("--num_episodes", type=int, default=5,
+                    help="number of episodes to show")
 parser.add_argument("--shift", type=int, default=0,
                     help="number of times the environment is reset at the beginning (default: 0)")
 parser.add_argument("--argmax", action="store_true", default=False,
                     help="select the action with highest probability")
-parser.add_argument("--pause", type=float, default=0.1,
-                    help="pause duration between two consequent actions of the agent")
+parser.add_argument("--fps", default=10, type=int,
+                    help="speed at which frames are displayed")
+parser.add_argument("--save_gifs", type=parse_bool, default=False,
+                        help="Saves gif of each episode into model directory")
 args = parser.parse_args()
 
 # Set seed for all randomness sources
@@ -56,6 +64,11 @@ env.seed(args.seed)
 for _ in range(args.shift):
     env.reset()
 
+# Rendering parameters
+
+frames = []
+ifi = 1. / args.fps
+
 # Define agent
 
 agent = utils.Agent(args.env, env.observation_space, dir_manager.seed_dir, train_args.num_agents, args.argmax, train_args.num_agents)
@@ -65,20 +78,54 @@ agent = utils.Agent(args.env, env.observation_space, dir_manager.seed_dir, train
 done = True
 
 i = 0
+ep = 0
 while True:
+    calc_start = time.time()
+
     i += 1
     if done:
+        ep += 1
+        if ep > args.num_episodes: break
+        print(f"Episode {ep}")
+
         obss = env.reset()
 
-    time.sleep(args.pause)
-    renderer = env.render()
+    # renders the environment
+
+    if args.save_gifs:
+        frames.append(env.render('rgb_array'))
+
+    else:
+        # enforces the fps args
+        elapsed = time.time() - calc_start
+        if elapsed < ifi:
+            time.sleep(ifi - elapsed)
+
+        renderer = env.render('human')
+
+    # action selection
 
     actions = agent.get_action(obss)
+
+    # environment step
 
     obss, rewards, done, _ = env.step(actions)
 
     for j, reward in enumerate(rewards):
         agent.analyze_feedback(reward, done)
 
-    if renderer.window is None:
-        break
+env.close()
+
+# Saves the collected gifs
+
+if args.save_gifs:
+    gif_path = dir_manager.storage_dir / 'gifs'
+    gif_path.mkdir(exist_ok=True)
+
+    print("Saving gif...")
+
+    gif_num = 0
+    while (gif_path / f"{args.env}__experiment{args.experiment_dir}_seed{args.seed_dir}_{gif_num}.gif").exists():
+        gif_num += 1
+    imageio.mimsave(str(
+        gif_path / f"{args.env}__experiment{args.experiment_dir}_seed{args.seed_dir}_{gif_num}.gif"), frames, duration=ifi)
