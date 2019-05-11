@@ -103,45 +103,45 @@ class BaseAlgo(ABC):
         self.current_obss = self.env.reset()
         self.rollout_obss = [None]*(shape[0])
         if self.acmodel.recurrent:
-            self.current_memories = [torch.zeros(shape[1], self.acmodel.memory_size, device=self.device)] * self.num_agents
-            self.rollout_memories = [torch.zeros(*shape, self.acmodel.memory_size, device=self.device)] * self.num_agents
+            self.current_memories = [torch.zeros(shape[1], self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
+            self.rollout_memories = [torch.zeros(*shape, self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
         self.current_mask = torch.ones(shape[1], device=self.device)
         self.rollout_masks = torch.zeros(*shape, device=self.device)
-        self.rollout_actions = [torch.zeros(*shape, device=self.device, dtype=torch.int)] * self.num_agents
-        self.rollout_rewards = [torch.zeros(*shape, device=self.device)] * self.num_agents
-        self.rollout_advantages = [torch.zeros(*shape, device=self.device)] * self.num_agents
-        self.rollout_log_probs = [torch.zeros(*shape, device=self.device)] * self.num_agents
+        self.rollout_actions = [torch.zeros(*shape, device=self.device, dtype=torch.int) for _ in range(self.num_agents)]
+        self.rollout_rewards = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+        self.rollout_advantages = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+        self.rollout_log_probs = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
         self.current_options = torch.arange(self.num_agents)
-        self.rollout_options = [torch.zeros(*shape, device=self.device)] * self.num_agents
+        self.rollout_options = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
         if self.acmodel.use_term_fn:
 
-            self.rollout_terminates = [torch.zeros(*shape, device=self.device)] * self.num_agents
-            self.rollout_terminates_prob = [torch.zeros(*shape, device=self.device)] * self.num_agents
+            self.rollout_terminates = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+            self.rollout_terminates_prob = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
         if self.acmodel.use_act_values:
 
-            self.rollout_values_swa = [torch.zeros(*shape, device=self.device)] * self.num_agents
-            self.rollout_values_sw = [torch.zeros(*shape, device=self.device)] * self.num_agents
-            self.rollout_values_s = [torch.zeros(*shape, device=self.device)] * self.num_agents
-            self.rollout_values_sw_max = [torch.zeros(*shape, device=self.device)] * self.num_agents
+            self.rollout_values_swa = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+            self.rollout_values_sw = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+            self.rollout_values_s = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+            self.rollout_values_sw_max = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
-            self.rollout_targets = [torch.zeros(*shape, device=self.device)] * self.num_agents
+            self.rollout_targets = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
         else:
-            self.rollout_values = [torch.zeros(*shape, device=self.device)] * self.num_agents
+            self.rollout_values = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
         # Initialize log values
 
-        self.log_episode_return = [torch.zeros(self.num_procs, device=self.device)] * self.num_agents
-        self.log_episode_reshaped_return = [torch.zeros(self.num_procs, device=self.device)] * self.num_agents
-        self.log_episode_num_frames = [torch.zeros(self.num_procs, device=self.device)] * self.num_agents
+        self.log_episode_return = [torch.zeros(self.num_procs, device=self.device) for _ in range(self.num_agents)]
+        self.log_episode_reshaped_return = [torch.zeros(self.num_procs, device=self.device) for _ in range(self.num_agents)]
+        self.log_episode_num_frames = [torch.zeros(self.num_procs, device=self.device) for _ in range(self.num_agents)]
 
         self.log_done_counter = 0
-        self.log_return = [[0] * self.num_procs] * self.num_agents
-        self.log_reshaped_return = [[0] * self.num_procs] * self.num_agents
-        self.log_num_frames = [[0] * self.num_procs] * self.num_agents
+        self.log_return = [[0] * self.num_procs for _ in range(self.num_agents)]
+        self.log_reshaped_return = [[0] * self.num_procs for _ in range(self.num_agents)]
+        self.log_num_frames = [[0] * self.num_procs for _ in range(self.num_agents)]
 
     def collect_experiences(self):
         """Collects rollouts and computes advantages.
@@ -252,6 +252,8 @@ class BaseAlgo(ABC):
                 self.rollout_masks[i] = self.current_mask
                 self.current_mask = 1. - torch.tensor(done, device=self.device, dtype=torch.float)
 
+                self.log_done_counter = [0, 0]
+
                 for j, reward in enumerate(rewards):
 
                     if self.reshape_reward is not None:
@@ -278,11 +280,9 @@ class BaseAlgo(ABC):
                     self.log_episode_reshaped_return[j] += self.rollout_rewards[j][i]
                     self.log_episode_num_frames[j] += torch.ones(self.num_procs, device=self.device)
 
-                    self.log_done_counter = 0
-
                     for k, done_ in enumerate(done):
                         if done_:
-                            self.log_done_counter += 1
+                            self.log_done_counter[j] += 1
                             self.log_return[j].append(self.log_episode_return[j][k].item())
                             self.log_reshaped_return[j].append(self.log_episode_reshaped_return[j][k].item())
                             self.log_num_frames[j].append(self.log_episode_num_frames[j][k].item())
@@ -331,7 +331,7 @@ class BaseAlgo(ABC):
             #   - P is self.num_procs,
             #   - D is the dimensionality.
 
-            exps = [DictList()] * self.num_agents
+            exps = [DictList() for _ in range(self.num_agents)]
             logs = {k:[] for k in ["return_per_episode",
                                    "reshaped_return_per_episode",
                                    "num_frames_per_episode",
@@ -381,7 +381,7 @@ class BaseAlgo(ABC):
 
                 # Log some values
 
-                keep = max(self.log_done_counter, self.num_procs)
+                keep = max(self.log_done_counter[j], self.num_procs)
 
                 logs["return_per_episode"].append(self.log_return[j][-keep:])
                 logs["reshaped_return_per_episode"].append(self.log_reshaped_return[j][-keep:])
