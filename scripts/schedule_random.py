@@ -10,15 +10,17 @@
 # fixed_value:  fixed_value
 
 import numpy as np
-import logging
+from utils.general import round_to_two
 
-granger_choices = ['agent_only', 'team_only', 'both']
+N_SEEDS = 3
+SEED_VARIATIONS = [i * 10 for i in range(N_SEEDS)]
+
 def sample_experiment():
     sampled_config = [
         ('seed', 1),
         # Algorithmic params
         ('algo', 'oc'),
-        ('lr', np.round(10**np.random.uniform(low=-6., high=-2), decimals=6)),
+        ('lr', round_to_two(10**np.random.uniform(low=-6., high=-2))),
         #('entropy_coef', 0.01),
         ('value_loss_coef', np.random.uniform(low=0.1, high=10.)),
         #('max_grad_norm', 0.5),
@@ -29,7 +31,7 @@ def sample_experiment():
         #('tau', 0.01),
         # Management params
         #('procs', 16),
-        ('frames', 250000),
+        ('frames', 10000),
         #('log_interval', 1),
         #('save_interval', 10),
         # World params and Env params

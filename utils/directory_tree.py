@@ -2,13 +2,13 @@ from pathlib import Path
 import os
 
 class DirectoryManager(object):
+    # Level 1
+    root = Path('./storage')
 
     def __init__(self, storage_name, seed, experiment_num=None):
-        # Level 1
-        self.root = Path('./storage')
 
         # Level 2
-        self.storage_dir = self.root / storage_name
+        self.storage_dir = DirectoryManager.root / storage_name
 
         if experiment_num is not None:
             self.current_experiment = f'experiment{experiment_num}'
@@ -57,3 +57,28 @@ class DirectoryManager(object):
                        seed=seed_path.name.strip('seed'))
 
         return instance
+
+
+def get_some_seeds(storage_dir, file_check='UNHATCHED'):
+    # Finds all seed directories containing an UNHATCHED file and sorts them numerically
+    sorted_experiments = DirectoryManager.get_all_experiments(storage_dir)
+
+    some_seed_dirs = []
+    for experiment_dir in sorted_experiments:
+        some_seed_dirs += [seed_path for seed_path
+                           in DirectoryManager.get_all_seeds(experiment_dir)
+                           if (seed_path / file_check).exists()]
+
+    return some_seed_dirs
+
+
+def get_all_seeds(storage_dir):
+    # Finds all seed directories and sorts them numerically
+    sorted_experiments = DirectoryManager.get_all_experiments(storage_dir)
+
+    all_seeds_dirs = []
+    for experiment_dir in sorted_experiments:
+        all_seeds_dirs += [seed_path for seed_path
+                           in DirectoryManager.get_all_seeds(experiment_dir)]
+
+    return all_seeds_dirs

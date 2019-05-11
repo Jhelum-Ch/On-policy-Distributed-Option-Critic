@@ -26,7 +26,7 @@ parser.add_argument("--seed", type=int, default=0,
                     help="random seed (default: 0) for the evaluation run")
 parser.add_argument("--env", default=None,
                     help="name of the environment to be run"
-                         "if None, env will be taken from saved args.json"
+                         "if None, env will be taken from saved config.json"
                          "which is the env on which the model was trained")
 parser.add_argument("--shift", type=int, default=0,
                     help="number of times the environment is reset at the beginning (default: 0)")
@@ -46,10 +46,10 @@ dir_manager = utils.DirectoryManager(args.storage_dir, args.seed_dir, args.exper
 
 # Generate environment
 
-train_args = utils.load_config_from_json(filename=dir_manager.seed_dir/"args.json")
+train_config = utils.load_config_from_json(filename=dir_manager.seed_dir / "config.json")
 
 if args.env is None:
-    args.env = train_args.env
+    args.env = train_config.env
 
 env = gym.make(args.env)
 env.seed(args.seed)

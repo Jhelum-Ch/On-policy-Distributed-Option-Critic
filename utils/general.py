@@ -2,6 +2,7 @@ import random
 import numpy
 import torch
 import collections
+from math import floor, log10
 
 def seed(seed):
     random.seed(seed)
@@ -17,3 +18,6 @@ def synthesize(array):
     d["min"] = numpy.amin(array)
     d["max"] = numpy.amax(array)
     return d
+
+def round_to_two(x):
+    return round(x, -int(floor(log10(abs(x))) - 1))

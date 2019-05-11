@@ -2,7 +2,7 @@
 # All possible combinations of will be run as a separate experiment
 import logging
 VARIATIONS = [
-    ('seed', [1]),
+    ('seed', [1, 123]),
     # Algorithmic params
     ('algo', ['a2c', 'ppo', 'oc']),
     #('lr', [7e-4]),
@@ -16,9 +16,9 @@ VARIATIONS = [
     #('tau', [0.01]),
     # Management params
     #('procs', [16]),
-    ('frames', [500000]),
+    ('frames', [5000]),
     #('log_interval', [1]),
-    #('save_interval', [10]),
+    ('save_interval', [10]),
     # World params and Env params
     #('env', ['MiniGrid-DoorKey-5x5-v0']),
 ]

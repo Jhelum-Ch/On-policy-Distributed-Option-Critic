@@ -7,8 +7,6 @@ import sys
 import subprocess
 import pickle
 
-import utils
-
 def get_model_path(save_dir):
     return os.path.join(save_dir, "model.pt")
 
@@ -63,18 +61,15 @@ def get_csv_writer(save_dir):
 def get_git_hash(path):
     return subprocess.check_output(["git", "-C", path, "rev-parse", "--short", "HEAD"]).decode("utf-8").strip()
 
-def get_log_path(save_dir):
-    return os.path.join(save_dir, "log.txt")
-
-def create_logger(name="", loglevel=logging.INFO, save_dir=None, streamHandle=True):
+def create_logger(name, loglevel, logfile=None, streamHandle=True):
     logger = logging.getLogger(name)
     logger.setLevel(loglevel)
     formatter = logging.Formatter(fmt=f'%(asctime)s - %(levelname)s - {name} - %(message)s',
                                   datefmt='%d/%m/%Y %H:%M:%S', )
 
     handlers = []
-    if save_dir is not None:
-        handlers.append(logging.FileHandler(get_log_path(save_dir), mode='w'))
+    if logfile is not None:
+        handlers.append(logging.FileHandler(logfile, mode='a'))
     if streamHandle:
         handlers.append(logging.StreamHandler(stream=sys.stdout))
 

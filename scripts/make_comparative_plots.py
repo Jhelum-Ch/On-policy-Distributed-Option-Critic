@@ -132,15 +132,15 @@ def create_comparative_figure(storage_dir, logger):
                         continue
 
                     # Writes unique hyperparameters on plot
-                    args_unique = load_dict_from_json(filename=str(seed_dir / 'args_unique.json'))
+                    config_unique = load_dict_from_json(filename=str(seed_dir / 'config_unique.json'))
 
                     if search_type == 'grid':
-                        sorted_keys = sorted(args_unique.keys(), key=lambda item: (properties['variations_lengths'][item], item), reverse=True)
+                        sorted_keys = sorted(config_unique.keys(), key=lambda item: (properties['variations_lengths'][item], item), reverse=True)
 
                     else:
-                        sorted_keys = args_unique
+                        sorted_keys = config_unique
 
-                    info_str = f'{seed_dir.parent.stem}\n' + '\n'.join([f'{k} = {args_unique[k]}' for k in sorted_keys])
+                    info_str = f'{seed_dir.parent.stem}\n' + '\n'.join([f'{k} = {config_unique[k]}' for k in sorted_keys])
                     bbox_props = dict(facecolor='gray', alpha=0.1)
                     current_ax.text(0.05, 0.95, info_str, transform=current_ax.transAxes, fontsize=12,
                             verticalalignment='top', bbox=bbox_props)
@@ -201,7 +201,7 @@ def create_comparative_figure(storage_dir, logger):
             plt.close(fig)
 
 if __name__ == '__main__':
-    logger = create_logger("PLOTS", logging.INFO, save_dir=None)
+    logger = create_logger("PLOTS", logging.INFO, logfile=None)
     serial_args = get_make_plots_args()
     storage_dir = Path('storage') / serial_args.storage_dir
     create_comparative_figure(storage_dir, logger)
