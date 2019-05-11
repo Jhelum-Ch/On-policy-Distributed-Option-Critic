@@ -14,18 +14,18 @@ def get_args():
 
 def clean_interrupted(args):
     storage_dir = DirectoryManager.root / args.storage_dir
-    all_seeds = set(get_all_seeds(storage_dir))
-    all_unhatched_seeds = set(get_some_seeds(storage_dir, file_check='UNHATCHED'))
-    all_completed_seeds = set(get_some_seeds(storage_dir, file_check='COMPLETED'))
-    assert not all_completed_seeds & all_unhatched_seeds
+    all_seeds = get_all_seeds(storage_dir)
+    unhatched_seeds = get_some_seeds(storage_dir, file_check='UNHATCHED')
+    completed_seeds = get_some_seeds(storage_dir, file_check='COMPLETED')
+    assert not any([seed_dir in completed_seeds for seed_dir in unhatched_seeds])
 
-    if (all_unhatched_seeds | all_completed_seeds) >= all_seeds:
+    if all([seed_dir in unhatched_seeds + completed_seeds for seed_dir in all_seeds]):
         print('Nothing to clean')
         return
 
-    seeds_to_clean = all_seeds - (all_unhatched_seeds | all_completed_seeds)
+    seeds_to_clean = [seed_dir for seed_dir in all_seeds if seed_dir not in unhatched_seeds + completed_seeds]
     for seed_dir in seeds_to_clean:
-        print(seed_dir)
+        print(f"Cleaning {seed_dir}")
         paths = seed_dir.iterdir()
         for path in paths:
             if path.is_dir() and path.name in ["recorders", "incremental"]:
@@ -38,7 +38,7 @@ def clean_interrupted(args):
                 pass
 
         open(str(seed_dir / 'UNHATCHED'), 'w+').close()
-    print(f'Done\n{args.storage_dir} cleaned')
+    print(f'Done')
 
 
 if __name__ == '__main__':
