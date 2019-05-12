@@ -27,70 +27,76 @@ class A2CAlgo(BaseAlgo):
 
         inds = self._get_starting_indexes()
 
-        # Initialize update values
+        for j in range(self.num_agents):
 
-        update_entropy = 0
-        update_value = 0
-        update_policy_loss = 0
-        update_value_loss = 0
-        update_loss = 0
+            # Initialize update values
 
-        # Initialize memory
+            update_entropy = 0
+            update_value = 0
+            update_policy_loss = 0
+            update_value_loss = 0
+            update_loss = 0
 
-        if self.acmodel.recurrent:
-            memory = exps.memory[inds]
-
-        for i in range(self.recurrence):
-            # Create a sub-batch of experience
-
-            sb = exps[inds + i]
-
-            # Compute loss
+            # Initialize memory
 
             if self.acmodel.recurrent:
-                dist, value, memory = self.acmodel(sb.obs, memory * sb.mask)
-            else:
-                dist, value = self.acmodel(sb.obs)
+                memory = exps[j].memory[inds]
 
-            entropy = dist.entropy().mean()
+            for i in range(self.recurrence):
 
-            policy_loss = -(dist.log_prob(sb.action) * sb.advantage).mean()
+                # Create a sub-batch of experience
 
-            value_loss = (value - sb.returnn).pow(2).mean()
+                sb = exps[j][inds + i]
 
-            loss = policy_loss - self.entropy_coef * entropy + self.value_loss_coef * value_loss
+                # Compute loss
 
-            # Update batch values
+                if self.acmodel.recurrent:
+                    act_dist, values, memory, term_dist = self.acmodel(sb.obs, memory * sb.mask)
+                else:
+                    act_dist, values = self.acmodel(sb.obs)
 
-            update_entropy += entropy.item()
-            update_value += value.mean().item()
-            update_policy_loss += policy_loss.item()
-            update_value_loss += value_loss.item()
-            update_loss += loss
+                entropy = act_dist.entropy().mean()
 
-        # Update update values
+                agent_act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, self.num_options))[range(sb.action.shape[0]), sb.current_options]
+                agent_values = values[range(sb.action.shape[0]), sb.current_options]
 
-        update_entropy /= self.recurrence
-        update_value /= self.recurrence
-        update_policy_loss /= self.recurrence
-        update_value_loss /= self.recurrence
-        update_loss /= self.recurrence
+                policy_loss = -(agent_act_log_probs * sb.advantage).mean()
 
-        # Update actor-critic
+                value_loss = (agent_values - sb.returnn).pow(2).mean()
 
-        self.optimizer.zero_grad()
-        update_loss.backward()
-        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
-        torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
-        self.optimizer.step()
+                loss = policy_loss - self.entropy_coef * entropy + self.value_loss_coef * value_loss
 
-        # Log some values
+                # Update batch values
 
-        logs["entropy"] = update_entropy
-        logs["value"] = update_value
-        logs["policy_loss"] = update_policy_loss
-        logs["value_loss"] = update_value_loss
-        logs["grad_norm"] = update_grad_norm
+                update_entropy += entropy.item()
+                update_value += agent_values.mean().item()
+                update_policy_loss += policy_loss.item()
+                update_value_loss += value_loss.item()
+                update_loss += loss
+
+            # Update update values
+
+            update_entropy /= self.recurrence
+            update_value /= self.recurrence
+            update_policy_loss /= self.recurrence
+            update_value_loss /= self.recurrence
+            update_loss /= self.recurrence
+
+            # Update actor-critic
+
+            self.optimizer.zero_grad()
+            update_loss.backward()
+            update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
+            torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
+            self.optimizer.step()
+
+            # Log some values
+
+            logs["entropy"].append(update_entropy)
+            logs["value"].append(update_value)
+            logs["policy_loss"].append(update_policy_loss)
+            logs["value_loss"].append(update_value_loss)
+            logs["grad_norm"].append(update_grad_norm)
 
         return logs
 
