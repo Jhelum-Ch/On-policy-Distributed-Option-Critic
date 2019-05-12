@@ -115,7 +115,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
         if self.use_term_fn:
             x = self.term_fn(embedding).view((-1, self.num_options))
-            term_dist = Bernoulli(probs=F.sigmoid(x))
+            term_dist = Bernoulli(probs=torch.sigmoid(x))
 
         else:
             term_dist = None

@@ -102,9 +102,12 @@ class BaseAlgo(ABC):
 
         self.current_obss = self.env.reset()
         self.rollout_obss = [None]*(shape[0])
+
         if self.acmodel.recurrent:
+
             self.current_memories = [torch.zeros(shape[1], self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
             self.rollout_memories = [torch.zeros(*shape, self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
+
         self.current_mask = torch.ones(shape[1], device=self.device)
         self.rollout_masks = torch.zeros(*shape, device=self.device)
         self.rollout_actions = [torch.zeros(*shape, device=self.device, dtype=torch.int) for _ in range(self.num_agents)]
@@ -237,8 +240,12 @@ class BaseAlgo(ABC):
                         self.rollout_values[j][i] = values[range(self.num_procs), self.current_options[j].long()].squeeze()
 
                     if self.acmodel.use_term_fn:
+
                         self.rollout_terminates_prob[j][i] = term_dist.probs[range(self.num_procs), self.current_options[j].long()]
                         self.rollout_terminates[j][i] = terminate
+
+                        # change current_option w.r.t. episode ending
+                        self.current_option = self.mask * self.current_option + (1. - self.mask) * torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float)
 
                 # environment step
 
@@ -290,7 +297,6 @@ class BaseAlgo(ABC):
                     self.log_episode_return[j] *= self.current_mask
                     self.log_episode_reshaped_return[j] *= self.current_mask
                     self.log_episode_num_frames[j] *= self.current_mask
-
 
             # Add advantage and return to experiences
 

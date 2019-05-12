@@ -37,10 +37,10 @@ if __name__ == '__main__':
                                 get_git_hash(path=str(os.path.dirname(gym_minigrid.__file__))))
     storage_dir = f"{git_hash}_{serial_args.desc}"
 
-    # Creates dictionary pointer-access to a training args object initialized by default
-    args = get_training_args(overwritten_args="")
-    args.desc = serial_args.desc
-    args_dict = vars(args)
+    # Creates dictionary pointer-access to a training config object initialized by default
+    config = get_training_args(overwritten_args="")
+    config.desc = serial_args.desc
+    config_dict = vars(config)
 
     # GRID SEARCH
     if serial_args.search_type == 'grid':
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     # RANDOM SEARCH
     elif serial_args.search_type == 'random':
         # Samples all experiments' hyperparameters
-        from scripts.schedule_random import sample_experiment
+        from scripts.schedule_random import sample_experiment, SEED_VARIATIONS
         experiments = [sample_experiment() for _ in range(serial_args.n_experiments)]
 
         # Makes sure no param was included twice in the schedule file
@@ -94,13 +94,13 @@ if __name__ == '__main__':
             del param_samples[param_name]
         varied_params = param_samples.keys()
 
-        print(f'\nPreparing a RANDOM search over {serial_args.n_experiments} experiments')
+        print(f'\nPreparing a RANDOM search over {serial_args.n_experiments} experiments and {len(SEED_VARIATIONS)} seeds')
 
     else:
         raise NotImplementedError
 
     # Printing info
-    print(f"\nDefault {config_to_str(args)}")
+    print(f"\nDefault {config_to_str(config)}")
 
     print(f"\n\nAbout to create {len(experiments)} experiment directories")
     print(f"    maoc git-hash: {git_hash.split('_')[0]}\n    environment git-hash: {git_hash.split('_')[1]}\n")
@@ -112,36 +112,33 @@ if __name__ == '__main__':
     # For every experiment defined, creates an experiment directory to be retrieved and run later
     for param_list in experiments:
 
-        # Modifies the args for this particular experiment
+        # Modifies the config for this particular experiment
         for param_tuple in param_list:
             param_name, param_value = param_tuple
-            if param_name not in args_dict.keys():
+            if param_name not in config_dict.keys():
                 raise ValueError(f"{param_name} from schedule.VARIATIONS is not a valid training hyperparameter")
             else:
-                args_dict[param_name] = param_value
-
-        if serial_args.search_type == 'random':
-            SEED_VARIATIONS = [args.seed]
+                config_dict[param_name] = param_value
 
         experiment_num = int(DirectoryManager(storage_name=storage_dir, seed=1).experiment_dir.stem.strip('experiment'))
 
         for seed in SEED_VARIATIONS:
-            args.seed = seed
+            config.seed = seed
 
             # Creates the experiment directory
             dir_manager = DirectoryManager(storage_name=storage_dir,
                                            experiment_num=experiment_num,
-                                           seed=args.seed)
+                                           seed=config.seed)
             dir_manager.create_directories()
 
-            args_unique_dict = {k: v for k, v in param_list if k in varied_params}
-            args_unique_dict['seed'] = seed
+            config_unique_dict = {k: v for k, v in param_list if k in varied_params}
+            config_unique_dict['seed'] = seed
 
             # Saves the set of unique variations to a json file (to easily identify the uniqueness of this experiment)
-            save_dict_to_json(args_unique_dict, filename=str(dir_manager.seed_dir / 'args_unique.json'))
+            save_dict_to_json(config_unique_dict, filename=str(dir_manager.seed_dir / 'config_unique.json'))
 
-            # Saves the args to a json file (for later use)
-            save_config_to_json(args, filename=str(dir_manager.seed_dir / 'args.json'))
+            # Saves the config to a json file (for later use)
+            save_config_to_json(config, filename=str(dir_manager.seed_dir / 'config.json'))
 
             # Creates empty file UNHATCHED meaning that the experiment is ready to be run
             open(str(dir_manager.seed_dir/'UNHATCHED'), 'w+').close()
@@ -172,5 +169,4 @@ if __name__ == '__main__':
 
     print(f'\nDONE\nCreated directories '
           f'{str(dir_manager.storage_dir)}/experiment{first_experiment_created}-{last_experiment_created}')
-    if serial_args.search_type == 'grid':
-        print(f"Each of these experiments contain directories for the following seeds: {SEED_VARIATIONS}")
+    print(f"Each of these experiments contain directories for the following seeds: {SEED_VARIATIONS}")

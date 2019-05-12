@@ -1,100 +1,161 @@
-import os
+import sys
+sys.path.append('..')
 from scripts.train import train
 from utils.config import load_config_from_json
-from utils.directory_tree import DirectoryManager
+from utils.directory_tree import *
 from utils.save import create_logger
 from scripts.make_comparative_plots import create_comparative_figure
-from pathlib import Path
+import numpy as np
 import traceback
 import datetime
 import argparse
 from multiprocessing import Process
 import time
 import logging
+from utils.config import parse_bool
 from tqdm import tqdm
+# from serial.benchmark import compare_models_on_bar_chart, compare_models_by_learning_curve
 
 def get_run_schedule_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--storage_dir', type=str, required=True)
     parser.add_argument('--n_processes', type=int, default=1)
+    parser.add_argument('--n_experiments_per_proc', type=int, default=np.inf)
+    parser.add_argument('--use_pbar', type=parse_bool, default=False)
+
     return parser.parse_args()
 
-def run_schedule(serial_args, process_i=0):
-    # Finds all directories containing an UNHATCHED file and sorts them numerically
-    storage_dir = Path('storage') / serial_args.storage_dir
+def run_schedule(args, master_logger, process_i=0):
+    try:
 
-    def get_unhatched_seeds(storage_dir):
-        sorted_experiments = DirectoryManager.get_all_experiments(storage_dir)
+        storage_dir = DirectoryManager.root / args.storage_dir
+        all_unhatched_seeds = get_some_seeds(storage_dir, file_check='UNHATCHED')
 
-        all_unhatched_seeds = []
-        for experiment_dir in sorted_experiments:
-            all_unhatched_seeds += [seed_path for seed_path
-                                    in DirectoryManager.get_all_seeds(experiment_dir)
-                                    if (seed_path / 'UNHATCHED').exists()]
+        # For each unhatched experiments, load the config and try to train the model
+        call_i = 0
+        while len(all_unhatched_seeds) > 0:
 
-        return all_unhatched_seeds
+            call_i += 1
+            if call_i > args.n_experiments_per_proc:
+                break
 
-    all_unhatched_seeds = get_unhatched_seeds(storage_dir)
+            try:
+                all_unhatched_seeds = get_some_seeds(storage_dir, file_check='UNHATCHED')
+                seed_dir = all_unhatched_seeds[0]
+                os.remove(str(seed_dir / 'UNHATCHED'))
 
-    # For each unhatched experiments, load the args and try to train the model
-    call_i = 0
-    while len(all_unhatched_seeds) > 0:
-        call_i += 1
-        try:
-            all_unhatched_seeds = get_unhatched_seeds(storage_dir)
-            seed_dir = all_unhatched_seeds[0]
-            os.remove(str(seed_dir / 'UNHATCHED'))
+            except (IndexError, FileNotFoundError):
+                master_logger.info(f"PROCESS{process_i} - It seems like there are no more unhatched seeds.")
+                break
 
-            args = load_config_from_json(str(seed_dir / 'args.json'))
-            dir_manager = DirectoryManager.init_from_seed_path(seed_dir)
-            logger = create_logger(
-                save_dir=dir_manager.seed_dir,
-                streamHandle=False
-                )
+            try:
+                config = load_config_from_json(str(seed_dir / 'config.json'))
+                dir_manager = DirectoryManager.init_from_seed_path(seed_dir)
 
-            pbar = tqdm(position=process_i + (1 + serial_args.n_processes) * call_i)
-            train(args, dir_manager, logger, pbar)
+                experiment_logger = create_logger(
+                    name=f'PROCESS{process_i}:{dir_manager.storage_dir.name}/{dir_manager.experiment_dir.name}/{dir_manager.seed_dir.name}',
+                    loglevel=logging.INFO,
+                    logfile=dir_manager.seed_dir / 'logger.out',
+                    streamHandle=not(args.use_pbar)
+                    )
 
-            open(str(seed_dir / 'COMPLETED'), 'w+').close()
+                if args.use_pbar:
+                    pbar = tqdm(position=process_i + (1 + args.n_processes) * call_i)
+                    pbar.desc = f"PROCESS{process_i}:"
+                else:
+                    pbar = None
 
-        except Exception as e:
-            with open(str(seed_dir / 'CRASH.txt'), 'w+') as f:
-                f.write(f'Crashed at : {datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")}')
-                f.write(str(e))
-                f.write(traceback.format_exc())
+                master_logger.info(f"PROCESS{process_i} - {dir_manager.storage_dir.name}/{dir_manager.experiment_dir.name}/{dir_manager.seed_dir.name} - Launching...")
+                train(config, dir_manager, experiment_logger, pbar)
 
-        try:
-            # Creates a comparative figure showing total reward
-            # for each episode of each agent of each experiment
-            create_comparative_figure(storage_dir, create_logger(streamHandle=False))
+                open(str(seed_dir / 'COMPLETED'), 'w+').close()
 
-        except Exception as e:
-            print(f"WARNING: Process {process_i} was not able to create comparative graphs: '{e}'")
-            continue
+            except Exception as e:
+                with open(str(seed_dir / 'CRASH.txt'), 'w+') as f:
+                    f.write(f'Crashed at : {datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")}')
+                    f.write(str(e))
+                    f.write(traceback.format_exc())
+
+        all_seeds = get_all_seeds(storage_dir)
+        unhatched_seeds = get_some_seeds(storage_dir, file_check='UNHATCHED')
+        crashed_seeds = get_some_seeds(storage_dir, file_check='CRASH.txt')
+        completed_seeds = get_some_seeds(storage_dir, file_check='COMPLETED')
+
+        if len(unhatched_seeds) == 0 and (len(crashed_seeds) + len(completed_seeds) == len(all_seeds)):
+            master_logger.info(f"PROCESS{process_i} - Finalizing...")
+
+            try:
+                create_comparative_figure(storage_dir, logger=master_logger)
+            except Exception as e:
+                master_logger.info(f"PROCESS{process_i} - \n{type(e)}: unable to plot comparative graphs\n\n{e}\n{traceback.format_exc()}")
+
+            # # If all experiments are completed benchmark them
+            # if all_seeds == completed_seeds:
+            #
+            #     try:
+            #         compare_models_on_bar_chart(env_dir=args.env_id, model_names=[args.model_name], n_episodes=5, agent_i=0, normalize_with_first_model=False, num_key=True, sort_bars=True, logger=master_logger)
+            #     except Exception as e:
+            #         master_logger.info(f"PROCESS{process_i} - \n{type(e)}: unable to benchmark performance\n\n{e}\n{traceback.format_exc()}")
+            #
+            #     try: compare_models_by_learning_curve(env_dir=args.env_id, model_names=[args.model_name], agent_i=0, num_key=True, n_labels=10, logger=master_logger)
+            #     except Exception as e:
+            #         master_logger.info(f"PROCESS{process_i} - \n{type(e)}: unable to benchmark learning\n{e}\n{traceback.format_exc()}")
+
+        master_logger.info(f"PROCESS{process_i} - Done. Shutting down.")
+
+    except Exception as e:
+        master_logger.info(f"PROCESS{process_i} - The process CRASHED with the following error:\n{e}")
+
+    return
+
 
 if __name__ == '__main__':
 
     serial_args = get_run_schedule_args()
-    print(f"\n\nRunning schedule for:"
-          f"\n  storage_dir={serial_args.storage_dir}"
-          f"\n  n_processes={serial_args.n_processes}\n\n")
+    storage_dir = DirectoryManager.root / serial_args.storage_dir
+
+    master_logger = create_logger(name=f'RUN_SCHEDULE:', loglevel=logging.INFO,
+                                  logfile=storage_dir / 'run_schedule_logger.out', streamHandle=False)
+
+    master_logger.info("="*200)
+    master_logger.info("="*200)
+    master_logger.info(f"\n\nRunning schedule for:"
+                       f"\n  storage_dir={serial_args.storage_dir}"
+                       f"\n  n_processes={serial_args.n_processes}"
+                       f"\n  n_experiments_per_proc={serial_args.n_experiments_per_proc}"
+                       f"\n  use_pbar={serial_args.use_pbar}\n\n")
 
     if serial_args.n_processes > 1:
         processes = []
         # create processes
         for i in range(serial_args.n_processes):
-            processes.append(Process(target=run_schedule, args=(serial_args, i)))
+            processes.append(Process(target=run_schedule, args=(serial_args, master_logger, i)))
 
-        # start processes
-        for p in processes:
-            p.start()
-            time.sleep(5)
+        try:
+            # start processes
+            for p in processes:
+                p.start()
+                time.sleep(3)
 
-        # wait for processes to end
-        for p in processes:
-            p.join()
+            # waits for all processes to end
+            dead_processes = []
+            while any([p.is_alive() for p in processes]):
 
-        print("All processes are done. Closing '__main__'")
+                # check if some processes are dead
+                for i, p in enumerate(processes):
+                    if not p.is_alive() and i not in dead_processes:
+                        master_logger.info(f'PROCESS{i} has died.')
+                        dead_processes.append(i)
+
+                time.sleep(3)
+
+        except KeyboardInterrupt:
+            master_logger.info("KEYBOARD INTERRUPT\nKilling all processes")
+            # terminates all processes
+            for process in processes:
+                process.terminate()
+
+        master_logger.info("All processes are done. Closing '__main__'\n\n")
 
     else:
-        run_schedule(serial_args)
+        run_schedule(serial_args, master_logger)

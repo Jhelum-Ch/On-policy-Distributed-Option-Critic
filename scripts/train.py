@@ -4,7 +4,7 @@ USE_TEAMGRID = True
 import argparse
 import gym
 import time
-import pickle
+import logging
 import torch
 import torch_rl
 import sys
@@ -13,6 +13,7 @@ from pathlib import Path
 from tqdm import tqdm
 from utils.plots import *
 import numpy as np
+from utils.general import round_to_two
 
 if USE_TEAMGRID:
     import teamgrid
@@ -92,59 +93,59 @@ def get_training_args(overwritten_args=None):
     return parser.parse_args(overwritten_args)
 
 
-def train(args, dir_manager=None, logger=None, pbar=None):
+def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
-    args.mem = args.recurrence > 1
+    config.mem = config.recurrence > 1
     # In the multi-agent setup, for DOC, different agents really are empty slots in which options are executed
     # Therefore, the number of options (policies) needs to be greater or equal to the number of agents (slots)
-    if args.algo == 'doc':
-        assert args.num_options >= args.num_agents
+    if config.algo == 'doc':
+        assert config.num_options >= config.num_agents
     # In the multi-agent setup, for baseline algorithms, each agent has its own policy
     # However, for implementation uniformity, we will consider them as if they were different options
     # (but each agent will always keep the same "option")
     else:
-        args.num_options = args.num_agents
+        config.num_options = config.num_agents
 
     if dir_manager is None:
 
         # Define save dir
 
-        git_hash = "{0}_{1}".format(utils.get_git_hash(path='.'),
-                                    utils.get_git_hash(path=str(os.path.dirname(teamgrid.__file__))))
-        storage_dir = f"{git_hash}_{args.desc}"
-        dir_manager = utils.DirectoryManager(storage_dir, args.seed, args.experiment_dir)
+        git_hash = "{0}_{1}".format(utils.get_git_hash(path='.'), utils.get_git_hash(path=str(os.path.dirname(teamgrid.__file__))))
+        storage_dir = f"{git_hash}_{config.desc}"
+        dir_manager = utils.DirectoryManager(storage_dir, config.seed, config.experiment_dir)
         dir_manager.create_directories()
 
     # Define logger, CSV writer and Tensorboard writer
 
     if logger is None:
-        logger = utils.create_logger(save_dir=dir_manager.seed_dir, streamHandle=False)
+        logger = utils.create_logger(name="", loglevel=logging.DEBUG,
+                                     logfile=dir_manager.seed_dir / "log.txt", streamHandle=False)
 
     csv_file, csv_writer = utils.get_csv_writer(save_dir=dir_manager.seed_dir)
-    if args.tb:
+    if config.tb:
         from tensorboardX import SummaryWriter
         tb_writer = SummaryWriter(str(dir_manager.seed_dir))
 
     # Log command and all script arguments
 
-    logger.info("{}\n".format(" ".join(sys.argv)))
-    logger.info("{}\n".format(args))
+    logger.debug("{}\n".format(" ".join(sys.argv)))
+    logger.debug("{}\n".format(config))
 
     # Set seed for all randomness sources
 
-    utils.seed(args.seed)
+    utils.seed(config.seed)
 
     # Generate environments
 
     envs = []
-    for i in range(args.procs):
-        env = gym.make(args.env, num_agents=args.num_agents)
-        env.seed(args.seed + 10000*i)
+    for i in range(config.procs):
+        env = gym.make(config.env, num_agents=config.num_agents)
+        env.seed(config.seed + 10000*i)
         envs.append(env)
 
     # Define obss preprocessor
 
-    obs_space, preprocess_obss = utils.get_obss_preprocessor(args.env, envs[0].observation_space, dir_manager.seed_dir)
+    obs_space, preprocess_obss = utils.get_obss_preprocessor(config.env, envs[0].observation_space, dir_manager.seed_dir)
 
     # Load training status
 
@@ -156,58 +157,61 @@ def train(args, dir_manager=None, logger=None, pbar=None):
     # Define actor-critic model
 
     if Path(utils.get_model_path(save_dir=dir_manager.seed_dir)).exists():
-        if args.auto_resume or \
+        if config.auto_resume or \
                 input(f'Model in "{dir_manager.seed_dir}" already exists. Resume training? [y or n]').lower() in ['y', 'yes']:
             acmodel = utils.load_model(save_dir=dir_manager.seed_dir)
-            logger.info("Model successfully loaded\n")
-            args = utils.load_config_from_json(filename=Path(dir_manager.seed_dir) / "args.json")
+            logger.debug("Model successfully loaded\n")
+            config = utils.load_config_from_json(filename=Path(dir_manager.seed_dir) / "config.json")
 
         else:
             print("Aborting...")
             sys.exit()
     else:
-        acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text, args.num_options,
-                          use_act_values=True if args.algo == "doc" else False,
-                          use_term_fn=True if args.algo == "doc" else False)
+        acmodel = ACModel(obs_space, envs[0].action_space, config.mem, config.text, config.num_options,
+                          use_act_values=True if config.algo == "doc" else False,
+                          use_term_fn=True if config.algo == "doc" else False)
         logger.info("Model successfully created\n")
-        utils.save_config_to_json(args, filename=Path(dir_manager.seed_dir) / "args.json")
+        utils.save_config_to_json(config, filename=Path(dir_manager.seed_dir) / "config.json")
 
     # Print info on model
 
-    logger.info("{}\n".format(acmodel))
-    logger.info(f"Numer of params: {acmodel.get_number_of_params()}")
+    logger.debug("{}\n".format(acmodel))
+    logger.debug(f"Numer of params: {acmodel.get_number_of_params()}")
 
     if torch.cuda.is_available():
         acmodel.cuda()
-    logger.info("CUDA available: {}\n".format(torch.cuda.is_available()))
+    logger.debug("CUDA available: {}\n".format(torch.cuda.is_available()))
 
     # Define actor-critic algo
 
-    if args.algo == "a2c":
-        algo = torch_rl.A2CAlgo(args.num_agents, envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
-                                args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
-                                args.optim_alpha, args.optim_eps, preprocess_obss, args.num_options)
-    elif args.algo == "ppo":
-        algo = torch_rl.PPOAlgo(args.num_agents, envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
-                                args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
-                                args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss, args.num_options)
-    elif args.algo == "doc":
-        algo = torch_rl.OCAlgo(args.num_agents, envs, acmodel, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
-                                args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
-                                args.optim_alpha, args.optim_eps, preprocess_obss,
-                                args.num_options, args.termination_loss_coef, args.termination_reg)
+    if config.algo == "a2c":
+        algo = torch_rl.A2CAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
+                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
+                                config.optim_alpha, config.optim_eps, preprocess_obss, config.num_options)
+    elif config.algo == "ppo":
+        algo = torch_rl.PPOAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
+                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
+                                config.optim_eps, config.clip_eps, config.epochs, config.batch_size, preprocess_obss, config.num_options)
+    elif config.algo == "doc":
+        algo = torch_rl.OCAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
+                               config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
+                               config.optim_alpha, config.optim_eps, preprocess_obss,
+                               config.num_options, config.termination_loss_coef, config.termination_reg)
     else:
-        raise ValueError("Incorrect algorithm name: {}".format(args.algo))
+        raise ValueError("Incorrect algorithm name: {}".format(config.algo))
 
 
 
     # Creates a progress-bar
 
-    if pbar is None:
-        pbar = tqdm()
-    pbar.n = status["num_frames"]
-    pbar.total = args.frames
-    pbar.desc = f'{dir_manager.storage_dir.name}/{dir_manager.experiment_dir.name}/{dir_manager.seed_dir.name}'
+    if type(pbar) is str:
+        if pbar == "default_pbar":
+            pbar = tqdm()
+
+    if pbar is not None:
+        pbar.n = status["num_frames"]
+        pbar.total = config.frames
+        pbar.desc = f'{dir_manager.storage_dir.name}/{dir_manager.experiment_dir.name}/{dir_manager.seed_dir.name}'
 
     # Train model
 
@@ -227,7 +231,7 @@ def train(args, dir_manager=None, logger=None, pbar=None):
         "grad_norm": []
     }
 
-    while num_frames < args.frames:
+    while num_frames < config.frames:
         # Update model parameters
 
         update_start_time = time.time()
@@ -235,13 +239,19 @@ def train(args, dir_manager=None, logger=None, pbar=None):
         update_end_time = time.time()
 
         num_frames += logs["num_frames"][0]
-        pbar.update(logs["num_frames"][0])
+        if pbar is not None:
+            pbar.update(logs["num_frames"][0])
         update += 1
 
         # Print logs
 
-        if update % args.log_interval == 0:
+        n_updates = config.frames // (algo.num_frames_per_proc * config.procs)
+        if update == 1 or (num_frames != config.frames and update % (n_updates // 3) == 0):
+            logger.info(f"Frames {num_frames}/{config.frames}, speed={round_to_two(logs['num_frames'][0]/(update_end_time - update_start_time))}fps")
+
+        if update % config.log_interval == 0:
             fps = logs["num_frames"][0]/(update_end_time - update_start_time)
+
             duration = int(time.time() - total_start_time)
             return_per_episode = utils.synthesize(logs["return_per_episode"])
             rreturn_per_episode = utils.synthesize(logs["reshaped_return_per_episode"])
@@ -263,14 +273,14 @@ def train(args, dir_manager=None, logger=None, pbar=None):
 
         # Save vocabulary and model
 
-        if args.save_interval > 0 and update % args.save_interval == 0:
+        if config.save_interval > 0 and update % config.save_interval == 0:
             if hasattr(preprocess_obss, "vocab"):
                 preprocess_obss.vocab.save()
 
             if torch.cuda.is_available():
                 acmodel.cpu()
             utils.save_model(acmodel, save_dir=dir_manager.seed_dir)
-            logger.info("Model successfully saved")
+            logger.debug("Model successfully saved")
             if torch.cuda.is_available():
                 acmodel.cuda()
 
@@ -280,10 +290,10 @@ def train(args, dir_manager=None, logger=None, pbar=None):
 
                 # Losses
             fig, axes = create_fig((2,2))
-            plot_curve(axes[0,0], graph_data["num_frames"], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(args.num_options)], colors=[envs[0].agents[j].color for j in range(args.num_agents)], xlabel="frames", title="Policy Loss")
-            plot_curve(axes[0,1], graph_data["num_frames"], np.array(graph_data["value_loss"]).T, labels=[f"agent {i}" for i in range(args.num_options)], colors=[envs[0].agents[j].color for j in range(args.num_agents)], xlabel="frames", title="Value Loss")
-            plot_curve(axes[1,0], graph_data["num_frames"], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(args.num_options)], colors=[envs[0].agents[j].color for j in range(args.num_agents)], xlabel="frames", title="Entropy")
-            plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(args.num_options)], colors=[envs[0].agents[j].color for j in range(args.num_agents)], xlabel="frames", title="Gradient Norm")
+            plot_curve(axes[0,0], graph_data["num_frames"], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_options)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
+            plot_curve(axes[0,1], graph_data["num_frames"], np.array(graph_data["value_loss"]).T, labels=[f"agent {i}" for i in range(config.num_options)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
+            plot_curve(axes[1,0], graph_data["num_frames"], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_options)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Entropy")
+            plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_options)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
             fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
             plt.close(fig)
 
@@ -292,12 +302,12 @@ def train(args, dir_manager=None, logger=None, pbar=None):
             plot_curve(ax, graph_data["num_frames"],
                        np.array(graph_data["return_mean"]).T,
                        stds=np.array(graph_data["return_std"]).T,
-                       colors=[envs[0].agents[j].color for j in range(args.num_agents)],
-                       labels=[f"agent {i}" for i in range(args.num_options)],
+                       colors=[envs[0].agents[j].color for j in range(config.num_agents)],
+                       labels=[f"agent {i}" for i in range(config.num_options)],
                        xlabel="frames", title="Average Return")
             fig.savefig(str(dir_manager.seed_dir / 'return.png'))
             plt.close(fig)
 
 if __name__ == "__main__":
-    args = get_training_args()
-    train(args)
+    config = get_training_args()
+    train(config)
