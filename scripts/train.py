@@ -170,7 +170,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         acmodel = ACModel(obs_space, envs[0].action_space, config.mem, config.text, config.num_options,
                           use_act_values=True if config.algo == "doc" else False,
                           use_term_fn=True if config.algo == "doc" else False)
-        logger.info("Model successfully created\n")
+        logger.debug("Model successfully created\n")
         utils.save_config_to_json(config, filename=Path(dir_manager.seed_dir) / "config.json")
 
     # Print info on model
