@@ -259,7 +259,7 @@ class BaseAlgo(ABC):
                 self.rollout_masks[i] = self.current_mask
                 self.current_mask = 1. - torch.tensor(done, device=self.device, dtype=torch.float)
 
-                self.log_done_counter = [0, 0]
+                self.log_done_counter = [0 for _ in range(self.num_agents)]
 
                 for j, reward in enumerate(rewards):
 
