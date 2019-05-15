@@ -28,8 +28,8 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='ppo', choices=['doc', 'a2c', 'ppo'],#required=True,
-                        help="algorithm to use: a2c | ppo | doc (REQUIRED)")
+    parser.add_argument("--algo", default='oc', choices=['oc', 'a2c', 'ppo'],#required=True,
+                        help="algorithm to use: a2c | ppo | oc (REQUIRED)")
     parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)")
     parser.add_argument("--desc", default="",
@@ -103,7 +103,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     # In the multi-agent setup, for baseline algorithms, each agent has its own policy
     # However, for implementation uniformity, we will consider them as if they were different options
     # (but each agent will always keep the same "option")
-    else:
+    elif config.algo in ['a2c', 'ppo']:
         config.num_options = config.num_agents
 
     if dir_manager is None:
@@ -168,8 +168,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             sys.exit()
     else:
         acmodel = ACModel(obs_space, envs[0].action_space, config.mem, config.text, config.num_options,
-                          use_act_values=True if config.algo == "doc" else False,
-                          use_term_fn=True if config.algo == "doc" else False)
+                          use_act_values=True if config.algo == "oc" else False,
+                          use_term_fn=True if config.algo == "oc" else False)
         logger.debug("Model successfully created\n")
         utils.save_config_to_json(config, filename=Path(dir_manager.seed_dir) / "config.json")
 
@@ -192,7 +192,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         algo = torch_rl.PPOAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
                                 config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
                                 config.optim_eps, config.clip_eps, config.epochs, config.batch_size, preprocess_obss, config.num_options)
-    elif config.algo == "doc":
+    elif config.algo == "oc":
         algo = torch_rl.OCAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
                                config.optim_alpha, config.optim_eps, preprocess_obss,
@@ -290,10 +290,10 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
                 # Losses
             fig, axes = create_fig((2,2))
-            plot_curve(axes[0,0], graph_data["num_frames"], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_options)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
-            plot_curve(axes[0,1], graph_data["num_frames"], np.array(graph_data["value_loss"]).T, labels=[f"agent {i}" for i in range(config.num_options)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
-            plot_curve(axes[1,0], graph_data["num_frames"], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_options)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Entropy")
-            plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_options)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
+            plot_curve(axes[0,0], graph_data["num_frames"], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
+            plot_curve(axes[0,1], graph_data["num_frames"], np.array(graph_data["value_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
+            plot_curve(axes[1,0], graph_data["num_frames"], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Entropy")
+            plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
             fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
             plt.close(fig)
 
@@ -303,7 +303,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                        np.array(graph_data["return_mean"]).T,
                        stds=np.array(graph_data["return_std"]).T,
                        colors=[envs[0].agents[j].color for j in range(config.num_agents)],
-                       labels=[f"agent {i}" for i in range(config.num_options)],
+                       labels=[f"agent {i}" for i in range(config.num_agents)],
                        xlabel="frames", title="Average Return")
             fig.savefig(str(dir_manager.seed_dir / 'return.png'))
             plt.close(fig)

@@ -29,80 +29,82 @@ class OCAlgo(BaseAlgo):
 
         inds = self._get_starting_indexes()
 
-        # Initialize update values
+        for j in range(self.num_agents):
 
-        update_entropy = 0
-        update_value = 0
-        update_policy_loss = 0
-        update_value_loss = 0
-        update_loss = 0
+            # Initialize update values
 
-        # Initialize memory
+            update_entropy = 0
+            update_value = 0
+            update_policy_loss = 0
+            update_value_loss = 0
+            update_loss = 0
 
-        if self.acmodel.recurrent:
-            memory = exps.memory[inds]
-
-        for i in range(self.recurrence):
-            # Create a sub-batch of experience
-
-            sb = exps[inds + i]
-
-            # Forward propagation
+            # Initialize memory
 
             if self.acmodel.recurrent:
-                act_dist, act_values, memory, term_dist = self.acmodel(sb.obs, memory * sb.mask)
-            else:
-                act_dist, act_values, _, term_dist = self.acmodel(sb.obs)
+                memory = exps[j].memory[inds]
 
-            # Compute losses
+            for i in range(self.recurrence):
+                # Create a sub-batch of experience
 
-            entropy = act_dist.entropy().mean()
+                sb = exps[j][inds + i]
 
-            act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, self.num_options))[range(sb.action.shape[0]), sb.current_options]
-            policy_loss = -(act_log_probs * (sb.value_swa - sb.value_sw)).mean()
+                # Forward propagation
 
-            Q_U_swa = act_values[range(sb.action.shape[0]), sb.current_options, sb.action.long()]
-            value_loss = (Q_U_swa - sb.target).pow(2).mean()
+                if self.acmodel.recurrent:
+                    act_dist, act_values, memory, term_dist = self.acmodel(sb.obs, memory * sb.mask)
+                else:
+                    act_dist, act_values, _, term_dist = self.acmodel(sb.obs)
 
-            term_prob = term_dist.probs[range(sb.action.shape[0]), sb.current_options]
-            termination_loss = (term_prob * (sb.advantage + self.termination_reg)).mean()
+                # Compute losses
 
-            loss = policy_loss \
-                   - self.entropy_coef * entropy \
-                   + self.value_loss_coef * value_loss \
-                   + self.term_loss_coef * termination_loss
+                entropy = act_dist.entropy().mean()
 
-            # Update batch values
+                act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, self.num_options))[range(sb.action.shape[0]), sb.current_options]
+                policy_loss = -(act_log_probs * (sb.value_swa - sb.value_sw)).mean()
 
-            update_entropy += entropy.item()
-            update_value += Q_U_swa.mean().item()
-            update_policy_loss += policy_loss.item()
-            update_value_loss += value_loss.item()
-            update_loss += loss
+                Q_U_swa = act_values[range(sb.action.shape[0]), sb.current_options, sb.action.long()]
+                value_loss = (Q_U_swa - sb.target).pow(2).mean()
 
-        # Update update values
+                term_prob = term_dist.probs[range(sb.action.shape[0]), sb.current_options]
+                termination_loss = (term_prob * (sb.advantage + self.termination_reg)).mean()
 
-        update_entropy /= self.recurrence
-        update_value /= self.recurrence
-        update_policy_loss /= self.recurrence
-        update_value_loss /= self.recurrence
-        update_loss /= self.recurrence
+                loss = policy_loss \
+                       - self.entropy_coef * entropy \
+                       + self.value_loss_coef * value_loss \
+                       + self.term_loss_coef * termination_loss
 
-        # Update actor-critic
+                # Update batch values
 
-        self.optimizer.zero_grad()
-        update_loss.backward()
-        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
-        torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
-        self.optimizer.step()
+                update_entropy += entropy.item()
+                update_value += Q_U_swa.mean().item()
+                update_policy_loss += policy_loss.item()
+                update_value_loss += value_loss.item()
+                update_loss += loss
 
-        # Log some values
+            # Update update values
 
-        logs["entropy"] = update_entropy
-        logs["value"] = update_value
-        logs["policy_loss"] = update_policy_loss
-        logs["value_loss"] = update_value_loss
-        logs["grad_norm"] = update_grad_norm
+            update_entropy /= self.recurrence
+            update_value /= self.recurrence
+            update_policy_loss /= self.recurrence
+            update_value_loss /= self.recurrence
+            update_loss /= self.recurrence
+
+            # Update actor-critic
+
+            self.optimizer.zero_grad()
+            update_loss.backward()
+            update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
+            torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
+            self.optimizer.step()
+
+            # Log some values
+
+            logs["entropy"].append(update_entropy)
+            logs["value"].append(update_value)
+            logs["policy_loss"].append(update_policy_loss)
+            logs["value_loss"].append(update_value_loss)
+            logs["grad_norm"].append(update_grad_norm)
 
         return logs
 

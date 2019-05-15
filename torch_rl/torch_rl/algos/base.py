@@ -115,13 +115,18 @@ class BaseAlgo(ABC):
         self.rollout_advantages = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
         self.rollout_log_probs = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
-        self.current_options = torch.arange(self.num_agents)
         self.rollout_options = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
         if self.acmodel.use_term_fn:
 
             self.rollout_terminates = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
             self.rollout_terminates_prob = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+
+            self.current_options = [torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float) for _ in range(self.num_agents)]
+
+        else:
+
+            self.current_options = torch.arange(self.num_agents)
 
         if self.acmodel.use_act_values:
 
@@ -218,7 +223,7 @@ class BaseAlgo(ABC):
 
                     # select action
 
-                    action = act_dist.sample()[range(self.num_procs), self.current_options[j]]
+                    action = act_dist.sample()[range(self.num_procs), self.current_options[j].long()]
                     agents_action.append(action)
 
                     # update experiences values (pre-step)
@@ -243,9 +248,6 @@ class BaseAlgo(ABC):
 
                         self.rollout_terminates_prob[j][i] = term_dist.probs[range(self.num_procs), self.current_options[j].long()]
                         self.rollout_terminates[j][i] = terminate
-
-                        # change current_option w.r.t. episode ending
-                        self.current_option = self.mask * self.current_option + (1. - self.mask) * torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float)
 
                 # environment step
 
