@@ -12,7 +12,7 @@ import logging
 
 def get_make_plots_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--storage_dir', type=str, required=True)
+    parser.add_argument('--storage_dir', type=str, default="887f7a8_3e9171e_FourRooms_A2C_1_2_4_agents")#required=True)
     return parser.parse_args()
 
 def create_comparative_figure(storage_dir, logger):
@@ -164,29 +164,34 @@ def create_comparative_figure(storage_dir, logger):
 
                         if current_comparative_plot == 'return':
                             plot_curve(current_ax, graph_data["num_frames"],
-                                       np.array(graph_data["return_mean"])[np.newaxis, :],
-                                       stds=np.array(graph_data["return_std"])[np.newaxis, :],
-                                       labels=["agent 1"], xlabel="frames", title="Average Return")
+                                       np.array(graph_data["return_mean"]).T,
+                                       stds=np.array(graph_data["return_std"]).T,
+                                       labels=[f"agent {i}" for i in range(len(np.array(graph_data["return_mean"]).T))],
+                                       xlabel="frames", title="Average Return")
 
                         elif current_comparative_plot == 'policy_loss':
                             plot_curve(current_ax, graph_data["num_frames"],
-                                       np.array(graph_data["policy_loss"])[np.newaxis, :],
-                                       labels=["agent 1"], xlabel="frames", title="Policy Loss")
+                                       np.array(graph_data["policy_loss"]).T,
+                                       labels=[f"agent {i}" for i in range(len(np.array(graph_data["policy_loss"]).T))],
+                                       xlabel="frames", title="Policy Loss")
 
                         elif current_comparative_plot == 'value_loss':
                             plot_curve(current_ax, graph_data["num_frames"],
-                                       np.array(graph_data["value_loss"])[np.newaxis, :],
-                                       labels=["agent 1"], xlabel="frames", title="Value Loss")
+                                       np.array(graph_data["value_loss"]).T,
+                                       labels=[f"agent {i}" for i in range(len(np.array(graph_data["value_loss"]).T))],
+                                       xlabel="frames", title="Value Loss")
 
                         elif current_comparative_plot == 'entropy':
                             plot_curve(current_ax, graph_data["num_frames"],
-                                       np.array(graph_data["entropy"])[np.newaxis, :],
-                                       labels=["agent 1"], xlabel="frames", title="Entropy")
+                                       np.array(graph_data["entropy"]).T,
+                                       labels=[f"agent {i}" for i in range(len(np.array(graph_data["entropy"]).T))],
+                                       xlabel="frames", title="Entropy")
 
                         elif current_comparative_plot == 'grad_norm':
                             plot_curve(current_ax, graph_data["num_frames"],
-                                       np.array(graph_data["grad_norm"])[np.newaxis, :],
-                                       labels=["agent 1"], xlabel="frames", title="Gradient Norm")
+                                       np.array(graph_data["grad_norm"]).T,
+                                       labels=[f"agent {i}" for i in range(len(np.array(graph_data["grad_norm"]).T))],
+                                       xlabel="frames", title="Gradient Norm")
 
                         else:
                             raise NotImplementedError
