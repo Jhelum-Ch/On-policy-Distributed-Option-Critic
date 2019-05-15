@@ -230,6 +230,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         "value_loss": [],
         "grad_norm": []
     }
+    graph_data["agent_colors"] = [envs[0].agents[j].color for j in range(config.num_agents)]
 
     while num_frames < config.frames:
         # Update model parameters

@@ -167,30 +167,35 @@ def create_comparative_figure(storage_dir, logger):
                                        np.array(graph_data["return_mean"]).T,
                                        stds=np.array(graph_data["return_std"]).T,
                                        labels=[f"agent {i}" for i in range(len(np.array(graph_data["return_mean"]).T))],
+                                       colors=graph_data["agent_colors"],
                                        xlabel="frames", title="Average Return")
 
                         elif current_comparative_plot == 'policy_loss':
                             plot_curve(current_ax, graph_data["num_frames"],
                                        np.array(graph_data["policy_loss"]).T,
                                        labels=[f"agent {i}" for i in range(len(np.array(graph_data["policy_loss"]).T))],
+                                       colors=graph_data["agent_colors"],
                                        xlabel="frames", title="Policy Loss")
 
                         elif current_comparative_plot == 'value_loss':
                             plot_curve(current_ax, graph_data["num_frames"],
                                        np.array(graph_data["value_loss"]).T,
                                        labels=[f"agent {i}" for i in range(len(np.array(graph_data["value_loss"]).T))],
+                                       colors=graph_data["agent_colors"],
                                        xlabel="frames", title="Value Loss")
 
                         elif current_comparative_plot == 'entropy':
                             plot_curve(current_ax, graph_data["num_frames"],
                                        np.array(graph_data["entropy"]).T,
                                        labels=[f"agent {i}" for i in range(len(np.array(graph_data["entropy"]).T))],
+                                       colors=graph_data["agent_colors"],
                                        xlabel="frames", title="Entropy")
 
                         elif current_comparative_plot == 'grad_norm':
                             plot_curve(current_ax, graph_data["num_frames"],
                                        np.array(graph_data["grad_norm"]).T,
                                        labels=[f"agent {i}" for i in range(len(np.array(graph_data["grad_norm"]).T))],
+                                       colors=graph_data["agent_colors"],
                                        xlabel="frames", title="Gradient Norm")
 
                         else:
