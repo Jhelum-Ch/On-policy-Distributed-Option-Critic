@@ -22,17 +22,24 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                  action_space,
                  use_memory=False,
                  use_text=False,
+                 num_agents=1,
                  num_options=1,
                  use_act_values=False,
-                 use_term_fn=False):
+                 use_term_fn=False,
+                 use_centralized_critics=False,
+                 use_broadcasting=False,
+                 ):
         super().__init__()
 
         # Decide which components are enabled
         self.use_act_values = use_act_values
         self.use_text = use_text
         self.use_memory = use_memory
+        self.num_agents = num_agents
         self.num_options = num_options
         self.use_term_fn = use_term_fn
+        self.use_centralized_critics = use_centralized_critics
+        self.use_broadcasting = use_broadcasting
 
         if isinstance(action_space, gym.spaces.Discrete):
             self.num_actions = action_space.n
@@ -78,7 +85,15 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         )
 
         # Define critic's model
-        critic_output_size = actor_output_size if self.use_act_values else self.num_options
+        if self.use_act_values:
+            critic_output_size = actor_output_size
+
+        elif not self.use_act_values:
+            critic_output_size = self.num_options
+
+        else:
+            raise NotImplemented
+
         self.critic = nn.Sequential(
             nn.Linear(self.embedding_size, 64),
             nn.Tanh(),
@@ -91,6 +106,15 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                 nn.Linear(self.embedding_size, 64),
                 nn.Tanh(),
                 nn.Linear(64, self.num_options)
+            )
+
+        # Define broadcast_net
+        if self.use_broadcasting:
+            assert self.use_centralized_critics
+            self.broadcast_net = nn.Sequential(
+                nn.Linear(self.embedding_size, 64),
+                nn.Tanh(),
+                nn.Linear(64, self.num_agents)
             )
 
         # Initialize parameters correctly
@@ -120,7 +144,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         else:
             term_dist = None
 
-        return act_dist, values, new_memory, term_dist
+        return act_dist, values, new_memory, term_dist, embedding
 
     def _get_embed_text(self, text):
         _, hidden = self.text_rnn(self.word_embedding(text))

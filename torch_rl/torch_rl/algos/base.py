@@ -122,7 +122,7 @@ class BaseAlgo(ABC):
             self.rollout_terminates = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
             self.rollout_terminates_prob = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
-            self.current_options = [torch.randint(low=0, high=self.num_options, size=(self.num_procs,), device=self.device, dtype=torch.float) for _ in range(self.num_agents)]
+            self.current_options = [torch.randint(low=0, high=self.num_options, size=(shape[1],), device=self.device, dtype=torch.float) for _ in range(self.num_agents)]
 
         else:
 
@@ -138,18 +138,19 @@ class BaseAlgo(ABC):
             self.rollout_targets = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
         else:
+
             self.rollout_values = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
         # Initialize log values
 
-        self.log_episode_return = [torch.zeros(self.num_procs, device=self.device) for _ in range(self.num_agents)]
-        self.log_episode_reshaped_return = [torch.zeros(self.num_procs, device=self.device) for _ in range(self.num_agents)]
-        self.log_episode_num_frames = [torch.zeros(self.num_procs, device=self.device) for _ in range(self.num_agents)]
+        self.log_episode_return = [torch.zeros(shape[1], device=self.device) for _ in range(self.num_agents)]
+        self.log_episode_reshaped_return = [torch.zeros(shape[1], device=self.device) for _ in range(self.num_agents)]
+        self.log_episode_num_frames = [torch.zeros(shape[1], device=self.device) for _ in range(self.num_agents)]
 
         self.log_done_counter = 0
-        self.log_return = [[0] * self.num_procs for _ in range(self.num_agents)]
-        self.log_reshaped_return = [[0] * self.num_procs for _ in range(self.num_agents)]
-        self.log_num_frames = [[0] * self.num_procs for _ in range(self.num_agents)]
+        self.log_return = [[0] * shape[1] for _ in range(self.num_agents)]
+        self.log_reshaped_return = [[0] * shape[1] for _ in range(self.num_agents)]
+        self.log_num_frames = [[0] * shape[1] for _ in range(self.num_agents)]
 
     def collect_experiences(self):
         """Collects rollouts and computes advantages.

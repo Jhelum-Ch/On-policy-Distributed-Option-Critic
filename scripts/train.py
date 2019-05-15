@@ -28,7 +28,7 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='oc', choices=['oc', 'a2c', 'ppo'],#required=True,
+    parser.add_argument("--algo", default='oc', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
     parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)")
@@ -167,9 +167,18 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             print("Aborting...")
             sys.exit()
     else:
-        acmodel = ACModel(obs_space, envs[0].action_space, config.mem, config.text, config.num_options,
-                          use_act_values=True if config.algo == "oc" else False,
-                          use_term_fn=True if config.algo == "oc" else False)
+        acmodel = ACModel(obs_space=obs_space,
+                          action_space=envs[0].action_space,
+                          use_memory=config.mem,
+                          use_text=config.text,
+                          num_agents=config.num_agents,
+                          num_options=config.num_options,
+                          use_act_values=True if config.algo in ["oc", "doc"] else False,
+                          use_term_fn=True if config.algo in ["oc", "doc"] else False,
+                          use_centralized_critics=True if config.algo == "doc" else False,
+                          use_broadcasting=True if config.algo == "doc" else False,
+                          )
+
         logger.debug("Model successfully created\n")
         utils.save_config_to_json(config, filename=Path(dir_manager.seed_dir) / "config.json")
 
@@ -197,6 +206,12 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
                                config.optim_alpha, config.optim_eps, preprocess_obss,
                                config.num_options, config.termination_loss_coef, config.termination_reg)
+    elif config.algo == "doc":
+        algo = torch_rl.OCAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
+                               config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
+                               config.optim_alpha, config.optim_eps, preprocess_obss,
+                               config.num_options, config.termination_loss_coef, config.termination_reg)
+
     else:
         raise ValueError("Incorrect algorithm name: {}".format(config.algo))
 
