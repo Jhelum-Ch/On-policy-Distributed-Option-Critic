@@ -108,11 +108,17 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                 nn.Linear(64, self.num_options)
             )
 
-        # Define broadcast_net
+        # Define broadcast_net and attention_layers
         if self.use_broadcasting:
             assert self.use_centralized_critics
             self.broadcast_net = nn.Sequential(
                 nn.Linear(self.embedding_size, 64),
+                nn.Tanh(),
+                nn.Linear(64, self.num_agents)
+            )
+
+            self.attn_layer = nn.Sequential(
+                nn.Linear(self.embedding_size * self.num_agents + self.memory_size, 64),
                 nn.Tanh(),
                 nn.Linear(64, self.num_agents)
             )
@@ -129,7 +135,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         return self.image_embedding_size
 
     def forward(self, obs, memory):
-        embedding, new_memory =self._embed_observation(obs, memory)
+        embedding, new_memory, image_embed = self._embed_observation(obs, memory)
 
         x = self.actor(embedding).view((-1, self.num_options, self.num_actions))
         act_dist = Categorical(logits=F.log_softmax(x, dim=-1))
@@ -144,16 +150,35 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         else:
             term_dist = None
 
-        return act_dist, values, new_memory, term_dist, embedding
+        return act_dist, values, new_memory, term_dist, image_embed
+
+    def _attention_head(self, embeddings, memory):
+
+        hidden = (memory[:, :self.semi_memory_size], memory[:, self.semi_memory_size:])
+        attn_weights = F.softmax(self.attn_layer(torch.cat((*hidden, *embeddings), dim=1)))
+
+        mixed_embedding = torch.bmm(attn_weights.unsqueeze(0),
+                                    torch.cat(embeddings, dim=1).unsqueeze(0))
+
+        return mixed_embedding
 
     def _get_embed_text(self, text):
         _, hidden = self.text_rnn(self.word_embedding(text))
         return hidden[-1]
 
-    def _embed_observation(self, obs, memory):
-        x = torch.transpose(torch.transpose(obs.image, 1, 3), 2, 3)
+    def _get_embed_image(self, image):
+        x = torch.transpose(torch.transpose(image, 1, 3), 2, 3)
         x = self.image_conv(x)
-        x = x.reshape(x.shape[0], -1)
+        image_embed = x.reshape(x.shape[0], -1)
+        return image_embed
+
+    def _embed_observation(self, obs, memory, other_image_embeds=None):
+        image_embed = self._get_embed_image(obs.image)
+
+        if self.use_broadcasting:
+            x = self._attention_head([image_embed, *other_image_embeds], memory)
+        else:
+            x = image_embed
 
         if self.use_memory:
             hidden = (memory[:, :self.semi_memory_size], memory[:, self.semi_memory_size:])
@@ -164,10 +189,10 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             embedding = x
 
         if self.use_text:
-            embed_text = self._get_embed_text(obs.text)
-            embedding = torch.cat((embedding, embed_text), dim=1)
+            text_embed = self._get_embed_text(obs.text)
+            embedding = torch.cat((embedding, text_embed), dim=1)
 
-        return embedding, memory
+        return embedding, memory, image_embed
 
     def get_number_of_params(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
