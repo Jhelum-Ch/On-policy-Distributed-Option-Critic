@@ -175,7 +175,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                           num_options=config.num_options,
                           use_act_values=True if config.algo in ["oc", "doc"] else False,
                           use_term_fn=True if config.algo in ["oc", "doc"] else False,
-                          use_centralized_critics=True if config.algo == "doc" else False,
+                          use_central_critic=True if config.algo == "doc" else False,
                           use_broadcasting=True if config.algo == "doc" else False,
                           )
 
