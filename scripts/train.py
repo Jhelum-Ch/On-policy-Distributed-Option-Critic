@@ -28,7 +28,7 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='oc', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
+    parser.add_argument("--algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
     parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)")
@@ -80,7 +80,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--auto_resume", action="store_true", default=False,
                         help="whether to automatically resume training when lauching the script on existing model")
     # Option-Critic configs
-    parser.add_argument("--num_options", type=int, default=2,
+    parser.add_argument("--num_options", type=int, default=3,
                         help="number of options (default: 1, 1 means no options)")
     parser.add_argument("--termination_loss_coef", type=float, default=0.5,
                         help="termination loss term coefficient (default: 0.5)")
@@ -207,7 +207,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                config.optim_alpha, config.optim_eps, preprocess_obss,
                                config.num_options, config.termination_loss_coef, config.termination_reg)
     elif config.algo == "doc":
-        algo = torch_rl.OCAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
+        algo = torch_rl.DOCAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
                                config.optim_alpha, config.optim_eps, preprocess_obss,
                                config.num_options, config.termination_loss_coef, config.termination_reg)
