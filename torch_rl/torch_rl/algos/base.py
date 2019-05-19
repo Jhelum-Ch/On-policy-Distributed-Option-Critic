@@ -84,6 +84,7 @@ class BaseAlgo(ABC):
         self.batch_dim = 0
         self.opt_dim = 1
         self.act_dim = 2
+        self.agt_dim = 3
 
         # Store helpers values
 
@@ -107,6 +108,11 @@ class BaseAlgo(ABC):
 
             self.current_memories = [torch.zeros(shape[1], self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
             self.rollout_memories = [torch.zeros(*shape, self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
+
+            if self.acmodel.use_central_critic:
+
+                self.current_coord_memories = [torch.zeros(shape[1], self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
+                self.rollout_coord_memories = [torch.zeros(*shape, self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
 
         self.current_mask = torch.ones(shape[1], device=self.device)
         self.rollout_masks = torch.zeros(*shape, device=self.device)
@@ -140,6 +146,14 @@ class BaseAlgo(ABC):
         else:
 
             self.rollout_values = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+
+
+        if self.acmodel.use_broadcasting:
+
+            self.current_broadcast_state = [torch.ones(shape[1], device=self.device) for _ in range(self.num_agents)]
+
+            self.rollout_broadcast_masks = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+            self.rollout_broadcast_prob = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
         # Initialize log values
 
@@ -183,6 +197,14 @@ class BaseAlgo(ABC):
             for i in range(rollout_length):
 
                 agents_action = []
+                agents_broadcast = []
+
+                agents_act_dist = []
+                agents_values = []
+                agents_memory = []
+                agents_term_dist = []
+                agents_broadcast_dist = []
+                agents_embedding = []
 
                 for j, obs_j in enumerate(self.current_obss):
 
@@ -190,19 +212,66 @@ class BaseAlgo(ABC):
 
                     preprocessed_obs = self.preprocess_obss(obs_j, device=self.device)
 
-                    act_dist, values, memory, term_dist = self.acmodel(preprocessed_obs, self.current_memories[j] * self.current_mask.unsqueeze(1))
+                    act_dist, values, memory, term_dist, broadcast_dist, embedding = self.acmodel(preprocessed_obs, self.current_memories[j] * self.current_mask.unsqueeze(1))
 
-                    # doc-specific computations
+                    # collect outputs for each agent
+
+                    agents_act_dist.append(act_dist)
+                    agents_values.append(values)
+                    agents_memory.append(memory)
+                    agents_term_dist.append(term_dist)
+                    agents_broadcast_dist.append(broadcast_dist)
+
+                    # check broadcasting
+
+                    if self.acmodel.use_broadcasting:
+
+                        broadcast = broadcast_dist.sample()[range(self.num_procs), self.current_options[j].long()]
+
+                        agents_broadcast.append(broadcast)
+                        agents_embedding.append(broadcast * embedding)
+
+                # compute option-action values with coordinator (doc)
+
+                if self.acmodel.use_central_critic:
+
+                    assert agents_values.count(None) == len(agents_values)
+                    all_opt_act_values = torch.zeros((self.num_procs, self.num_options, self.acmodel.num_actions, self.num_agents), device=self.device)
+                    new_coord_memories = torch.zeros((self.num_procs, self.num_options, self.acmodel.num_actions, self.acmodel.memory_size), device=self.device)
+
+                    for o_agent1 in self.num_options:
+
+                        for a_agent1 in self.acmodel.num_actions:
+
+                            for o_agent2 in self.num_options:
+
+                                for a_agent2 in self.acmodel.num_actions:
+
+                                    # TODO: big bottleneck here. this loop is extremely inefficient
+                                    option_idxs = [o for _ in range(self.num_procs)]
+                                    action_idxs = [a for _ in range(self.acmodel.num_actions)]
+
+                                    all_opt_act_values[:, o, a, :], new_coord_memories[:, o, a, :] = self.acmodel.forward_central_critic(agents_embedding,
+                                                                                                                                         option_idxs,
+                                                                                                                                         action_idxs,
+                                                                                                                                         self.current_coord_memories)
+
+                    for j in range(self.num_agents):
+                        agents_values[j] = all_opt_act_values[:, :, :, j]
+
+
+                for j in range(self.num_agents):
+
+                    # compute expectations over option-action values (which gives option-value Qsw and state-value Vs)
 
                     if self.acmodel.use_act_values:
 
-                        # get option values for current state
+                        Qsw_all             = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
+                        Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
+                        Qsw                 = Qsw_all[range(self.num_procs), self.current_options[j].long()]
+                        Vs                  = Qsw_max
 
-                        all_Q_omega_sw = torch.sum(act_dist.probs * values, dim=self.act_dim, keepdim=True)
-                        Q_omega_sw_max, Q_omega_sw_argmax = torch.max(all_Q_omega_sw, dim=self.opt_dim, keepdim=True)
-
-                        Q_omega_sw  = all_Q_omega_sw[range(self.num_procs), self.current_options[j].long()]
-                        V_omega_s   = Q_omega_sw_max
+                    # option selection
 
                     if self.acmodel.use_term_fn:
 
@@ -210,51 +279,64 @@ class BaseAlgo(ABC):
 
                         # check termination
 
-                        terminate = term_dist.sample()[range(self.num_procs), self.current_options[j].long()]
+                        terminate = agents_term_dist[j].sample()[range(self.num_procs), self.current_options[j].long()]
 
-                        # select option (for those that terminate)
+                        # changes option (for those that terminate)
 
                         random_mask = terminate * (torch.rand(self.num_procs) < self.option_epsilon).float()
                         chosen_mask = terminate * (1. - random_mask)
                         assert all(torch.ones(self.num_procs) == random_mask + chosen_mask + (1. - terminate))
 
                         random_options = random_mask * torch.randint(self.num_options, size=(self.num_procs,)).float()
-                        chosen_options = chosen_mask * Q_omega_sw_argmax.squeeze().float()
+                        chosen_options = chosen_mask * Qsw_argmax.squeeze().float()
                         self.current_options[j] = random_options + chosen_options + (1. - terminate) * self.current_options[j]
 
-                    # select action
+                    # action selection
 
-                    action = act_dist.sample()[range(self.num_procs), self.current_options[j].long()]
+                    action = agents_act_dist[j].sample()[range(self.num_procs), self.current_options[j].long()]
                     agents_action.append(action)
 
-                    # update experiences values (pre-step)
+                    # update experience values (pre-step)
 
                     self.rollout_actions[j][i] = action
                     self.rollout_options[j][i] = self.current_options[j]
-                    self.rollout_log_probs[j][i] = act_dist.logits[range(self.num_procs), self.current_options[j].long(), action]
+                    self.rollout_log_probs[j][i] = agents_act_dist[j].logits[range(self.num_procs), self.current_options[j].long(), action]
 
                     if self.acmodel.recurrent:
                         self.rollout_memories[j][i] = self.current_memories[j]
-                        self.current_memories[j] = memory
+                        self.current_memories[j] = agents_memory[j]
 
-                    if self.acmodel.use_act_values:
-                        self.rollout_values_swa[j][i] = values[range(self.num_procs), self.current_options[j].long(), action].squeeze()
-                        self.rollout_values_sw[j][i] = Q_omega_sw.squeeze()
-                        self.rollout_values_s[j][i] = V_omega_s.squeeze()
-                        self.rollout_values_sw_max[j][i] = Q_omega_sw_max.squeeze()
-                    else:
-                        self.rollout_values[j][i] = values[range(self.num_procs), self.current_options[j].long()].squeeze()
+                    if not self.acmodel.use_central_critic:
+
+                        if self.acmodel.use_act_values:
+                            self.rollout_values_swa[j][i] = agents_values[j][range(self.num_procs), self.current_options[j].long(), action].squeeze()
+                            self.rollout_values_sw[j][i] = Qsw.squeeze()
+                            self.rollout_values_s[j][i] = Vs.squeeze()
+                            self.rollout_values_sw_max[j][i] = Qsw_max.squeeze()
+                        else:
+                            self.rollout_values[j][i] = agents_values[j][range(self.num_procs), self.current_options[j].long()].squeeze()
 
                     if self.acmodel.use_term_fn:
 
-                        self.rollout_terminates_prob[j][i] = term_dist.probs[range(self.num_procs), self.current_options[j].long()]
+                        self.rollout_terminates_prob[j][i] = agents_term_dist[j].probs[range(self.num_procs), self.current_options[j].long()]
                         self.rollout_terminates[j][i] = terminate
+
+                    if self.acmodel.use_broadcasting:
+
+                        self.rollout_broadcasts_prob[j][i] = agents_broadcast_dist[j].probs[range(self.num_procs), self.current_options[j].long()]
+                        self.rollout_broadcasts_mask[j][i] = agents_broadcast[j]
+
+
+                if self.acmodel.recurrent and self.acmodel.use_central_critic:
+
+                    self.rollout_coord_memories[i] = self.current_coord_memories
+                    self.current_coord_memories = new_coord_memories[:, self.current_options[j], action, :]
 
                 # environment step
 
-                next_obss, rewards, done, _ = self.env.step(list(map(list, zip(*agents_action))))
+                next_obss, rewards, done, _ = self.env.step(list(map(list, zip(*agents_action))))  # this list(map(list)) thing is used to transpose a list of lists
 
-                # update experiences values (post-step)
+                # update experience values (post-step)
 
                 self.rollout_obss[i] = self.current_obss
                 self.current_obss = next_obss
