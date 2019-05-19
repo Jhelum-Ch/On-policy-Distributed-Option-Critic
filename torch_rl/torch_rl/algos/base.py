@@ -73,6 +73,7 @@ class BaseAlgo(ABC):
         self.recurrence = recurrence
         self.preprocess_obss = preprocess_obss or default_preprocess_obss
         self.reshape_reward = reshape_reward
+        self.num_actions = self.acmodel.num_actions
         self.num_options = num_options
         self.term_loss_coef = termination_loss_coef
         self.termination_reg = termination_reg
@@ -231,6 +232,11 @@ class BaseAlgo(ABC):
                         agents_broadcast.append(broadcast)
                         agents_embedding.append(broadcast * embedding)
 
+                    # action selection
+
+                    action = agents_act_dist[j].sample()[range(self.num_procs), self.current_options[j].long()]
+                    agents_action.append(action)
+
                 # compute option-action values with coordinator (doc)
 
                 if self.acmodel.use_central_critic:
@@ -239,24 +245,25 @@ class BaseAlgo(ABC):
                     all_opt_act_values = torch.zeros((self.num_procs, self.num_options, self.acmodel.num_actions, self.num_agents), device=self.device)
                     new_coord_memories = torch.zeros((self.num_procs, self.num_options, self.acmodel.num_actions, self.acmodel.memory_size), device=self.device)
 
-                    for o_agent1 in self.num_options:
-
-                        for a_agent1 in self.acmodel.num_actions:
-
-                            for o_agent2 in self.num_options:
-
-                                for a_agent2 in self.acmodel.num_actions:
-
-                                    # TODO: big bottleneck here. this loop is extremely inefficient
-                                    option_idxs = [o for _ in range(self.num_procs)]
-                                    action_idxs = [a for _ in range(self.acmodel.num_actions)]
-
-                                    all_opt_act_values[:, o, a, :], new_coord_memories[:, o, a, :] = self.acmodel.forward_central_critic(agents_embedding,
-                                                                                                                                         option_idxs,
-                                                                                                                                         action_idxs,
-                                                                                                                                         self.current_coord_memories)
-
                     for j in range(self.num_agents):
+
+                        for o in self.num_options:
+
+                            for a in self.acmodel.num_actions:
+                                # TODO: big bottleneck here. these loops are extremely inefficient
+
+                                option_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=o)
+                                action_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=a)
+
+                                option_idxs = [option_idxs_agent_j if k == j else self.current_options[k] for k in range(self.num_agents)]
+                                action_idxs = [action_idxs_agent_j if k == j else agents_action[k] for k in range(self.num_agents)]
+                                # TODO: because we need action here, action selection now happen before option selection. Make sure all the rest makes sense with that
+
+                                all_opt_act_values[:, o, a, j], new_coord_memories[:, o, a, j] = self.acmodel.forward_central_critic(agents_embedding,
+                                                                                                                                     option_idxs,
+                                                                                                                                     action_idxs,
+                                                                                                                                     self.current_coord_memories)
+
                         agents_values[j] = all_opt_act_values[:, :, :, j]
 
 
@@ -291,14 +298,9 @@ class BaseAlgo(ABC):
                         chosen_options = chosen_mask * Qsw_argmax.squeeze().float()
                         self.current_options[j] = random_options + chosen_options + (1. - terminate) * self.current_options[j]
 
-                    # action selection
-
-                    action = agents_act_dist[j].sample()[range(self.num_procs), self.current_options[j].long()]
-                    agents_action.append(action)
-
                     # update experience values (pre-step)
 
-                    self.rollout_actions[j][i] = action
+                    self.rollout_actions[j][i] = agents_action[j]
                     self.rollout_options[j][i] = self.current_options[j]
                     self.rollout_log_probs[j][i] = agents_act_dist[j].logits[range(self.num_procs), self.current_options[j].long(), action]
 

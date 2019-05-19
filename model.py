@@ -97,7 +97,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             # defines dimensionality
             if self.use_act_values:
                 critic_input_size = self.num_agents * (self.embedding_size + self.num_options + self.num_actions)
-                critic_output_size = self.num_agents
+                critic_output_size = 1
             else:
                 raise NotImplemented
 
@@ -185,7 +185,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             new_coordinator_memory = torch.cat(hidden, dim=1)
 
         assert self.use_central_critic
-        values = self.critic(coordinator_embedding).view((-1, self.num_agents))
+        values = self.critic(coordinator_embedding)
 
         return values, new_coordinator_memory
 
