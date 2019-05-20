@@ -176,7 +176,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                           use_act_values=True if config.algo in ["oc", "doc"] else False,
                           use_term_fn=True if config.algo in ["oc", "doc"] else False,
                           use_central_critic=True if config.algo == "doc" else False,
-                          use_broadcasting=True if config.algo == "doc" else False,
                           )
 
         logger.debug("Model successfully created\n")
