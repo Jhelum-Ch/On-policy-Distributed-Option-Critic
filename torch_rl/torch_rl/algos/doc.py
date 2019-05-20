@@ -10,12 +10,13 @@ class DOCAlgo(BaseAlgo):
     def __init__(self, num_agents, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
                  rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=4,
-                 termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None):
+                 termination_loss_coef=0.5, termination_reg=0.01, always_broadcast=False, reshape_reward=None):
         num_frames_per_proc = num_frames_per_proc or 8
 
         super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
                          value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
-                         num_options, termination_loss_coef, termination_reg)
+                         num_options, termination_loss_coef, termination_reg,
+                         always_broadcast=always_broadcast)
 
         self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
                                              alpha=rmsprop_alpha, eps=rmsprop_eps)
@@ -43,6 +44,7 @@ class DOCAlgo(BaseAlgo):
 
             if self.acmodel.recurrent:
                 memory = exps[j].memory[inds]
+                coord_memory = exps[j].coord_memory[inds]
 
             for i in range(self.recurrence):
                 # Create a sub-batch of experience
@@ -51,10 +53,8 @@ class DOCAlgo(BaseAlgo):
 
                 # Forward propagation
 
-                if self.acmodel.recurrent:
-                    act_dist, act_values, memory, term_dist = self.acmodel(sb.obs, memory * sb.mask)
-                else:
-                    act_dist, act_values, _, term_dist = self.acmodel(sb.obs)
+                assert self.acmodel.recurrent
+                act_dist, _, new_memory, term_dist, broadcast_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
 
                 # Compute losses
 
@@ -68,6 +68,10 @@ class DOCAlgo(BaseAlgo):
 
                 term_prob = term_dist.probs[range(sb.action.shape[0]), sb.current_options]
                 termination_loss = (term_prob * (sb.advantage + self.termination_reg)).mean()
+
+                # TODO: what is the loss for broadcast functions?
+                # broadcast_prob = broadcast_dist.probs[range(sb.action.shape[0]), sb.current_options]
+                # broadcast_loss = -(act_log_probs * (sb.value_swa - sb.value_sw)).mean()
 
                 loss = policy_loss \
                        - self.entropy_coef * entropy \

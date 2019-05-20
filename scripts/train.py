@@ -86,6 +86,9 @@ def get_training_args(overwritten_args=None):
                         help="termination loss term coefficient (default: 0.5)")
     parser.add_argument("--termination_reg", type=float, default=0.01,
                         help="termination regularization constant (default: 0.01)")
+    # DOC configs
+    parser.add_argument("--always_broadcast", type=parse_bool, default=True,
+                        help="whether DOC agents broadcast every step")
     # Multi-Agent configs
     parser.add_argument("--num_agents", type=int, default=2,
                         help="number of trainable agents interacting with the teamgrid environment")

@@ -10,7 +10,8 @@ class BaseAlgo(ABC):
 
     def __init__(self, num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
-                 num_options=None, termination_loss_coef=None, termination_reg=None, option_epsilon=0.05):
+                 num_options=None, termination_loss_coef=None, termination_reg=None, option_epsilon=0.05,
+                 always_broadcast=False):
         """
         Initializes a `BaseAlgo` instance.
 
@@ -78,6 +79,7 @@ class BaseAlgo(ABC):
         self.term_loss_coef = termination_loss_coef
         self.termination_reg = termination_reg
         self.option_epsilon = option_epsilon
+        self.always_broadcast = always_broadcast
 
 
         # Dimension convention
@@ -227,7 +229,10 @@ class BaseAlgo(ABC):
 
                     if self.acmodel.use_broadcasting:
 
-                        broadcast = broadcast_dist.sample()[range(self.num_procs), self.current_options[j].long()]
+                        if self.always_broadcast:
+                            broadcast = torch.ones((self.num_procs,), device=self.device)
+                        else:
+                            broadcast = broadcast_dist.sample()[range(self.num_procs), self.current_options[j].long()]
 
                         agents_broadcast.append(broadcast)
                         agents_embedding.append(broadcast.unsqueeze(1) * embedding)
