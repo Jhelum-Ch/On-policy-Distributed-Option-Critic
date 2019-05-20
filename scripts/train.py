@@ -89,6 +89,8 @@ def get_training_args(overwritten_args=None):
     # Multi-Agent configs
     parser.add_argument("--num_agents", type=int, default=2,
                         help="number of trainable agents interacting with the teamgrid environment")
+    parser.add_argument("--shared_rewards", type=parse_bool, default=True,
+                        help="whether the reward is individual or shared as the sum of all rewards among agents")
 
     return parser.parse_args(overwritten_args)
 
@@ -139,7 +141,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
     envs = []
     for i in range(config.procs):
-        env = gym.make(config.env, num_agents=config.num_agents)
+        env = gym.make(config.env, num_agents=config.num_agents, shared_rewards=config.shared_rewards)
         env.seed(config.seed + 10000*i)
         envs.append(env)
 
@@ -303,16 +305,18 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
             # Saving graphs
 
-                # Losses
+            # Losses
+            value_losses = np.array(graph_data["value_loss"])
+            value_losses = value_losses.T if len(value_losses.shape) > 1 else value_losses[np.newaxis, :]
             fig, axes = create_fig((2,2))
             plot_curve(axes[0,0], graph_data["num_frames"], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
-            plot_curve(axes[0,1], graph_data["num_frames"], np.array(graph_data["value_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
+            plot_curve(axes[0,1], graph_data["num_frames"], value_losses, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
             plot_curve(axes[1,0], graph_data["num_frames"], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Entropy")
-            plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
+            # plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
             fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
             plt.close(fig)
 
-                # Return
+            # Return
             fig, ax = create_fig((1, 1))
             plot_curve(ax, graph_data["num_frames"],
                        np.array(graph_data["return_mean"]).T,
