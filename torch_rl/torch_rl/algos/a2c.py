@@ -51,7 +51,7 @@ class A2CAlgo(BaseAlgo):
                 # Compute loss
 
                 if self.acmodel.recurrent:
-                    act_dist, values, memory, term_dist = self.acmodel(sb.obs, memory * sb.mask)
+                    act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
                 else:
                     act_dist, values = self.acmodel(sb.obs)
 

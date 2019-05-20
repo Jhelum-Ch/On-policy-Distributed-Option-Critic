@@ -52,7 +52,7 @@ class OCAlgo(BaseAlgo):
                 # Forward propagation
 
                 if self.acmodel.recurrent:
-                    act_dist, act_values, memory, term_dist = self.acmodel(sb.obs, memory * sb.mask)
+                    act_dist, act_values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
                 else:
                     act_dist, act_values, _, term_dist = self.acmodel(sb.obs)
 
