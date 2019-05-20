@@ -21,6 +21,7 @@ class DOCAlgo(BaseAlgo):
                                              alpha=rmsprop_alpha, eps=rmsprop_eps)
 
     def update_parameters(self):
+
         # Collect experiences
 
         exps, logs = self.collect_experiences()
@@ -29,82 +30,114 @@ class DOCAlgo(BaseAlgo):
 
         inds = self._get_starting_indexes()
 
-        for j in range(self.num_agents):
+        # Initialize containers for actors info
 
-            # Initialize update values
+        sbs                 = [None for _ in range(self.num_agents)]
+        embeddings          = [None for _ in range(self.num_agents)]
+        if self.acmodel.recurrent:
+            memories = [exps[j].memory[inds] for j in range(self.num_agents)]
 
-            update_entropy = 0
-            update_value = 0
-            update_policy_loss = 0
-            update_value_loss = 0
-            update_loss = 0
+        update_entropy      = [0 for _ in range(self.num_agents)]
+        update_policy_loss  = [0 for _ in range(self.num_agents)]
+        update_actor_loss   = [0 for _ in range(self.num_agents)]
 
-            # Initialize memory
+        # Initialize scalars for central-critic info
 
-            if self.acmodel.recurrent:
-                memory = exps[j].memory[inds]
+        update_value        = 0
+        update_value_loss   = 0
+        update_critic_loss  = 0
 
-            for i in range(self.recurrence):
+        # Feed experience to model with gradient-tracking on a single process
+
+        for i in range(self.recurrence):
+
+            for j in range(self.num_agents):
+
                 # Create a sub-batch of experience
 
-                sb = exps[j][inds + i]
+                sbs[j] = exps[j][inds + i]
 
-                # Forward propagation
+                # Actor forward propagation
 
-                if self.acmodel.recurrent:
-                    act_dist, act_values, memory, term_dist = self.acmodel(sb.obs, memory * sb.mask)
-                else:
-                    act_dist, act_values, _, term_dist = self.acmodel(sb.obs)
+                act_dist, _, memory, term_dist, embedding = self.acmodel(sbs[j].obs, memories[j] * sbs[j].mask)
 
-                # Compute losses
+                # Actor losses
 
                 entropy = act_dist.entropy().mean()
 
-                act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, self.num_options))[range(sb.action.shape[0]), sb.current_options]
-                policy_loss = -(act_log_probs * (sb.value_swa - sb.value_sw)).mean()
+                act_log_probs = act_dist.log_prob(sbs[j].action.view(-1, 1).repeat(1, self.num_options))[range(sbs[j].action.shape[0]), sbs[j].current_options]
+                policy_loss = -(act_log_probs * (sbs[j].value_swa - sbs[j].value_sw)).mean()
 
-                Q_U_swa = act_values[range(sb.action.shape[0]), sb.current_options, sb.action.long()]
-                value_loss = (Q_U_swa - sb.target).pow(2).mean()
-
-                term_prob = term_dist.probs[range(sb.action.shape[0]), sb.current_options]
-                termination_loss = (term_prob * (sb.advantage + self.termination_reg)).mean()
+                term_prob = term_dist.probs[range(sbs[j].action.shape[0]), sbs[j].current_options]
+                termination_loss = (term_prob * (sbs[j].advantage + self.termination_reg)).mean()
 
                 loss = policy_loss \
                        - self.entropy_coef * entropy \
-                       + self.value_loss_coef * value_loss \
                        + self.term_loss_coef * termination_loss
 
                 # Update batch values
 
-                update_entropy += entropy.item()
-                update_value += Q_U_swa.mean().item()
-                update_policy_loss += policy_loss.item()
-                update_value_loss += value_loss.item()
-                update_loss += loss
+                update_entropy[j] += entropy.item()
+                update_policy_loss[j] += policy_loss.item()
+                update_actor_loss[j] += loss
 
-            # Update update values
+                # Collect agent embedding
 
-            update_entropy /= self.recurrence
-            update_value /= self.recurrence
-            update_policy_loss /= self.recurrence
-            update_value_loss /= self.recurrence
-            update_loss /= self.recurrence
+                embeddings[j] = embedding
 
-            # Update actor-critic
+            # Central-critic forward propagation
 
-            self.optimizer.zero_grad()
-            update_loss.backward()
-            update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
-            torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
-            self.optimizer.step()
+            option_idxs = [sbs[j].current_options for j in range(self.num_agents)]
+            action_idxs = [sbs[j].action for j in range(self.num_agents)]
 
-            # Log some values
+            values = self.acmodel.forward_central_critic(embeddings, option_idxs, action_idxs)
 
-            logs["entropy"].append(update_entropy)
-            logs["value"].append(update_value)
-            logs["policy_loss"].append(update_policy_loss)
-            logs["value_loss"].append(update_value_loss)
-            logs["grad_norm"].append(update_grad_norm)
+            # Critic loss
+
+            # TODO: wrong target here. Make sure there is only one target. (fix this in base.py)
+            value_loss = (values - sbs[0].target).pow(2).mean()
+
+            # Update batch values
+
+            update_value += values.mean().item()
+            update_value_loss += value_loss.item()
+            update_critic_loss += self.value_loss_coef * value_loss
+
+
+        # Re-initialize gradient buffers
+
+        self.optimizer.zero_grad()
+
+        # Actors back propagation
+
+        for j in range(self.num_agents):
+
+            update_entropy[j] /= self.recurrence
+            update_policy_loss[j] /= self.recurrence
+            update_actor_loss[j] /= self.recurrence
+
+            update_actor_loss[j].backward(retain_graph=True)
+
+        # Critic back propagation
+
+        update_value /= self.recurrence
+        update_value_loss /= self.recurrence
+
+        update_critic_loss.backward()
+
+        # Learning step
+
+        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
+        torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
+        self.optimizer.step()
+
+        # Log some values
+
+        logs["entropy"] = update_entropy
+        logs["value"] = update_value
+        logs["policy_loss"] = update_policy_loss
+        logs["value_loss"] = update_value_loss
+        logs["grad_norm"] = update_grad_norm
 
         return logs
 
