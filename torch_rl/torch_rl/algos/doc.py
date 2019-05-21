@@ -94,8 +94,10 @@ class DOCAlgo(BaseAlgo):
 
             # Critic loss
 
-            # TODO: wrong target here. Make sure there is only one target. (fix this in base.py)
-            value_loss = (values - sbs[0].target).pow(2).mean()
+            value_losses = 0
+            for j in range(self.num_agents):
+                value_losses = value_losses + (values - sbs[j].target).pow(2).mean()
+            value_loss = value_losses / self.num_agents
 
             # Update batch values
 
