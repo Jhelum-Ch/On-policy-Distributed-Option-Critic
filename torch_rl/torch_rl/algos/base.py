@@ -354,41 +354,31 @@ class BaseAlgo(ABC):
             for j in range(self.num_agents):
 
                 for i in reversed(range(self.num_frames_per_proc)):
+                    if self.acmodel.use_term_fn and self.acmodel.use_act_values:
 
-                    if self.acmodel.use_central_critic:
+                        # target for q-learning objective
 
-                        assert self.acmodel.use_term_fn
-                        assert self.acmodel.use_act_values
+                        self.rollout_targets[j][i] = self.rollout_rewards[j][i] + \
+                                         self.rollout_masks[i+1] * self.discount * \
+                                         (
+                                                 (1. - self.rollout_terminates_prob[j][i+1]) * self.rollout_values_sw[j][i+1] + \
+                                                 self.rollout_terminates_prob[j][i+1] * self.rollout_values_sw_max[j][i+1]
+                                         )
 
-                        # TODO: compute target for DOC
+                        # option-advantage
+
+                        self.rollout_advantages[j][i] = self.rollout_values_sw[j][i+1] - self.rollout_values_s[j][i+1]
+
+                    elif not self.acmodel.use_term_fn and not self.acmodel.use_act_values:
+                        next_mask = self.rollout_masks[i+1]
+                        next_value = self.rollout_values[j][i+1]
+                        next_advantage = self.rollout_advantages[j][i+1] if i < self.num_frames_per_proc else 0
+
+                        delta = self.rollout_rewards[j][i] + self.discount * next_value * next_mask - self.rollout_values[j][i]
+                        self.rollout_advantages[j][i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
 
                     else:
-
-                        if self.acmodel.use_term_fn and self.acmodel.use_act_values:
-
-                            # target for q-learning objective
-
-                            self.rollout_targets[j][i] = self.rollout_rewards[j][i] + \
-                                             self.rollout_masks[i+1] * self.discount * \
-                                             (
-                                                     (1. - self.rollout_terminates_prob[j][i+1]) * self.rollout_values_sw[j][i+1] + \
-                                                     self.rollout_terminates_prob[j][i+1] * self.rollout_values_sw_max[j][i+1]
-                                             )
-
-                            # option-advantage
-
-                            self.rollout_advantages[j][i] = self.rollout_values_sw[j][i+1] - self.rollout_values_s[j][i+1]
-
-                        elif not self.acmodel.use_term_fn and not self.acmodel.use_act_values:
-                            next_mask = self.rollout_masks[i+1]
-                            next_value = self.rollout_values[j][i+1]
-                            next_advantage = self.rollout_advantages[j][i+1] if i < self.num_frames_per_proc else 0
-
-                            delta = self.rollout_rewards[j][i] + self.discount * next_value * next_mask - self.rollout_values[j][i]
-                            self.rollout_advantages[j][i] = delta + self.discount * self.gae_lambda * next_advantage * next_mask
-
-                        else:
-                            raise NotImplemented
+                        raise NotImplemented
 
             # Define experiences:
             #   the whole experience is the concatenation of the experience
