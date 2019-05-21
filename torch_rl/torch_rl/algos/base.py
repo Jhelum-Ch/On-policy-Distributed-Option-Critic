@@ -283,15 +283,13 @@ class BaseAlgo(ABC):
                         self.rollout_memories[j][i] = self.current_memories[j]
                         self.current_memories[j] = agents_memory[j]
 
-                    if not self.acmodel.use_central_critic:
-
-                        if self.acmodel.use_act_values:
-                            self.rollout_values_swa[j][i] = agents_values[j][range(self.num_procs), self.current_options[j].long(), action].squeeze()
-                            self.rollout_values_sw[j][i] = Qsw.squeeze()
-                            self.rollout_values_s[j][i] = Vs.squeeze()
-                            self.rollout_values_sw_max[j][i] = Qsw_max.squeeze()
-                        else:
-                            self.rollout_values[j][i] = agents_values[j][range(self.num_procs), self.current_options[j].long()].squeeze()
+                    if self.acmodel.use_act_values:
+                        self.rollout_values_swa[j][i] = agents_values[j][range(self.num_procs), self.current_options[j].long(), action].squeeze()
+                        self.rollout_values_sw[j][i] = Qsw.squeeze()
+                        self.rollout_values_s[j][i] = Vs.squeeze()
+                        self.rollout_values_sw_max[j][i] = Qsw_max.squeeze()
+                    else:
+                        self.rollout_values[j][i] = agents_values[j][range(self.num_procs), self.current_options[j].long()].squeeze()
 
                     if self.acmodel.use_term_fn:
 
