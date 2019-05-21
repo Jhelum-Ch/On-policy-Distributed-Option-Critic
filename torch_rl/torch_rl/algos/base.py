@@ -277,14 +277,14 @@ class BaseAlgo(ABC):
 
                     self.rollout_actions[j][i] = agents_action[j]
                     self.rollout_options[j][i] = self.current_options[j]
-                    self.rollout_log_probs[j][i] = agents_act_dist[j].logits[range(self.num_procs), self.current_options[j].long(), action]
+                    self.rollout_log_probs[j][i] = agents_act_dist[j].logits[range(self.num_procs), self.current_options[j].long(), agents_action[j]]
 
                     if self.acmodel.recurrent:
                         self.rollout_memories[j][i] = self.current_memories[j]
                         self.current_memories[j] = agents_memory[j]
 
                     if self.acmodel.use_act_values:
-                        self.rollout_values_swa[j][i] = agents_values[j][range(self.num_procs), self.current_options[j].long(), action].squeeze()
+                        self.rollout_values_swa[j][i] = agents_values[j][range(self.num_procs), self.current_options[j].long(), agents_action[j]].squeeze()
                         self.rollout_values_sw[j][i] = Qsw.squeeze()
                         self.rollout_values_s[j][i] = Vs.squeeze()
                         self.rollout_values_sw_max[j][i] = Qsw_max.squeeze()
