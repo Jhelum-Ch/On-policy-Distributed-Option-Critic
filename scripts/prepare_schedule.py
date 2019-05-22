@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import os
 import sys
 
-USE_TEAMGRID = False
+USE_TEAMGRID = True
 if USE_TEAMGRID:
     import teamgrid
 else:
@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     # Adds code versions git-hash for current project and environment package as prefixes to storage_name
     git_hash = "{0}_{1}".format(get_git_hash(path='.'),
-                                get_git_hash(path=str(os.path.dirname(gym_minigrid.__file__))))
+                                get_git_hash(path=str(os.path.dirname(teamgrid.__file__))))
     storage_dir = f"{git_hash}_{serial_args.desc}"
 
     # Creates dictionary pointer-access to a training config object initialized by default
