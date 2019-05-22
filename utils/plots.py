@@ -2,7 +2,7 @@ from matplotlib.ticker import MaxNLocator
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_curve(ax, x, ys, colors=None, labels=None, xlabel="", ylabel="", title="", stds=None):
+def plot_curve(ax, xs, ys, colors=None, labels=None, xlabel="", ylabel="", title="", stds=None):
     if colors is None:
         cm = plt.cm.get_cmap('viridis')
         colors = [np.array(cm(float(i) / float(len(ys)))[:3]) for i in range(len(ys))]
@@ -11,13 +11,13 @@ def plot_curve(ax, x, ys, colors=None, labels=None, xlabel="", ylabel="", title=
         labels = [f'curve {i}' for i in range(len(ys))]
 
     # Plots losses and smoothed losses for every agent
-    for i, y in enumerate(ys):
+    for i, (x, y) in enumerate(zip(xs, ys)):
         if stds is None:
             ax.plot(x, y, color=colors[i], alpha=0.3)
             ax.plot(x, smooth(y), color=colors[i], label=labels[i])
         else:
             ax.plot(x, y, color=colors[i], label=labels[i])
-            ax.fill_between(x, y-stds[i], y+stds[i], color=colors[i], alpha=0.1)
+            ax.fill_between(x, y-stds[i], y+stds[i], color=colors[i], alpha=0.2)
     ax.set_title(title, fontsize=12, fontweight='bold')
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
