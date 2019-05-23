@@ -35,7 +35,7 @@ class Agent:
             # forward propagation
 
             with torch.no_grad():
-                act_dist, values, memory, term_dist = self.acmodel(preprocessed_obss, self.memories)
+                act_dist, values, memory, term_dist, _ = self.acmodel(preprocessed_obss, self.memories)
 
             if self.acmodel.use_term_fn:
 
