@@ -21,6 +21,13 @@ STORAGE_DIRS = [
     # "6c23331_3e9171e_PPO",
 ]
 
+STORAGE_DIRS = [
+    # "2adf749_9165a18_OC_3agents_5options",
+    "2adf749_9165a18_DOC_3agents_7options",
+    "2adf749_9165a18_DOC_3agents_5options",
+    "2adf749_9165a18_DOC_3agents_3options",
+]
+
 
 def compare_models_by_learning_curve(storage_dirs, agent_i, num_key=False, n_labels=None, logger=None):
     if num_key:
@@ -85,7 +92,8 @@ def compare_models_by_learning_curve(storage_dirs, agent_i, num_key=False, n_lab
 
             eval_curves_means[env].append(np.stack(curves_mean[env][key]).mean(axis=0))
             eval_curves_stds[env].append(np.stack(curves_mean[env][key]).std(axis=0))
-            labels.append(key.split("_")[-1])
+            labels.append(key.split("_")[2:])
+        print(labels)
 
         if n_labels is not None:
             curves_means = np.array([array.mean() for array in eval_curves_means[env]])
@@ -109,7 +117,7 @@ def compare_models_by_learning_curve(storage_dirs, agent_i, num_key=False, n_lab
                     ys=eval_curves_means[env],
                     stds=eval_curves_stds[env],
                     labels=labels,
-                    xlabel="Frames", title=env)
+                    ylabel="average team return", xlabel="training frames")
 
     for storage_dir in storage_dirs:
         fig.savefig(DirectoryManager.root / storage_dir / 'benchmark_learning.png')
