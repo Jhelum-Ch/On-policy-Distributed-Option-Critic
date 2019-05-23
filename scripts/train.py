@@ -309,16 +309,16 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             value_losses = np.array(graph_data["value_loss"])
             value_losses = value_losses.T if len(value_losses.shape) > 1 else value_losses[np.newaxis, :]
             fig, axes = create_fig((2,2))
-            plot_curve(axes[0,0], graph_data["num_frames"], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
-            plot_curve(axes[0,1], graph_data["num_frames"], value_losses, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
-            plot_curve(axes[1,0], graph_data["num_frames"], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Entropy")
+            plot_curve(axes[0,0], [graph_data["num_frames"]], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
+            plot_curve(axes[0,1], [graph_data["num_frames"]], value_losses, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
+            plot_curve(axes[1,0], [graph_data["num_frames"]], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Entropy")
             # plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
             fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
             plt.close(fig)
 
             # Return
             fig, ax = create_fig((1, 1))
-            plot_curve(ax, graph_data["num_frames"],
+            plot_curve(ax, [graph_data["num_frames"]],
                        np.array(graph_data["return_mean"]).T,
                        stds=np.array(graph_data["return_std"]).T,
                        colors=[envs[0].agents[j].color for j in range(config.num_agents)],

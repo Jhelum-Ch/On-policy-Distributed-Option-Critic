@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def plot_curve(ax, xs, ys, colors=None, labels=None, xlabel="", ylabel="", title="", stds=None):
+    if len(xs) == 1:
+        xs = [xs[0] for _ in range(len(ys))]
+
     if colors is None:
         cm = plt.cm.get_cmap('viridis')
         colors = [np.array(cm(float(i) / float(len(ys)))[:3]) for i in range(len(ys))]
