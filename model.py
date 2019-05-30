@@ -99,6 +99,9 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             else:
                 raise NotImplemented
 
+            # central critic needs its own memory
+            self.coordinator_rnn = nn.LSTMCell(critic_input_size, critic_input_size)
+
         # Define regular critic model (sees one agent embedding)
         else:
             # defines dimensionality
@@ -149,7 +152,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
         return act_dist, values, new_memory, term_dist, embedding
 
-    def forward_central_critic(self, embeddings, option_idxs, action_idxs):
+    def forward_central_critic(self, embeddings, option_idxs, action_idxs, coordinator_memory):
 
         option_onehots = []
         for option_idxs_j in option_idxs:
@@ -160,11 +163,16 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             action_onehots.append(utils.idx_to_onehot(action_idxs_j.long(), self.num_actions))
 
         coordinator_embedding = torch.cat([*embeddings, *option_onehots, *action_onehots], dim=1)
+        if self.use_memory:
+            hidden = (coordinator_memory[:, :self.semi_memory_size], coordinator_memory[:, self.semi_memory_size:])
+            hidden = self.coordinator_rnn(coordinator_embedding, hidden)
+            coordinator_embedding = hidden[0]
+            coordinator_memory = torch.cat(hidden, dim=1)
 
         assert self.use_central_critic
         values = self.critic(coordinator_embedding)
 
-        return values.squeeze()
+        return values.squeeze(), coordinator_memory.squeeze()
 
     def _get_embed_text(self, text):
         _, hidden = self.text_rnn(self.word_embedding(text))

@@ -110,6 +110,11 @@ class BaseAlgo(ABC):
             self.current_memories = [torch.zeros(shape[1], self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
             self.rollout_memories = [torch.zeros(*shape, self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
 
+            if self.acmodel.use_central_critic:
+
+                self.current_coord_memory = torch.zeros(shape[1], self.acmodel.memory_size, device=self.device)
+                self.rollout_coord_memories = torch.zeros(*shape, self.acmodel.memory_size, device=self.device)
+
         self.current_mask = torch.ones(shape[1], device=self.device)
         self.rollout_masks = torch.zeros(*shape, device=self.device)
         self.rollout_actions = [torch.zeros(*shape, device=self.device, dtype=torch.int) for _ in range(self.num_agents)]
@@ -218,6 +223,7 @@ class BaseAlgo(ABC):
 
                     assert agents_values.count(None) == len(agents_values)
                     all_opt_act_values = torch.zeros((self.num_procs, self.num_options, self.num_actions, self.num_agents), device=self.device)
+                    new_coord_memories = torch.zeros((self.num_procs, self.num_options, self.num_actions, self.acmodel.memory_size), device=self.device)
 
                     for j in range(self.num_agents):
 
@@ -233,11 +239,12 @@ class BaseAlgo(ABC):
                                 action_idxs = [action_idxs_agent_j if k == j else agents_action[k] for k in range(self.num_agents)]
                                 # TODO: because we need action here, action selection now happen before option selection. Make sure all the rest makes sense with that
 
-                                values =  self.acmodel.forward_central_critic(agents_embedding,
-                                                                              option_idxs,
-                                                                              action_idxs,
-                                                                              )
+                                values, coord_memory =  self.acmodel.forward_central_critic(agents_embedding,
+                                                                                            option_idxs,
+                                                                                            action_idxs,
+                                                                                            self.current_coord_memory)
                                 all_opt_act_values[:, o, a, j] = values
+                                new_coord_memories[:, o, a, :] = coord_memory
 
                         agents_values[j] = all_opt_act_values[:, :, :, j]
 
@@ -295,6 +302,13 @@ class BaseAlgo(ABC):
 
                         self.rollout_terminates_prob[j][i] = agents_term_dist[j].probs[range(self.num_procs), self.current_options[j].long()]
                         self.rollout_terminates[j][i] = terminate
+
+
+                if self.acmodel.recurrent and self.acmodel.use_central_critic:
+
+                    self.rollout_coord_memories[i] = self.current_coord_memory
+                    x = new_coord_memories[range(self.num_procs), self.current_options[j].long(), agents_action[j].long(), :]
+                    self.current_coord_memory = x
 
                 # environment step
 
