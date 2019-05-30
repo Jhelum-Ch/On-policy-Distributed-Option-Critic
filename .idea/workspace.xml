@@ -1,13 +1,120 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="a323e8ac-f240-49a7-a913-1bcfd653599d" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/teamgrid/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/.travis.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/LICENSE" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/BlockedUnlockPickup.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/DistShift1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/DistShift2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS3R1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS3R2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS3R3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS4R3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS5R3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS6R3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS11N5.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS9N1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS9N2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS9N3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Dl.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Dlh.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Dlhb.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Q.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Dl.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Dlh.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Dlhb.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Q.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-4Q.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS11N5.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS9N1.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS9N2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS9N3.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/Unlock.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/UnlockPickup.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/door-key-curriculum.gif" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/door-key-env.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/dynamic_obstacles.gif" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/empty-env.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/fetch-env.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/gotodoor-6x6.mp4" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/gotodoor-6x6.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/figures/multi-room.gif" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/manual_control.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/run_tests.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/setup.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/envs/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/envs/fourrooms.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/envs/switch.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/minigrid.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/register.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/rendering.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/wrappers.py" afterDir="false" />
+    </list>
+    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectConfigurationFiles">
+    <option name="files">
+      <list>
+        <option value="$PROJECT_DIR$/.idea/maoc.iml" />
+        <option value="$PROJECT_DIR$/.idea/misc.xml" />
+        <option value="$PROJECT_DIR$/.idea/modules.xml" />
+        <option value="$PROJECT_DIR$/.idea/vcs.xml" />
+      </list>
+    </option>
+  </component>
   <component name="ProjectFrameBounds" extendedState="6">
     <option name="x" value="10" />
     <option name="y" value="43" />
     <option name="width" value="1260" />
     <option name="height" value="737" />
   </component>
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectView">
+    <navigator proportions="" version="1">
+      <foldersAlwaysOnTop value="true" />
+    </navigator>
+    <panes>
+      <pane id="ProjectPane">
+        <subPane>
+          <expand>
+            <path>
+              <item name="maoc" type="b2602c69:ProjectViewProjectNode" />
+              <item name="maoc" type="462c0819:PsiDirectoryNode" />
+            </path>
+          </expand>
+          <select />
+        </subPane>
+      </pane>
+      <pane id="Scope" />
+    </panes>
+  </component>
   <component name="PropertiesComponent">
+    <property name="ASKED_SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+  </component>
+  <component name="RunDashboard">
+    <option name="ruleStates">
+      <list>
+        <RuleState>
+          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
+        </RuleState>
+        <RuleState>
+          <option name="name" value="StatusDashboardGroupingRule" />
+        </RuleState>
+      </list>
+    </option>
   </component>
   <component name="RunManager">
     <configuration name="Python 3.6" type="PythonConfigurationType" factoryName="Python">
@@ -31,5 +138,40 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="a323e8ac-f240-49a7-a913-1bcfd653599d" name="Default Changelist" comment="" />
+      <created>1559238979966</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1559238979966</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="ToolWindowManager">
+    <frame x="0" y="23" width="1280" height="777" extended-state="6" />
+    <layout>
+      <window_info id="Favorites" side_tool="true" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.2494043" />
+      <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
+      <window_info anchor="bottom" id="Version Control" />
+      <window_info anchor="bottom" id="Python Console" />
+      <window_info active="true" anchor="bottom" id="Terminal" visible="true" weight="0.329927" />
+      <window_info anchor="bottom" id="Event Log" side_tool="true" />
+      <window_info anchor="bottom" id="Message" order="0" />
+      <window_info anchor="bottom" id="Find" order="1" />
+      <window_info anchor="bottom" id="Run" order="2" weight="0.329927" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.4" />
+      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
+      <window_info anchor="bottom" id="TODO" order="6" />
+      <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
+      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
+      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
+    </layout>
   </component>
 </project>
