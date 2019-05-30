@@ -27,6 +27,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                  use_act_values=False,
                  use_term_fn=False,
                  use_central_critic=False,
+                 use_broadcasting=False,
                  ):
         super().__init__()
 
@@ -38,6 +39,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         self.num_options = num_options
         self.use_term_fn = use_term_fn
         self.use_central_critic = use_central_critic
+        self.use_broadcasting = use_broadcasting
 
         if isinstance(action_space, gym.spaces.Discrete):
             self.num_actions = action_space.n
@@ -119,6 +121,15 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             nn.Linear(64, critic_output_size)
         )
 
+        # Define broadcast_net
+        if self.use_broadcasting:
+            assert self.use_central_critic
+            self.broadcast_net = nn.Sequential(
+                nn.Linear(self.embedding_size, 64),
+                nn.Tanh(),
+                nn.Linear(64, self.num_options)
+            )
+
         # Initialize parameters correctly
         self.apply(initialize_parameters)
 
@@ -150,7 +161,11 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         else:
             term_dist = None
 
-        return act_dist, values, new_memory, term_dist, embedding
+        if self.use_broadcasting:
+            x = self.broadcast_net(embedding).view((-1, self.num_options))
+            broadcast_dist = Bernoulli(probs=torch.sigmoid(x))
+
+        return act_dist, values, new_memory, term_dist, broadcast_dist, embedding
 
     def forward_central_critic(self, embeddings, option_idxs, action_idxs, coordinator_memory):
 

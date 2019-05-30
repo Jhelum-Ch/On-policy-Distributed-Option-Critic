@@ -148,6 +148,14 @@ class BaseAlgo(ABC):
 
             self.rollout_values = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
+
+        if self.acmodel.use_broadcasting:
+
+            self.current_broadcast_state = [torch.ones(shape[1], device=self.device) for _ in range(self.num_agents)]
+
+            self.rollout_broadcast_masks = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+            self.rollout_broadcast_probs = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+
         # Initialize log values
 
         self.log_episode_return = [torch.zeros(shape[1], device=self.device) for _ in range(self.num_agents)]
@@ -190,10 +198,13 @@ class BaseAlgo(ABC):
             for i in range(rollout_length):
 
                 agents_action = []
+                agents_broadcast = []
+
                 agents_act_dist = []
                 agents_values = []
                 agents_memory = []
                 agents_term_dist = []
+                agents_broadcast_dist = []
                 agents_embedding = []
 
                 for j, obs_j in enumerate(self.current_obss):
@@ -202,7 +213,7 @@ class BaseAlgo(ABC):
 
                     preprocessed_obs = self.preprocess_obss(obs_j, device=self.device)
 
-                    act_dist, values, memory, term_dist, embedding = self.acmodel(preprocessed_obs, self.current_memories[j] * self.current_mask.unsqueeze(1))
+                    act_dist, values, memory, term_dist, broadcast_dist, embedding = self.acmodel(preprocessed_obs, self.current_memories[j] * self.current_mask.unsqueeze(1))
 
                     # collect outputs for each agent
 
@@ -210,7 +221,16 @@ class BaseAlgo(ABC):
                     agents_values.append(values)
                     agents_memory.append(memory)
                     agents_term_dist.append(term_dist)
-                    agents_embedding.append(embedding)
+                    agents_broadcast_dist.append(broadcast_dist)
+
+                    # check broadcasting
+
+                    if self.acmodel.use_broadcasting:
+
+                        broadcast = broadcast_dist.sample()[range(self.num_procs), self.current_options[j].long()]
+
+                        agents_broadcast.append(broadcast)
+                        agents_embedding.append(broadcast.unsqueeze(1) * embedding)
 
                     # action selection
 
@@ -302,6 +322,11 @@ class BaseAlgo(ABC):
 
                         self.rollout_terminates_prob[j][i] = agents_term_dist[j].probs[range(self.num_procs), self.current_options[j].long()]
                         self.rollout_terminates[j][i] = terminate
+
+                    if self.acmodel.use_broadcasting:
+
+                        self.rollout_broadcast_probs[j][i] = agents_broadcast_dist[j].probs[range(self.num_procs), self.current_options[j].long()]
+                        self.rollout_broadcast_masks[j][i] = agents_broadcast[j]
 
 
                 if self.acmodel.recurrent and self.acmodel.use_central_critic:
