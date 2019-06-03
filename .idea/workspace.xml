@@ -2,57 +2,12 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a323e8ac-f240-49a7-a913-1bcfd653599d" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/teamgrid/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/.travis.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/LICENSE" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/BlockedUnlockPickup.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/DistShift1.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/DistShift2.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS3R1.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS3R2.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS3R3.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS4R3.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS5R3.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS6R3.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS11N5.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS9N1.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS9N2.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS9N3.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Dl.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Dlh.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Dlhb.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Q.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Dl.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Dlh.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Dlhb.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Q.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-4Q.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS11N5.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS9N1.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS9N2.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS9N3.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/Unlock.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/UnlockPickup.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/door-key-curriculum.gif" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/door-key-env.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/dynamic_obstacles.gif" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/empty-env.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/fetch-env.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/gotodoor-6x6.mp4" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/gotodoor-6x6.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/figures/multi-room.gif" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/manual_control.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/run_tests.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/setup.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/envs/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/envs/fourrooms.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/envs/switch.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/minigrid.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/register.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/rendering.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/teamgrid/teamgrid/wrappers.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/deployment.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/other.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/maoc.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/maoc.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -60,16 +15,50 @@
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="FileEditorManager">
+    <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/scripts/train.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="277">
+              <caret line="330" column="26" lean-forward="true" selection-start-line="330" selection-start-column="26" selection-end-line="330" selection-end-column="26" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/model.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="195">
+              <caret line="20" column="27" selection-start-line="20" selection-start-column="27" selection-end-line="20" selection-end-column="27" />
+              <folding>
+                <element signature="e#0#12#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="1740">
+              <caret line="121" column="122" selection-start-line="121" selection-start-column="122" selection-end-line="121" selection-end-column="122" />
+              <folding>
+                <element signature="e#0#35#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+    </leaf>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectConfigurationFiles">
-    <option name="files">
+  <component name="IdeDocumentHistory">
+    <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/.idea/maoc.iml" />
-        <option value="$PROJECT_DIR$/.idea/misc.xml" />
-        <option value="$PROJECT_DIR$/.idea/modules.xml" />
-        <option value="$PROJECT_DIR$/.idea/vcs.xml" />
+        <option value="$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py" />
       </list>
     </option>
   </component>
@@ -85,24 +74,26 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
+      <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
             <path>
-              <item name="maoc" type="b2602c69:ProjectViewProjectNode" />
-              <item name="maoc" type="462c0819:PsiDirectoryNode" />
+              <item name="maoc1" type="b2602c69:ProjectViewProjectNode" />
+              <item name="maoc1" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
         </subPane>
       </pane>
-      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
     <property name="ASKED_SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RunDashboard">
     <option name="ruleStates">
@@ -116,7 +107,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager">
+  <component name="RunManager" selected="Python.train">
     <configuration name="Python 3.6" type="PythonConfigurationType" factoryName="Python">
       <module name="maoc" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -129,6 +120,7 @@
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -138,6 +130,55 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <module name="maoc" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="train" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="maoc" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/scripts" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/scripts/train.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python.train" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="SvnConfiguration">
     <configuration />
@@ -149,19 +190,22 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1559238979966</updated>
+      <workItem from="1559576325241" duration="5746000" />
+      <workItem from="1559591748855" duration="1093000" />
+      <workItem from="1559594682348" duration="463000" />
     </task>
     <servers />
   </component>
+  <component name="TimeTrackingManager">
+    <option name="totallyTimeSpent" value="7302000" />
+  </component>
   <component name="ToolWindowManager">
     <frame x="0" y="23" width="1280" height="777" extended-state="6" />
+    <editor active="true" />
     <layout>
-      <window_info id="Favorites" side_tool="true" />
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.2494043" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.26171243" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
-      <window_info anchor="bottom" id="Version Control" />
-      <window_info anchor="bottom" id="Python Console" />
-      <window_info active="true" anchor="bottom" id="Terminal" visible="true" weight="0.329927" />
-      <window_info anchor="bottom" id="Event Log" side_tool="true" />
+      <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" />
       <window_info anchor="bottom" id="Run" order="2" weight="0.329927" />
@@ -169,9 +213,55 @@
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" />
+      <window_info anchor="bottom" id="Version Control" order="7" />
+      <window_info active="true" anchor="bottom" id="Terminal" order="8" visible="true" weight="0.329927" />
+      <window_info anchor="bottom" id="Python Console" order="9" weight="0.329927" />
+      <window_info anchor="bottom" id="Event Log" order="10" side_tool="true" />
+      <window_info anchor="bottom" id="Docker" order="11" show_stripe_button="false" />
+      <window_info anchor="bottom" id="File Transfer" order="12" weight="0.329927" />
+      <window_info anchor="bottom" id="Database Changes" order="13" />
       <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
+      <window_info anchor="right" id="SciView" order="3" />
+      <window_info anchor="right" x="0" y="0" width="270" height="577" id="Documentation" order="4" side_tool="true" weight="0.32956383" />
+      <window_info anchor="right" id="Database" order="5" />
     </layout>
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="1" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/maoc1$train.coverage" NAME="train Coverage Results" MODIFIED="1559595191869" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
+    <SUITE FILE_PATH="coverage/maoc$train.coverage" NAME="train Coverage Results" MODIFIED="1559593046980" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
+  </component>
+  <component name="editorHistoryManager">
+    <entry file="file://$PROJECT_DIR$/scripts/train.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="277">
+          <caret line="330" column="26" lean-forward="true" selection-start-line="330" selection-start-column="26" selection-end-line="330" selection-end-column="26" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/model.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="195">
+          <caret line="20" column="27" selection-start-line="20" selection-start-column="27" selection-end-line="20" selection-end-column="27" />
+          <folding>
+            <element signature="e#0#12#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1740">
+          <caret line="121" column="122" selection-start-line="121" selection-start-column="122" selection-end-line="121" selection-end-column="122" />
+          <folding>
+            <element signature="e#0#35#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
   </component>
 </project>

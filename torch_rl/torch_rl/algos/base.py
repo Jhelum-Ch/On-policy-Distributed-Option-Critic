@@ -107,6 +107,8 @@ class BaseAlgo(ABC):
 
         if self.acmodel.recurrent:
 
+
+            # Agents' memories
             self.current_memories = [torch.zeros(shape[1], self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
             self.rollout_memories = [torch.zeros(*shape, self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
 
@@ -117,12 +119,12 @@ class BaseAlgo(ABC):
 
         self.current_mask = torch.ones(shape[1], device=self.device)
         self.rollout_masks = torch.zeros(*shape, device=self.device)
-        self.rollout_actions = [torch.zeros(*shape, device=self.device, dtype=torch.int) for _ in range(self.num_agents)]
+        self.rollout_actions = [torch.zeros(*shape, device=self.device, dtype=torch.int) for _ in range(self.num_options) for _ in range(self.num_agents)]
         self.rollout_rewards = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
         self.rollout_advantages = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
         self.rollout_log_probs = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
 
-        self.rollout_options = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
+        self.rollout_options = [torch.zeros(*shape, device=self.device) for _ in range(self.num_options) for _ in range(self.num_agents)]
 
         if self.acmodel.use_term_fn:
 
