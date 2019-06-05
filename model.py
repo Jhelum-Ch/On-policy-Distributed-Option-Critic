@@ -63,6 +63,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         # Define memory
         if self.use_memory:
             self.memory_rnn = nn.LSTMCell(self.image_embedding_size, self.semi_memory_size)
+            self.agent_memory_rnn = nn.LSTMCell(self.image_embedding_size, self.semi_memory_size)
 
         # Define text embedding
         if self.use_text:
@@ -121,13 +122,21 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             nn.Linear(64, critic_output_size)
         )
 
+        # Defines each agent's critic (used in training intra-option policy)
+        self.agent_critic = nn.Sequential(
+            nn.Linear(self.embedding_size, 64),
+            nn.Tanh(),
+            nn.Linear(64, actor_output_size)
+        )
+
+
         # Define broadcast_net
         if self.use_broadcasting:
-            assert self.use_central_critic
+            #assert self.use_central_critic
             self.broadcast_net = nn.Sequential(
                 nn.Linear(self.embedding_size, 64),
                 nn.Tanh(),
-                nn.Linear(64, self.num_options)
+                nn.Linear(64, actor_output_size) #self.num_options
             )
 
         # Initialize parameters correctly
@@ -188,6 +197,30 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         values = self.critic(coordinator_embedding)
 
         return values.squeeze(), coordinator_memory.squeeze()
+
+    def forward_agent_critic(self, obs, agent_memory):
+        embedding, new_agent_memory = self._embed_observation(obs, agent_memory)
+
+        x = self.actor(embedding).view((-1, self.num_options, self.num_actions))
+        act_dist = Categorical(logits=F.log_softmax(x, dim=-1))
+
+        x = self.agent_critic(embedding)
+        values = x.view((-1, self.num_options, self.num_actions)) if self.use_act_values else x.view(
+            (-1, self.num_options))
+
+
+        if self.use_term_fn:
+            x = self.term_fn(embedding).view((-1, self.num_options))
+            term_dist = Bernoulli(probs=torch.sigmoid(x))
+
+        else:
+            term_dist = None
+
+        if self.use_broadcasting:
+            x = self.broadcast_net(embedding).view((-1, self.num_options))
+            broadcast_dist = Bernoulli(probs=torch.sigmoid(x))
+
+        return act_dist, values, new_agent_memory, term_dist, broadcast_dist, embedding
 
     def _get_embed_text(self, text):
         _, hidden = self.text_rnn(self.word_embedding(text))
