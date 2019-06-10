@@ -5,8 +5,12 @@
       <sourceFolder url="file://$MODULE_DIR$/torch_rl/torch_rl" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/teamgrid" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/torch_rl" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$" isTestSource="false" />
     </content>
-    <orderEntry type="jdk" jdkName="Remote Python 3.7.3 (sftp://jchakr1@agent-server-1.cs.mcgill.ca:22/home/ml/jchakr1/.conda/envs/maoc/bin/python3.7)" jdkType="Python SDK" />
+    <content url="file://$MODULE_DIR$/../teamgrid">
+      <sourceFolder url="file://$MODULE_DIR$/../teamgrid" isTestSource="false" />
+    </content>
+    <orderEntry type="jdk" jdkName="Python 3.7 (maoc1) (2)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

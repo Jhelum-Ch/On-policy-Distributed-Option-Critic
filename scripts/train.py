@@ -78,7 +78,10 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--text", action="store_true", default=False,
                         help="add a GRU to the model to handle text input")
     parser.add_argument("--auto_resume", action="store_true", default=False,
-                        help="whether to automatically resume training when lauching the script on existing model")
+                        help="whether to automatically resume training when launching the script on existing model")
+    # Broadcast configs
+    parser.add_argument("--broadcast_penalty", type=float, default=-0.01,
+                        help="broadcast penalty (default: -0.01, 0. implies no penalty)")
     # Option-Critic configs
     parser.add_argument("--num_options", type=int, default=3,
                         help="number of options (default: 1, 1 means no options)")
@@ -180,7 +183,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                           use_central_critic=True if config.algo == "doc" else False,
                           use_broadcasting=True if config.algo == "doc" else False,
                           )
-
         logger.debug("Model successfully created\n")
         utils.save_config_to_json(config, filename=Path(dir_manager.seed_dir) / "config.json")
 
@@ -283,7 +285,9 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             graph_data["return_mean"].append(return_per_episode['mean'])
             graph_data["return_std"].append(return_per_episode['std'])
             graph_data["entropy"].append(logs["entropy"])
+            graph_data["broadcast_entropy"].append(logs["broadcast_entropy"])
             graph_data["policy_loss"].append(logs["policy_loss"])
+            graph_data["broadcast_loss"].append(logs["broadcast_loss"])
             graph_data["value_loss"].append(logs["value_loss"])
             graph_data["grad_norm"].append(logs["grad_norm"])
 
