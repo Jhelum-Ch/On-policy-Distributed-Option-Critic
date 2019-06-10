@@ -167,11 +167,10 @@ class DOCAlgo(BaseAlgo):
 
         # Learning step
 
-        #print('paramsGrad', self.acmodel.parameters()[0].grad.data)
         for p in self.acmodel.parameters():
             print('p', p.grad)
 
-        #TODO: 4 out of 5 parameter gradients are none. Fix this.
+        #TODO: 4 out of 5 parameter gradients are None. Fix this.
 
         update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
         torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
