@@ -535,6 +535,7 @@ class BaseAlgo(ABC):
                                    "num_frames_per_episode",
                                    "num_frames",
                                    "entropy",
+                                   "broadcast_entropy"
                                    "value",
                                    "policy_loss",
                                    "value_loss",

@@ -105,7 +105,7 @@ class DOCAlgo(BaseAlgo):
 
                 embeddings[j] = embedding
 
-                # Collect masked (ccord) embedding
+                # Collect masked (coord) embedding
 
                 masked_embeddings[j] = sbs[j].mask * embedding
 
@@ -172,7 +172,7 @@ class DOCAlgo(BaseAlgo):
 
         #TODO: 4 out of 5 parameter gradients are None. Fix this.
 
-        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
+        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters() if p.grad is not None) ** 0.5
         torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
         self.optimizer.step()
 

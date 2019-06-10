@@ -244,7 +244,9 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         "return_mean": [],
         "return_std": [],
         "entropy": [],
+        "broadcast_entropy": [],
         "policy_loss": [],
+        "broadcast_loss": [],
         "value_loss": [],
         "grad_norm": []
     }
