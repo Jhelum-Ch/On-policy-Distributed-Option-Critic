@@ -99,7 +99,6 @@ def get_training_args(overwritten_args=None):
 
 
 def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
-
     config.mem = config.recurrence > 1
     # In the multi-agent setup, for DOC, different agents really are empty slots in which options are executed
     # Therefore, the number of options (policies) needs to be greater or equal to the number of agents (slots)

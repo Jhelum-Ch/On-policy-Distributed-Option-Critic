@@ -2,65 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a323e8ac-f240-49a7-a913-1bcfd653599d" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/webServers.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/deployment.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deployment.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/maoc.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/maoc.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model.py" beforeDir="false" afterPath="$PROJECT_DIR$/model.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scripts/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/train.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/.travis.yml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/LICENSE" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/README.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/BlockedUnlockPickup.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/DistShift1.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/DistShift2.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS3R1.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS3R2.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS3R3.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS4R3.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS5R3.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/KeyCorridorS6R3.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS11N5.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS9N1.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS9N2.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/LavaCrossingS9N3.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Dl.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Dlh.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Dlhb.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-1Q.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Dl.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Dlh.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Dlhb.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-2Q.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/ObstructedMaze-4Q.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS11N5.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS9N1.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS9N2.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/SimpleCrossingS9N3.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/Unlock.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/UnlockPickup.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/door-key-curriculum.gif" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/door-key-env.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/dynamic_obstacles.gif" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/empty-env.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/fetch-env.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/gotodoor-6x6.mp4" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/gotodoor-6x6.png" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/figures/multi-room.gif" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/manual_control.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/run_tests.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/setup.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/teamgrid/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/teamgrid/envs/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/teamgrid/envs/fourrooms.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/teamgrid/envs/switch.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/teamgrid/minigrid.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/teamgrid/register.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/teamgrid/rendering.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/teamgrid/teamgrid/wrappers.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py" beforeDir="false" afterPath="$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py" afterDir="false" />
     </list>
@@ -75,17 +18,17 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/scripts/train.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-62">
-              <caret line="83" column="86" selection-start-line="83" selection-start-column="86" selection-end-line="83" selection-end-column="86" />
+            <state relative-caret-position="1273">
+              <caret line="170" column="16" selection-start-line="170" selection-start-column="12" selection-end-line="170" selection-end-column="16" />
             </state>
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="58">
-              <caret line="536" column="13" selection-start-line="536" selection-start-column="13" selection-end-line="536" selection-end-column="13" />
+            <state relative-caret-position="284">
+              <caret line="604" column="27" selection-start-line="604" selection-start-column="27" selection-end-line="604" selection-end-column="27" />
               <folding>
                 <element signature="e#0#35#0" expanded="true" />
               </folding>
@@ -94,10 +37,19 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
+        <entry file="file:///anaconda3/envs/maoc1/lib/python3.7/multiprocessing/connection.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="149">
+              <caret line="378" selection-start-line="378" selection-end-line="378" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="133">
-              <caret line="26" selection-start-line="26" selection-end-line="26" />
+            <state relative-caret-position="93">
+              <caret line="26" column="25" selection-start-line="26" selection-start-column="25" selection-end-line="26" selection-end-column="25" />
             </state>
           </provider>
         </entry>
@@ -105,7 +57,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/model.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="234">
+            <state relative-caret-position="2423">
               <caret line="168" column="98" selection-start-line="168" selection-start-column="98" selection-end-line="168" selection-end-column="98" />
               <folding>
                 <element signature="e#0#12#0" expanded="true" />
@@ -118,9 +70,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>broadcast_m</find>
-      <find>embeddin</find>
-      <find>value_loss</find>
       <find>num_ag</find>
       <find>self.num_options</find>
       <find>log</find>
@@ -129,7 +78,6 @@
       <find>dim=2</find>
       <find>use_centr</find>
       <find>logs[&quot;entropy&quot;]</find>
-      <find>print</find>
       <find>dtype=torch.float</find>
       <find>dtype=Float</find>
       <find>self.act_dim</find>
@@ -140,14 +88,18 @@
       <find>unsqueeze</find>
       <find>self.broad</find>
       <find>torch.mul</find>
-      <find>dtype</find>
       <find>self.rollout_agents_values</find>
       <find>self.rollout_ag</find>
       <find>self.rollout_age</find>
       <find>self.current_obs</find>
       <find>self.rollout_obss</find>
       <find>self.rollout_masks</find>
+      <find>self.rollout_obs</find>
+      <find>dtype</find>
+      <find>print</find>
+      <find>rollout_ob</find>
       <find>prin</find>
+      <find>rollout_obss</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -156,10 +108,10 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py" />
         <option value="$PROJECT_DIR$/model.py" />
         <option value="$PROJECT_DIR$/scripts/train.py" />
         <option value="$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py" />
+        <option value="$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py" />
       </list>
     </option>
   </component>
@@ -337,12 +289,12 @@
       <workItem from="1559840481568" duration="168000" />
       <workItem from="1559840669686" duration="2947000" />
       <workItem from="1559845664050" duration="704000" />
-      <workItem from="1559847126157" duration="35674000" />
+      <workItem from="1559847126157" duration="42037000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="53338000" />
+    <option name="totallyTimeSpent" value="59701000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="23" width="1280" height="777" extended-state="6" />
@@ -382,7 +334,7 @@
     </ignored-roots>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/maoc1$train.coverage" NAME="train Coverage Results" MODIFIED="1560181883221" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
+    <SUITE FILE_PATH="coverage/maoc1$train.coverage" NAME="train Coverage Results" MODIFIED="1560189184315" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
     <SUITE FILE_PATH="coverage/maoc$train.coverage" NAME="train Coverage Results" MODIFIED="1559593046980" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
   </component>
   <component name="editorHistoryManager">
@@ -404,7 +356,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/model.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="234">
+        <state relative-caret-position="2423">
           <caret line="168" column="98" selection-start-line="168" selection-start-column="98" selection-end-line="168" selection-end-column="98" />
           <folding>
             <element signature="e#0#12#0" expanded="true" />
@@ -412,27 +364,34 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py">
+    <entry file="file:///anaconda3/envs/maoc1/lib/python3.7/multiprocessing/connection.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="133">
-          <caret line="26" selection-start-line="26" selection-end-line="26" />
+        <state relative-caret-position="149">
+          <caret line="378" selection-start-line="378" selection-end-line="378" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/scripts/train.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-62">
-          <caret line="83" column="86" selection-start-line="83" selection-start-column="86" selection-end-line="83" selection-end-column="86" />
+        <state relative-caret-position="1273">
+          <caret line="170" column="16" selection-start-line="170" selection-start-column="12" selection-end-line="170" selection-end-column="16" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="58">
-          <caret line="536" column="13" selection-start-line="536" selection-start-column="13" selection-end-line="536" selection-end-column="13" />
+        <state relative-caret-position="284">
+          <caret line="604" column="27" selection-start-line="604" selection-start-column="27" selection-end-line="604" selection-end-column="27" />
           <folding>
             <element signature="e#0#35#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="93">
+          <caret line="26" column="25" selection-start-line="26" selection-start-column="25" selection-end-line="26" selection-end-column="25" />
         </state>
       </provider>
     </entry>

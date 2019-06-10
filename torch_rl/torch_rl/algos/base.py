@@ -109,6 +109,8 @@ class BaseAlgo(ABC):
         self.current_obss = self.env.reset()
         self.rollout_obss = [None]*(shape[0])
 
+        print('len_current_obs', np.shape(np.array(self.current_obss)))
+
         if self.acmodel.recurrent:
 
             self.current_agent_memories = [torch.zeros(shape[1], self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
@@ -217,7 +219,13 @@ class BaseAlgo(ABC):
         with torch.no_grad():
 
             rollout_length = len(self.rollout_obss)
+            #print('rollout_length', rollout_length)
             for i in range(rollout_length):
+
+                #print('i', i)
+                self.rollout_obss[i] = self.current_obss
+                #
+
 
                 agents_action = []
                 agents_broadcast = []
@@ -243,7 +251,6 @@ class BaseAlgo(ABC):
                                                           * self.current_mask.unsqueeze(1))
 
                     # collect outputs for each agent
-                    print('values', values.size(), 'values_b', values_b.size())
                     agents_act_dist.append(act_dist)
                     agents_values.append(values)
                     agents_values_b.append(values_b)
@@ -300,14 +307,14 @@ class BaseAlgo(ABC):
 
                     mean_agents_values_for_central_critic = torch.mean(coord_opt_act_values, dim=self.agt_dim, keepdim=True)
 
-                    print('dim_mean', mean_agents_values_for_central_critic.size())
+
                     # Option-value
                     if self.acmodel.use_act_values:
                         #joint_act_prob = torch.mul([agents_act_dist[j].probs for j in range(self.num_agents)]) #check syntax
 
                         # Compute joint action prob:
                         joint_act_prob = torch.ones_like(agents_act_dist[0].probs)
-                        print('dim_ja', joint_act_prob.size())
+
                         for i in range(self.num_agents):
                             joint_act_prob *= agents_act_dist[j].probs
 
@@ -324,7 +331,7 @@ class BaseAlgo(ABC):
                     # Compute agents' critics
                     Qswa = agents_values[j][range(self.num_procs), self.current_options[j].long(), agents_action[j]]
                     Qswa_max, Qswa_argmax = torch.max(agents_values[j], dim=self.act_dim, keepdim=True)
-                    print('Qswa_max-dim', Qswa_max.size())
+
                     Vsw = Qswa_max[self.current_options[j].long()]
 
 
@@ -375,7 +382,7 @@ class BaseAlgo(ABC):
                         self.rollout_coord_value_sw_max[i] = Qsw_coord_max.squeeze()
 
                         self.rollout_values_swa[j][i] = Qswa.squeeze()
-                        #print('Vsw-dim', Vsw[range(self.num_procs), self.current_options[j].long()].squeeze().size())
+
                         self.rollout_values_sw[j][i] = Vsw[range(self.num_procs), self.current_options[j].long()].squeeze()
 
 
@@ -387,7 +394,6 @@ class BaseAlgo(ABC):
                     if self.acmodel.use_term_fn:
 
                         self.rollout_terminates_prob[j][i] = agents_term_dist[j].probs[range(self.num_procs), self.current_options[j].long()]
-                        print('term-probs', agents_term_dist[j].probs[range(self.num_procs), self.current_options[j].long()])
                         self.rollout_terminates[j][i] = terminate
 
                     if self.acmodel.use_broadcasting:
@@ -410,9 +416,9 @@ class BaseAlgo(ABC):
                 next_obss, rewards, done, _ = self.env.step(list(map(list, zip(*agents_action))))  # this list(map(list)) thing is used to transpose a list of lists
 
                 # update experience values (post-step)
-                self.rollout_obss[i] = self.current_obss
+                # self.rollout_obss[i] = self.current_obss
                 self.current_obss = next_obss
-                #print('curr_obs2', self.current_obss)
+
 
                 self.rollout_masks[i] = self.current_mask
                 self.current_mask = 1. - torch.tensor(done, device=self.device, dtype=torch.float)
@@ -431,9 +437,9 @@ class BaseAlgo(ABC):
                     else:
                         self.rollout_rewards[j][i] = torch.tensor(reward, device=self.device)
                         a = torch.tensor(reward, device=self.device)
-                        #print('dim1', a.size())
+
                         b = torch.tensor(agents_broadcast[j].unsqueeze(1).float()*self.broadcast_penalty, device=self.device)
-                        #print('dim2', b.squeeze().size())
+
                         self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a,b.squeeze().long())
 
                     if self.acmodel.use_term_fn:
@@ -534,16 +540,18 @@ class BaseAlgo(ABC):
                                    "value_loss",
                                    "grad_norm"]}
 
-            #print('rollout_obs', self.rollout_obss, 'rollout_masks', self.rollout_masks)
+            #print('rollout_obs', self.rollout_obss)
+           #  import pdb;
+           #  pdb.set_trace()
             for j in range(self.num_agents):
                 # exps[j].obs = [self.rollout_obss[i][j][k] for k in range(self.num_procs) \
                 #                for i in range(self.num_frames_per_proc)]
 
-                exps[j].obs = [self.rollout_obss[j][i][k] for k in range(self.num_procs) \
+                exps[j].obs = [self.rollout_obss[i][j][k] for k in range(self.num_procs) \
                                for i in range(self.num_frames_per_proc)]
                 if self.acmodel.recurrent:
                     # T x P x D -> P x T x D -> (P * T) x D
-                    coord_exps.memory = self.rollout_coord_memories[:-1].transpose(0,1).reshape(-1, *self.rollout_coord_memories)
+                    coord_exps.memory = self.rollout_coord_memories[:-1].transpose(0,1).reshape(-1, *self.rollout_coord_memories.shape[2:])
                     exps[j].memory = self.rollout_agent_memories[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_agent_memories[j].shape[2:])
                     # T x P -> P x T -> (P * T) x 1
                     exps[j].mask = self.rollout_masks[:-1].transpose(0, 1).reshape(-1).unsqueeze(1)
@@ -594,7 +602,7 @@ class BaseAlgo(ABC):
                 self.log_reshaped_return[j] = self.log_reshaped_return[j][-self.num_procs:]
                 self.log_num_frames[j] = self.log_num_frames[j][-self.num_procs:]
 
-        return exps, logs
+        return coord_exps, exps, logs
 
 
     # Finish the following

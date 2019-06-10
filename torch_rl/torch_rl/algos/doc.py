@@ -24,7 +24,7 @@ class DOCAlgo(BaseAlgo):
 
         # Collect experiences
 
-        exps, logs = self.collect_experiences()
+        coord_exps, exps, logs = self.collect_experiences()
 
         # Compute starting indexes
 
