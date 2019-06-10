@@ -2,8 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="a323e8ac-f240-49a7-a913-1bcfd653599d" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scripts/train.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/train.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/model.py" beforeDir="false" afterPath="$PROJECT_DIR$/model.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py" beforeDir="false" afterPath="$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py" afterDir="false" />
     </list>
@@ -18,8 +17,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/scripts/train.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1273">
-              <caret line="170" column="16" selection-start-line="170" selection-start-column="12" selection-end-line="170" selection-end-column="16" />
+            <state relative-caret-position="133">
+              <caret line="175" column="47" selection-start-line="175" selection-start-column="47" selection-end-line="175" selection-end-column="47" />
             </state>
           </provider>
         </entry>
@@ -27,8 +26,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="284">
-              <caret line="604" column="27" selection-start-line="604" selection-start-column="27" selection-end-line="604" selection-end-column="27" />
+            <state relative-caret-position="133">
+              <caret line="299" column="121" selection-start-line="299" selection-start-column="121" selection-end-line="299" selection-end-column="121" />
               <folding>
                 <element signature="e#0#35#0" expanded="true" />
               </folding>
@@ -37,28 +36,22 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file:///anaconda3/envs/maoc1/lib/python3.7/multiprocessing/connection.py">
+        <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="149">
-              <caret line="378" selection-start-line="378" selection-end-line="378" />
+            <state relative-caret-position="133">
+              <caret line="36" column="11" selection-start-line="36" selection-start-column="11" selection-end-line="36" selection-end-column="11" />
+              <folding>
+                <element signature="e#0#12#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="93">
-              <caret line="26" column="25" selection-start-line="26" selection-start-column="25" selection-end-line="26" selection-end-column="25" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/model.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2423">
-              <caret line="168" column="98" selection-start-line="168" selection-start-column="98" selection-end-line="168" selection-end-column="98" />
+            <state relative-caret-position="118">
+              <caret line="74" column="51" selection-start-line="74" selection-start-column="51" selection-end-line="74" selection-end-column="51" />
               <folding>
                 <element signature="e#0#12#0" expanded="true" />
               </folding>
@@ -70,17 +63,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>num_ag</find>
-      <find>self.num_options</find>
-      <find>log</find>
-      <find>randint</find>
-      <find>always</find>
-      <find>dim=2</find>
-      <find>use_centr</find>
-      <find>logs[&quot;entropy&quot;]</find>
-      <find>dtype=torch.float</find>
-      <find>dtype=Float</find>
-      <find>self.act_dim</find>
       <find>brd</find>
       <find>action</find>
       <find>rollout_terminates_prob</find>
@@ -95,11 +77,22 @@
       <find>self.rollout_obss</find>
       <find>self.rollout_masks</find>
       <find>self.rollout_obs</find>
-      <find>dtype</find>
-      <find>print</find>
       <find>rollout_ob</find>
-      <find>prin</find>
       <find>rollout_obss</find>
+      <find>pri</find>
+      <find>prin</find>
+      <find>dtype</find>
+      <find>prepro</find>
+      <find>coord_me</find>
+      <find>forward</find>
+      <find>self.current_coord_memory</find>
+      <find>rollout_coord_ta</find>
+      <find>central_cr</find>
+      <find>print</find>
+      <find>coordinator_memory</find>
+      <find>parameters</find>
+      <find>requires_grad</find>
+      <find>emb_size</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -108,10 +101,10 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/model.py" />
         <option value="$PROJECT_DIR$/scripts/train.py" />
         <option value="$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py" />
         <option value="$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py" />
+        <option value="$PROJECT_DIR$/model.py" />
       </list>
     </option>
   </component>
@@ -289,12 +282,21 @@
       <workItem from="1559840481568" duration="168000" />
       <workItem from="1559840669686" duration="2947000" />
       <workItem from="1559845664050" duration="704000" />
-      <workItem from="1559847126157" duration="42037000" />
+      <workItem from="1559847126157" duration="51787000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="59701000" />
+    <option name="totallyTimeSpent" value="69451000" />
+  </component>
+  <component name="TodoView">
+    <todo-panel id="selected-file">
+      <is-autoscroll-to-source value="true" />
+    </todo-panel>
+    <todo-panel id="all">
+      <are-packages-shown value="true" />
+      <is-autoscroll-to-source value="true" />
+    </todo-panel>
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="23" width="1280" height="777" extended-state="6" />
@@ -309,7 +311,7 @@
       <window_info anchor="bottom" id="Debug" order="3" weight="0.39943343" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
-      <window_info anchor="bottom" id="TODO" order="6" />
+      <window_info anchor="bottom" id="TODO" order="6" weight="0.3286119" />
       <window_info anchor="bottom" id="Version Control" order="7" />
       <window_info anchor="bottom" id="Terminal" order="8" sideWeight="0.4983845" weight="0.3286119" />
       <window_info anchor="bottom" id="Python Console" order="9" weight="0.329927" />
@@ -334,7 +336,7 @@
     </ignored-roots>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/maoc1$train.coverage" NAME="train Coverage Results" MODIFIED="1560189184315" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
+    <SUITE FILE_PATH="coverage/maoc1$train.coverage" NAME="train Coverage Results" MODIFIED="1560199219827" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
     <SUITE FILE_PATH="coverage/maoc$train.coverage" NAME="train Coverage Results" MODIFIED="1559593046980" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
   </component>
   <component name="editorHistoryManager">
@@ -354,16 +356,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/model.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2423">
-          <caret line="168" column="98" selection-start-line="168" selection-start-column="98" selection-end-line="168" selection-end-column="98" />
-          <folding>
-            <element signature="e#0#12#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file:///anaconda3/envs/maoc1/lib/python3.7/multiprocessing/connection.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="149">
@@ -373,15 +365,15 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/scripts/train.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1273">
-          <caret line="170" column="16" selection-start-line="170" selection-start-column="12" selection-end-line="170" selection-end-column="16" />
+        <state relative-caret-position="133">
+          <caret line="175" column="47" selection-start-line="175" selection-start-column="47" selection-end-line="175" selection-end-column="47" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/base.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="284">
-          <caret line="604" column="27" selection-start-line="604" selection-start-column="27" selection-end-line="604" selection-end-column="27" />
+        <state relative-caret-position="133">
+          <caret line="299" column="121" selection-start-line="299" selection-start-column="121" selection-end-line="299" selection-end-column="121" />
           <folding>
             <element signature="e#0#35#0" expanded="true" />
           </folding>
@@ -390,8 +382,21 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/torch_rl/torch_rl/algos/doc.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="93">
-          <caret line="26" column="25" selection-start-line="26" selection-start-column="25" selection-end-line="26" selection-end-column="25" />
+        <state relative-caret-position="133">
+          <caret line="36" column="11" selection-start-line="36" selection-start-column="11" selection-end-line="36" selection-end-column="11" />
+          <folding>
+            <element signature="e#0#12#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/model.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="118">
+          <caret line="74" column="51" selection-start-line="74" selection-start-column="51" selection-end-line="74" selection-end-column="51" />
+          <folding>
+            <element signature="e#0#12#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>

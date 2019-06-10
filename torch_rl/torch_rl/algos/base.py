@@ -109,7 +109,6 @@ class BaseAlgo(ABC):
         self.current_obss = self.env.reset()
         self.rollout_obss = [None]*(shape[0])
 
-        print('len_current_obs', np.shape(np.array(self.current_obss)))
 
         if self.acmodel.recurrent:
 
@@ -219,7 +218,7 @@ class BaseAlgo(ABC):
         with torch.no_grad():
 
             rollout_length = len(self.rollout_obss)
-            #print('rollout_length', rollout_length)
+
             for i in range(rollout_length):
 
                 #print('i', i)
@@ -249,6 +248,7 @@ class BaseAlgo(ABC):
                     act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = \
                         self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
                                                           * self.current_mask.unsqueeze(1))
+
 
                     # collect outputs for each agent
                     agents_act_dist.append(act_dist)
@@ -306,7 +306,7 @@ class BaseAlgo(ABC):
                                 new_coord_memories[:, o, a, :] = coord_new_memory
 
                     mean_agents_values_for_central_critic = torch.mean(coord_opt_act_values, dim=self.agt_dim, keepdim=True)
-
+                    #print('coord_opt_act_valuesSize', coord_opt_act_values.size(), 'meanvalueSize', mean_agents_values_for_central_critic.size())
 
                     # Option-value
                     if self.acmodel.use_act_values:
@@ -480,7 +480,7 @@ class BaseAlgo(ABC):
                         no_agent_term_prob = agents_no_term_prob_array.prod()
 
 
-                        # the env-reward is copied for each agent
+                        # the env-reward is copied for each agent, so we can take for any j self.rollout_rewards[j][i]
                         self.rollout_coord_target[i] = self.rollout_rewards[0][i] + \
                                          next_mask * self.discount * \
                                          (
@@ -540,7 +540,7 @@ class BaseAlgo(ABC):
                                    "value_loss",
                                    "grad_norm"]}
 
-            #print('rollout_obs', self.rollout_obss)
+
            #  import pdb;
            #  pdb.set_trace()
             for j in range(self.num_agents):
@@ -555,8 +555,10 @@ class BaseAlgo(ABC):
                     exps[j].memory = self.rollout_agent_memories[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_agent_memories[j].shape[2:])
                     # T x P -> P x T -> (P * T) x 1
                     exps[j].mask = self.rollout_masks[:-1].transpose(0, 1).reshape(-1).unsqueeze(1)
+
                 # for all tensors below, T x P -> P x T -> P * T
                 exps[j].action = self.rollout_actions[j][:-1].transpose(0, 1).reshape(-1)
+                exps[j].broadcast = self.rollout_broadcast_masks[j][:-1].transpose(0, 1).reshape(-1)
                 exps[j].reward = self.rollout_rewards[j][:-1].transpose(0, 1).reshape(-1)
                 exps[j].reward_b = self.rollout_rewards_plus_broadcast_penalties[j][:-1].transpose(0, 1).reshape(-1)
                 exps[j].advantage = self.rollout_advantages[j][:-1].transpose(0, 1).reshape(-1)
@@ -579,7 +581,10 @@ class BaseAlgo(ABC):
 
                     exps[j].value_swa = self.rollout_values_swa[j][:-1].transpose(0, 1).reshape(-1)
                     exps[j].value_sw = self.rollout_values_sw[j][:-1].transpose(0, 1).reshape(-1)
-                    #exps[j].value_s = self.rollout_values_s[j][:-1].transpose(0, 1).reshape(-1)
+
+                    exps[j].value_b = self.rollout_values_b[j][:-1].transpose(0, 1).reshape(-1)
+                    exps[j].value_sw_b = self.rollout_values_sw_b[j][:-1].transpose(0, 1).reshape(-1)
+
 
                 else:
                     exps[j].value = self.rollout_values[j][:-1].transpose(0, 1).reshape(-1)

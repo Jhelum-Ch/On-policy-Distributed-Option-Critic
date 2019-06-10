@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -39,6 +39,7 @@ class DOCAlgo(BaseAlgo):
 
         if self.acmodel.recurrent:
             memories = [exps[j].memory[inds] for j in range(self.num_agents)]
+            coordinator_memory = coord_exps.memory[inds]
 
         update_entropy      = [0 for _ in range(self.num_agents)]
         update_broadcast_entropy = [0 for _ in range(self.num_agents)]
@@ -66,7 +67,11 @@ class DOCAlgo(BaseAlgo):
 
                 # Actor forward propagation
 
-                act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = self.acmodel(sbs[j].obs, memories[j] * sbs[j].mask)
+                # act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = self.acmodel(sbs[j].obs, memories[j] * sbs[j].mask)
+                act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, \
+                                                                                                        memories[j] * \
+                                                                                                        sbs[j].mask)
+
 
                 # Actor losses
 
@@ -79,8 +84,9 @@ class DOCAlgo(BaseAlgo):
                 term_prob = term_dist.probs[range(sbs[j].action.shape[0]), sbs[j].current_options]
                 termination_loss = (term_prob * (sbs[j].advantage + self.termination_reg)).mean()
 
-                broadcast_log_prob = broadcast_dist.probs[range(sbs[j].action.shape[0]), sbs[j].current_options]
-                broadcast_loss = -(broadcast_log_prob * (sbs[j].value_b - sbs[j].value_sw_b)).mean()
+                #broadcast_log_prob = broadcast_dist.probs[range(sbs[j].action.shape[0]), sbs[j].current_options]
+                broadcast_log_probs = broadcast_dist.log_prob(sbs[j].broadcast.view(-1, 1).repeat(1, self.num_options))[range(sbs[j].broadcast.shape[0]), sbs[j].current_options]
+                broadcast_loss = -(broadcast_log_probs * (sbs[j].value_b - sbs[j].value_sw_b)).mean()
 
                 loss = policy_loss \
                        - self.entropy_coef * entropy \
@@ -99,10 +105,13 @@ class DOCAlgo(BaseAlgo):
 
                 embeddings[j] = embedding
 
-                # Collect masked embedding
+                # Collect masked (ccord) embedding
 
-                current_broadcast = broadcast_dist.sample()[range(self.num_procs), self.current_options[j].long()]
-                masked_embeddings[j] = current_broadcast.unsqueeze(1) * embedding
+                masked_embeddings[j] = sbs[j].mask * embedding
+
+                #curr_broadcast = broadcast_dist.sample() #[range(self.num_procs), self.current_options[j].long()]
+
+                #masked_embeddings[j] = curr_broadcast.unsqueeze(1).float() * embedding
 
 
             # Central-critic forward propagation
@@ -112,11 +121,13 @@ class DOCAlgo(BaseAlgo):
 
 
 
-            value = self.acmodel.forward_central_critic(masked_embeddings, option_idxs, action_idxs)
+            value = self.acmodel.forward_central_critic(masked_embeddings, option_idxs, action_idxs, sbs_coord.memory)
+
+            # TODO: I am getting value as a tuple! Check this.
 
             # Critic loss: this should use coord_value and coord_target
 
-            value_loss = (value - sbs_coord.target).pow(2).mean()
+            value_loss = (value[0] - sbs_coord.target).pow(2).mean()
 
 
             # value_losses = 0
@@ -126,7 +137,7 @@ class DOCAlgo(BaseAlgo):
 
             # Update batch values
 
-            update_value += value.mean().item()
+            update_value += value[0].mean().item()
             update_value_loss += value_loss.item()
             update_critic_loss += self.value_loss_coef * value_loss
 
@@ -155,6 +166,12 @@ class DOCAlgo(BaseAlgo):
         update_critic_loss.backward()
 
         # Learning step
+
+        #print('paramsGrad', self.acmodel.parameters()[0].grad.data)
+        for p in self.acmodel.parameters():
+            print('p', p.grad)
+
+        #TODO: 4 out of 5 parameter gradients are none. Fix this.
 
         update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
         torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
@@ -186,5 +203,5 @@ class DOCAlgo(BaseAlgo):
             the indexes of the experiences to be used at first
         """
 
-        starting_indexes = numpy.arange(0, self.num_frames, self.recurrence)
+        starting_indexes = np.arange(0, self.num_frames, self.recurrence)
         return starting_indexes

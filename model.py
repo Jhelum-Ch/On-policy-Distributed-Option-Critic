@@ -90,7 +90,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             self.broadcast_net = nn.Sequential(
                 nn.Linear(self.embedding_size, 64),
                 nn.Tanh(),
-                nn.Linear(64, self.num_options*2) # Check this; I believe this should be self.num_options * self.num_actions
+                nn.Linear(64, self.num_options * 2)
             )
 
         # Define termination functions and option policy (policy over option)
@@ -166,9 +166,14 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         if self.use_broadcasting:
             # x = self.broadcast_net(embedding).view((-1, self.num_options))
             x = self.broadcast_net(embedding).view((-1, self.num_options, 2))
+            broadcast_dist = Categorical(
+                logits=F.log_softmax(x, dim=-1))  # we need softmax on values depending on broadcast penalty
+
+            x = self.agent_critic(embedding)
             agent_values_b = x.view((-1, self.num_options, 2)) if self.use_act_values else x.view((-1, self.num_options))
             #broadcast_dist = Bernoulli(probs=torch.sigmoid(x))
-            broadcast_dist = Categorical(logits=F.log_softmax(x, dim=-1)) # we need softmax on values depending on broadcast penalty
+
+            #print('ad', act_dist, 'av', agent_values, 'avb', agent_values_b, 'nam', new_agent_memory, 'td', term_dist, 'bd', broadcast_dist, 'em', embedding)
         return act_dist, agent_values, agent_values_b, new_agent_memory, term_dist, broadcast_dist, embedding
 
     def forward_central_critic(self, masked_embeddings, option_idxs, action_idxs, coordinator_memory):
@@ -190,6 +195,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
         assert self.use_central_critic
         values = self.central_critic(coordinator_embedding)
+
 
         return values.squeeze(), coordinator_memory.squeeze()
 
