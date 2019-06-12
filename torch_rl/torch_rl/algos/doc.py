@@ -167,8 +167,8 @@ class DOCAlgo(BaseAlgo):
 
         # Learning step
 
-        for p in self.acmodel.parameters():
-            print('p', p.grad)
+       # for p in self.acmodel.parameters():
+        #    print('p', p.grad)
 
         #TODO: 4 out of 5 parameter gradients are None. Fix this.
 
