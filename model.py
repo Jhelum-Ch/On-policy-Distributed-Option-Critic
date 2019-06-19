@@ -6,6 +6,9 @@ from torch.distributions.bernoulli import Bernoulli
 import torch_rl
 import gym
 import utils
+import numpy as np
+#from multiagent.multi_discrete import MultiDiscrete
+
 
 # Function from https://github.com/ikostrikov/pytorch-a2c-ppo-acktr/blob/master/model.py
 def initialize_parameters(m):
@@ -27,7 +30,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                  use_act_values=True,
                  use_term_fn=True,
                  use_central_critic=True,
-                 use_broadcasting=True,
+                 use_broadcasting=True
                  ):
         super().__init__()
 
@@ -43,6 +46,8 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
         if isinstance(action_space, gym.spaces.Discrete):
             self.num_actions = action_space.n
+        elif isinstance(action_space, MultiDiscrete):
+            pass
         else:
             raise ValueError("Unknown action space: " + str(action_space))
 
@@ -109,6 +114,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             raise NotImplemented
 
         # central_critic needs its own memory
+        #print('central_critic_input_size', central_critic_input_size)
         self.coordinator_rnn = nn.LSTMCell(central_critic_input_size, central_critic_input_size)
 
         # Define agent_critic model (sees one agent embedding)
@@ -145,6 +151,10 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
     def semi_memory_size(self):
         return self.image_embedding_size
 
+    @property
+    def coord_memory_size(self):
+        return self.num_agents * (self.embedding_size + self.num_options + self.num_actions)
+
     # Forward path for agent_critics to learn intra-option policies and broadcasts   
     def forward_agent_critic(self, obs, agent_memory):
         embedding, new_agent_memory = self._embed_observation(obs, agent_memory)
@@ -177,6 +187,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         return act_dist, agent_values, agent_values_b, new_agent_memory, term_dist, broadcast_dist, embedding
 
     def forward_central_critic(self, masked_embeddings, option_idxs, action_idxs, coordinator_memory):
+        #print('model_masked_embedding_size', masked_embeddings[0].size())
 
         option_onehots = []
         for option_idxs_j in option_idxs:
@@ -188,13 +199,17 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
         coordinator_embedding = torch.cat([*masked_embeddings, *option_onehots, *action_onehots], dim=1)
         if self.use_memory:
-            hidden = (coordinator_memory[:, :self.semi_memory_size], coordinator_memory[:, self.semi_memory_size:])
+            # hidden = (coordinator_memory[:, :self.semi_memory_size], coordinator_memory[:, self.semi_memory_size:])
+            hidden = (coordinator_memory[:, :self.coord_memory_size], coordinator_memory[:, :self.coord_memory_size])
             hidden = self.coordinator_rnn(coordinator_embedding, hidden)
             coordinator_embedding = hidden[0]
-            coordinator_memory = torch.cat(hidden, dim=1)
+            #coordinator_memory = torch.cat(hidden, dim=1)
+            coordinator_memory = hidden[1]
+            #print('ccord_mem', coordinator_memory.squeeze().size())
 
         assert self.use_central_critic
         values = self.central_critic(coordinator_embedding)
+        #print('values', values)
 
 
         return values.squeeze(), coordinator_memory.squeeze()

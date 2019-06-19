@@ -158,21 +158,28 @@ class DOCAlgo(BaseAlgo):
 
             update_actor_loss[j].backward(retain_graph=True)
 
+
         # Critic back propagation
 
         update_value /= self.recurrence
         update_value_loss /= self.recurrence
 
-        update_critic_loss.backward()
+        # update_critic_loss.backward()
+        update_critic_loss.backward(retain_graph=True)
+
 
         # Learning step
 
-        for p in self.acmodel.parameters():
-            print('p', p.grad)
+        for m in self.acmodel.modules():
+            #print('module', m)
+            for p in m.parameters():
+                print('module', m, 'p_grad', p)
+                assert p.grad is not None
 
         #TODO: 4 out of 5 parameter gradients are None. Fix this.
 
         update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters() if p.grad is not None) ** 0.5
+        #update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
         torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
         self.optimizer.step()
 

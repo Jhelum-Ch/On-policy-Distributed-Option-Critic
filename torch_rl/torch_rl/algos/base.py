@@ -118,8 +118,8 @@ class BaseAlgo(ABC):
 
             if self.acmodel.use_central_critic:
 
-                self.current_coord_memory = torch.zeros(shape[1], self.acmodel.memory_size, device=self.device)
-                self.rollout_coord_memories = torch.zeros(*shape, self.acmodel.memory_size, device=self.device)
+                self.current_coord_memory = torch.zeros(shape[1], self.acmodel.coord_memory_size, device=self.device)
+                self.rollout_coord_memories = torch.zeros(*shape, self.acmodel.coord_memory_size, device=self.device)
                 self.rollout_coord_advantages = torch.zeros(*shape, device=self.device)
 
         self.current_mask = torch.ones(shape[1], device=self.device)
@@ -184,11 +184,13 @@ class BaseAlgo(ABC):
         # Initialize log values
 
         self.log_episode_return = [torch.zeros(shape[1], device=self.device) for _ in range(self.num_agents)]
+        self.log_episode_return_with_broadcast_penalties = [torch.zeros(shape[1], device=self.device) for _ in range(self.num_agents)]
         self.log_episode_reshaped_return = [torch.zeros(shape[1], device=self.device) for _ in range(self.num_agents)]
         self.log_episode_num_frames = [torch.zeros(shape[1], device=self.device) for _ in range(self.num_agents)]
 
         self.log_done_counter = 0
         self.log_return = [[0] * shape[1] for _ in range(self.num_agents)]
+        self.log_return_with_broadcast_penalties = [[0] * shape[1] for _ in range(self.num_agents)]
         self.log_reshaped_return = [[0] * shape[1] for _ in range(self.num_agents)]
         self.log_num_frames = [[0] * shape[1] for _ in range(self.num_agents)]
 
@@ -267,7 +269,7 @@ class BaseAlgo(ABC):
                         else:
                             broadcast = broadcast_dist.sample()[range(self.num_procs), self.current_options[j].long()]
                         agents_broadcast.append(broadcast)
-                        agents_broadcast_embedding.append(broadcast.unsqueeze(1).float() * embedding)
+                        agents_broadcast_embedding.append(broadcast.unsqueeze(1).float() * embedding) # check embedding before and after multiplying with broadcast
 
                     # action selection
 
@@ -281,7 +283,7 @@ class BaseAlgo(ABC):
                     coord_opt_act_values = torch.zeros((self.num_procs, self.num_options, self.num_actions, \
                                                         self.num_agents), device=self.device)
                     new_coord_memories = torch.zeros((self.num_procs, self.num_options, self.num_actions, \
-                                                      self.acmodel.memory_size), device=self.device)
+                                                      self.acmodel.coord_memory_size), device=self.device)
 
                     for j in range(self.num_agents):
 
@@ -295,13 +297,14 @@ class BaseAlgo(ABC):
 
                                 option_idxs = [option_idxs_agent_j if k == j else self.current_options[k] for k in range(self.num_agents)]
                                 action_idxs = [action_idxs_agent_j if k == j else agents_action[k] for k in range(self.num_agents)]
+                                #print('curr_coord_mem', self.current_coord_memory.size())
                                 # TODO: because we need action here, action selection now happen before option selection. Make sure all the rest makes sense with that
-
+                                #print('agent_broad_embed', agents_broadcast_embedding[0].size())
                                 coord_values, coord_new_memory = self.acmodel.forward_central_critic(agents_broadcast_embedding,
                                                                                             option_idxs,
                                                                                             action_idxs,
                                                                                             self.current_coord_memory)
-
+                                #print('coord_new_memory_size', coord_new_memory.size())
                                 coord_opt_act_values[:, o, a, j] = coord_values
                                 new_coord_memories[:, o, a, :] = coord_new_memory
 
@@ -453,6 +456,7 @@ class BaseAlgo(ABC):
                     # update log values
 
                     self.log_episode_return[j] += torch.tensor(reward, device=self.device, dtype=torch.float)
+                    self.log_episode_return_with_broadcast_penalties[j] += self.rollout_rewards_plus_broadcast_penalties[j][i]
                     self.log_episode_reshaped_return[j] += self.rollout_rewards[j][i]
                     self.log_episode_num_frames[j] += torch.ones(self.num_procs, device=self.device)
 
@@ -460,10 +464,12 @@ class BaseAlgo(ABC):
                         if done_:
                             self.log_done_counter[j] += 1
                             self.log_return[j].append(self.log_episode_return[j][k].item())
+                            self.log_return_with_broadcast_penalties[j].append(self.log_episode_return_with_broadcast_penalties[j][k].item())
                             self.log_reshaped_return[j].append(self.log_episode_reshaped_return[j][k].item())
                             self.log_num_frames[j].append(self.log_episode_num_frames[j][k].item())
 
                     self.log_episode_return[j] *= self.current_mask
+                    self.log_episode_return_with_broadcast_penalties[j] *= self.current_mask
                     self.log_episode_reshaped_return[j] *= self.current_mask
                     self.log_episode_num_frames[j] *= self.current_mask
 
@@ -531,6 +537,7 @@ class BaseAlgo(ABC):
             exps = [DictList() for _ in range(self.num_agents)]
             coord_exps = DictList()
             logs = {k:[] for k in ["return_per_episode",
+                                   "return_per_episode_with_broadcast_penalties",
                                    "reshaped_return_per_episode",
                                    "num_frames_per_episode",
                                    "num_frames",
@@ -600,11 +607,13 @@ class BaseAlgo(ABC):
                 keep = max(self.log_done_counter[j], self.num_procs)
 
                 logs["return_per_episode"].append(self.log_return[j][-keep:])
+                logs["return_per_episode_with_broadcast_penalties"].append(self.log_return_with_broadcast_penalties[j][-keep:])
                 logs["reshaped_return_per_episode"].append(self.log_reshaped_return[j][-keep:])
                 logs["num_frames_per_episode"].append(self.log_num_frames[j][-keep:])
                 logs["num_frames"].append(self.num_frames)
 
                 self.log_return[j] = self.log_return[j][-self.num_procs:]
+                self.log_return_with_broadcast_penalties[j] = self.log_return_with_broadcast_penalties[j][-self.num_procs:]
                 self.log_reshaped_return[j] = self.log_reshaped_return[j][-self.num_procs:]
                 self.log_num_frames[j] = self.log_num_frames[j][-self.num_procs:]
 

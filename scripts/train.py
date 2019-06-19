@@ -18,7 +18,10 @@ from utils.general import round_to_two
 if USE_TEAMGRID:
     import teamgrid
 else:
-    import gym_minigrid
+    #import gym_minigrid
+    import multiagent
+    from make_env import make_env
+
 
 import utils
 from utils import parse_bool
@@ -99,6 +102,8 @@ def get_training_args(overwritten_args=None):
 
 
 def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
+    # if USE_TEAMGRID == False:
+    #     config.env = make_env('simple_speaker_listener') #choose any scenario
     config.mem = config.recurrence > 1
     # In the multi-agent setup, for DOC, different agents really are empty slots in which options are executed
     # Therefore, the number of options (policies) needs to be greater or equal to the number of agents (slots)
@@ -113,8 +118,11 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     if dir_manager is None:
 
         # Define save dir
-
-        git_hash = "{0}_{1}".format(utils.get_git_hash(path='.'), utils.get_git_hash(path=str(os.path.dirname(teamgrid.__file__))))
+        if USE_TEAMGRID:
+             git_hash = "{0}_{1}".format(utils.get_git_hash(path='.'), utils.get_git_hash(path=str(os.path.dirname(teamgrid.__file__))))
+        else:
+            git_hash = "{0}_{1}".format(utils.get_git_hash(path='.'),
+                                    utils.get_git_hash(path=str(os.path.dirname(multiagent.__file__))))
         storage_dir = f"{git_hash}_{config.desc}"
         dir_manager = utils.DirectoryManager(storage_dir, config.seed, config.experiment_dir)
         dir_manager.create_directories()
@@ -143,14 +151,22 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
     envs = []
     for i in range(config.procs):
-        env = gym.make(config.env, num_agents=config.num_agents, shared_rewards=config.shared_rewards)
-        env.seed(config.seed + 10000*i)
+        if USE_TEAMGRID:
+            env = gym.make(config.env, num_agents=config.num_agents, shared_rewards=config.shared_rewards)
+        else:
+            config.env = make_env('simple_speaker_listener')  # choose any scenario
+            env = config.env #gym.make(config.env)
+        env.seed(config.seed + 10000 * i)
         envs.append(env)
+
+
 
     # Define obss preprocessor
 
-    obs_space, preprocess_obss = utils.get_obss_preprocessor(config.env, envs[0].observation_space, dir_manager.seed_dir)
-
+    if USE_TEAMGRID:
+        obs_space, preprocess_obss = utils.get_obss_preprocessor(config.env, envs[0].observation_space, dir_manager.seed_dir)
+    else:
+        obs_space, config.num_agents = config.env.observation_space, env.n
     # Load training status
 
     try:
@@ -182,6 +198,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                           use_central_critic=True if config.algo == "doc" else False,
                           use_broadcasting=True if config.algo == "doc" else False,
                           )
+
         logger.debug("Model successfully created\n")
         utils.save_config_to_json(config, filename=Path(dir_manager.seed_dir) / "config.json")
 
@@ -243,6 +260,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         "num_frames": [],
         "return_mean": [],
         "return_std": [],
+        "episode_length_mean": [],
+        "episode_length_std": [],
         "entropy": [],
         "broadcast_entropy": [],
         "policy_loss": [],
@@ -285,6 +304,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             graph_data["num_frames"].append(num_frames)
             graph_data["return_mean"].append(return_per_episode['mean'])
             graph_data["return_std"].append(return_per_episode['std'])
+            graph_data["episode_length_mean"].append(num_frames_per_episode['mean'])
+            graph_data["episode_length_std"].append(num_frames_per_episode['std'])
             graph_data["entropy"].append(logs["entropy"])
             graph_data["broadcast_entropy"].append(logs["broadcast_entropy"])
             graph_data["policy_loss"].append(logs["policy_loss"])
