@@ -107,11 +107,16 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             )
 
         # Define central_critic model (sees all agents's embeddings)
-        if self.use_act_values:
-            central_critic_input_size = self.num_agents * (self.embedding_size + self.num_options + self.num_actions)
-            central_critic_output_size = 1
-        else:
-            raise NotImplemented
+        # if self.use_act_values:
+        #     central_critic_input_size = self.num_agents * (self.embedding_size + self.num_options + self.num_actions)
+        #     central_critic_output_size = 1
+        # else:
+        #     raise NotImplemented
+
+
+        central_critic_input_size = self.num_agents * (self.embedding_size + self.num_options + self.num_actions)
+        central_critic_output_size = 1
+
 
         # central_critic needs its own memory
         #print('central_critic_input_size', central_critic_input_size)
@@ -119,12 +124,12 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
         # Define agent_critic model (sees one agent embedding)
         # defines dimensionality
-        if self.use_act_values:
-            agent_critic_input_size = self.embedding_size
-            agent_critic_output_size = actor_output_size
-        else:
-            agent_critic_input_size = self.embedding_size
-            agent_critic_output_size = self.num_options
+        # if self.use_act_values:
+        #     agent_critic_input_size = self.embedding_size
+        #     agent_critic_output_size = actor_output_size
+        # else:
+        #     agent_critic_input_size = self.embedding_size
+        #     agent_critic_output_size = self.num_options
 
         # Defines the central_critic
         self.central_critic = nn.Sequential(
@@ -133,12 +138,12 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             nn.Linear(64, central_critic_output_size)
         )
 
-        # Defines the agent_critic
-        self.agent_critic = nn.Sequential(
-            nn.Linear(agent_critic_input_size, 64),
-            nn.Tanh(),
-            nn.Linear(64, agent_critic_output_size)
-        )
+        # # Defines the agent_critic
+        # self.agent_critic = nn.Sequential(
+        #     nn.Linear(agent_critic_input_size, 64),
+        #     nn.Tanh(),
+        #     nn.Linear(64, agent_critic_output_size)
+        # )
 
         # Initialize parameters correctly
         self.apply(initialize_parameters)
@@ -153,6 +158,10 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
     @property
     def coord_memory_size(self):
+        return 2*self.coord_semi_memory_size
+
+    @property
+    def coord_semi_memory_size(self):
         return self.num_agents * (self.embedding_size + self.num_options + self.num_actions)
 
     # Forward path for agent_critics to learn intra-option policies and broadcasts   
@@ -162,8 +171,10 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         x = self.actor(embedding).view((-1, self.num_options, self.num_actions))
         act_dist = Categorical(logits=F.log_softmax(x, dim=-1))
 
-        x = self.agent_critic(embedding)
-        agent_values = x.view((-1, self.num_options, self.num_actions)) if self.use_act_values else x.view((-1, self.num_options))
+        agent_values = x
+
+        # x = self.agent_critic(embedding)
+        # agent_values = x.view((-1, self.num_options, self.num_actions)) if self.use_act_values else x.view((-1, self.num_options))
 
 
         if self.use_term_fn:
@@ -175,12 +186,14 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
         if self.use_broadcasting:
             # x = self.broadcast_net(embedding).view((-1, self.num_options))
-            x = self.broadcast_net(embedding).view((-1, self.num_options, 2))
+            x_b = self.broadcast_net(embedding).view((-1, self.num_options, 2))
             broadcast_dist = Categorical(
-                logits=F.log_softmax(x, dim=-1))  # we need softmax on values depending on broadcast penalty
+                logits=F.log_softmax(x_b, dim=-1))  # we need softmax on values depending on broadcast penalty
 
-            x = self.agent_critic(embedding)
-            agent_values_b = x.view((-1, self.num_options, 2)) if self.use_act_values else x.view((-1, self.num_options))
+            agent_values_b = x_b
+
+            # x = self.agent_critic(embedding)
+            # agent_values_b = x.view((-1, self.num_options, 2)) if self.use_act_values else x.view((-1, self.num_options))
             #broadcast_dist = Bernoulli(probs=torch.sigmoid(x))
 
             #print('ad', act_dist, 'av', agent_values, 'avb', agent_values_b, 'nam', new_agent_memory, 'td', term_dist, 'bd', broadcast_dist, 'em', embedding)
@@ -200,11 +213,11 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         coordinator_embedding = torch.cat([*masked_embeddings, *option_onehots, *action_onehots], dim=1)
         if self.use_memory:
             # hidden = (coordinator_memory[:, :self.semi_memory_size], coordinator_memory[:, self.semi_memory_size:])
-            hidden = (coordinator_memory[:, :self.coord_memory_size], coordinator_memory[:, :self.coord_memory_size])
+            hidden = (coordinator_memory[:, :self.coord_semi_memory_size], coordinator_memory[:, self.coord_semi_memory_size:])
             hidden = self.coordinator_rnn(coordinator_embedding, hidden)
             coordinator_embedding = hidden[0]
-            #coordinator_memory = torch.cat(hidden, dim=1)
-            coordinator_memory = hidden[1]
+            coordinator_memory = torch.cat(hidden, dim=1)
+            #coordinator_memory = hidden[1]
             #print('ccord_mem', coordinator_memory.squeeze().size())
 
         assert self.use_central_critic

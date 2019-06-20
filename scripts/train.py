@@ -76,7 +76,7 @@ def get_training_args(overwritten_args=None):
                         help="number of epochs for PPO (default: 4)")
     parser.add_argument("--batch_size", type=int, default=256,
                         help="batch size for PPO (default: 256)")
-    parser.add_argument("--recurrence", type=int, default=1,
+    parser.add_argument("--recurrence", type=int, default=4,
                         help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
     parser.add_argument("--text", action="store_true", default=False,
                         help="add a GRU to the model to handle text input")

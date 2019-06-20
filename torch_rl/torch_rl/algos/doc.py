@@ -170,16 +170,21 @@ class DOCAlgo(BaseAlgo):
 
         # Learning step
 
-        for m in self.acmodel.modules():
-            #print('module', m)
-            for p in m.parameters():
-                print('module', m, 'p_grad', p)
-                assert p.grad is not None
+        # for m in self.acmodel.modules():
+        #     #print('module', m)
+        #     for p in m.parameters():
+        #         print('module', m, 'p_grad', p)
+        #         assert p.grad is not None
+
+        for name, param in self.acmodel.named_parameters():
+            #print('name', name, 'param_data', param.data, 'param_grad', param.grad)
+            if param.grad is None:
+                print('Grad_none', name)
 
         #TODO: 4 out of 5 parameter gradients are None. Fix this.
 
-        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters() if p.grad is not None) ** 0.5
-        #update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
+        #update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters() if p.grad is not None) ** 0.5
+        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
         torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
         self.optimizer.step()
 
