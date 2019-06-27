@@ -171,7 +171,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         x = self.actor(embedding).view((-1, self.num_options, self.num_actions))
         act_dist = Categorical(logits=F.log_softmax(x, dim=-1))
 
-        agent_values = x
+        agent_values = x.view((-1, self.num_options, self.num_actions)) if self.use_act_values else x.view((-1, self.num_options))
 
         # x = self.agent_critic(embedding)
         # agent_values = x.view((-1, self.num_options, self.num_actions)) if self.use_act_values else x.view((-1, self.num_options))
@@ -190,7 +190,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             broadcast_dist = Categorical(
                 logits=F.log_softmax(x_b, dim=-1))  # we need softmax on values depending on broadcast penalty
 
-            agent_values_b = x_b
+            agent_values_b = x_b.view((-1, self.num_options, 2)) if self.use_act_values else x_b.view((-1, self.num_options))
 
             # x = self.agent_critic(embedding)
             # agent_values_b = x.view((-1, self.num_options, 2)) if self.use_act_values else x.view((-1, self.num_options))
@@ -217,7 +217,6 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             hidden = self.coordinator_rnn(coordinator_embedding, hidden)
             coordinator_embedding = hidden[0]
             coordinator_memory = torch.cat(hidden, dim=1)
-            #coordinator_memory = hidden[1]
             #print('ccord_mem', coordinator_memory.squeeze().size())
 
         assert self.use_central_critic

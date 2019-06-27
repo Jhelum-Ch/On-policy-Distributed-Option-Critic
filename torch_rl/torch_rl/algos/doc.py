@@ -123,7 +123,6 @@ class DOCAlgo(BaseAlgo):
 
             value = self.acmodel.forward_central_critic(masked_embeddings, option_idxs, action_idxs, sbs_coord.memory)
 
-            # TODO: I am getting value as a tuple! Check this.
 
             # Critic loss: this should use coord_value and coord_target
 
@@ -164,8 +163,8 @@ class DOCAlgo(BaseAlgo):
         update_value /= self.recurrence
         update_value_loss /= self.recurrence
 
-        # update_critic_loss.backward()
-        update_critic_loss.backward(retain_graph=True)
+        # update_critic_loss.backward(retain_graph=True)
+        update_critic_loss.backward()
 
 
         # Learning step

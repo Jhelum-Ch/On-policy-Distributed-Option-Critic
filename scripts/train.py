@@ -76,7 +76,7 @@ def get_training_args(overwritten_args=None):
                         help="number of epochs for PPO (default: 4)")
     parser.add_argument("--batch_size", type=int, default=256,
                         help="batch size for PPO (default: 256)")
-    parser.add_argument("--recurrence", type=int, default=4,
+    parser.add_argument("--recurrence", type=int, default=2,
                         help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
     parser.add_argument("--text", action="store_true", default=False,
                         help="add a GRU to the model to handle text input")
@@ -227,6 +227,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                config.optim_alpha, config.optim_eps, preprocess_obss,
                                config.num_options, config.termination_loss_coef, config.termination_reg)
     elif config.algo == "doc":
+        config.recurrence = 2
         algo = torch_rl.DOCAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
                                config.optim_alpha, config.optim_eps, preprocess_obss,
@@ -260,6 +261,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         "num_frames": [],
         "return_mean": [],
         "return_std": [],
+        "return_with_broadcast_penalties_mean": [],
+        "return_with_broadcast_penalties_std": [],
         "episode_length_mean": [],
         "episode_length_std": [],
         "entropy": [],
@@ -294,6 +297,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
             duration = int(time.time() - total_start_time)
             return_per_episode = utils.synthesize(logs["return_per_episode"])
+            return_per_episode_with_broadcast_penalties = utils.synthesize(logs["return_per_episode_with_broadcast_penalties"])
             rreturn_per_episode = utils.synthesize(logs["reshaped_return_per_episode"])
             num_frames_per_episode = utils.synthesize(logs["num_frames_per_episode"])
 
@@ -303,7 +307,10 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
             graph_data["num_frames"].append(num_frames)
             graph_data["return_mean"].append(return_per_episode['mean'])
+            #print('return', graph_data["return_mean"])
             graph_data["return_std"].append(return_per_episode['std'])
+            graph_data["return_with_broadcast_penalties_mean"].append(return_per_episode_with_broadcast_penalties['mean'])
+            graph_data["return_with_broadcast_penalties_std"].append(return_per_episode_with_broadcast_penalties['std'])
             graph_data["episode_length_mean"].append(num_frames_per_episode['mean'])
             graph_data["episode_length_std"].append(num_frames_per_episode['std'])
             graph_data["entropy"].append(logs["entropy"])

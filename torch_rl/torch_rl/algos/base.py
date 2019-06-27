@@ -270,7 +270,7 @@ class BaseAlgo(ABC):
                             broadcast = broadcast_dist.sample()[range(self.num_procs), self.current_options[j].long()]
                         agents_broadcast.append(broadcast)
                         agents_broadcast_embedding.append(broadcast.unsqueeze(1).float() * embedding) # check embedding before and after multiplying with broadcast
-
+                        #print('agents_broadcast_embedding',agents_broadcast_embedding)
                     # action selection
 
                     action = agents_act_dist[j].sample()[range(self.num_procs), self.current_options[j].long()]
@@ -457,6 +457,7 @@ class BaseAlgo(ABC):
 
                     self.log_episode_return[j] += torch.tensor(reward, device=self.device, dtype=torch.float)
                     self.log_episode_return_with_broadcast_penalties[j] += self.rollout_rewards_plus_broadcast_penalties[j][i]
+                    #print('reward[j]', torch.tensor(reward, device=self.device, dtype=torch.float), 'r_penalty', self.rollout_rewards_plus_broadcast_penalties[j][i])
                     self.log_episode_reshaped_return[j] += self.rollout_rewards[j][i]
                     self.log_episode_num_frames[j] += torch.ones(self.num_procs, device=self.device)
 
@@ -484,6 +485,7 @@ class BaseAlgo(ABC):
                         # For coordinator  q-learning (centralized)
                         agents_no_term_prob_array = np.array([1. - self.rollout_terminates_prob[j][i + 1].numpy() for j in range(self.num_agents)])
                         no_agent_term_prob = agents_no_term_prob_array.prod()
+
 
 
                         # the env-reward is copied for each agent, so we can take for any j self.rollout_rewards[j][i]
@@ -552,11 +554,9 @@ class BaseAlgo(ABC):
            #  import pdb;
            #  pdb.set_trace()
             for j in range(self.num_agents):
-                # exps[j].obs = [self.rollout_obss[i][j][k] for k in range(self.num_procs) \
-                #                for i in range(self.num_frames_per_proc)]
-
                 exps[j].obs = [self.rollout_obss[i][j][k] for k in range(self.num_procs) \
                                for i in range(self.num_frames_per_proc)]
+
                 if self.acmodel.recurrent:
                     # T x P x D -> P x T x D -> (P * T) x D
                     coord_exps.memory = self.rollout_coord_memories[:-1].transpose(0,1).reshape(-1, *self.rollout_coord_memories.shape[2:])
@@ -580,9 +580,6 @@ class BaseAlgo(ABC):
                     exps[j].terminate = self.rollout_terminates[j][:-1].transpose(0, 1).reshape(-1)
                     exps[j].terminate_prob = self.rollout_terminates_prob[j][:-1].transpose(0, 1).reshape(-1)
 
-                    exps[j].target = self.rollout_targets[j][:-1].transpose(0, 1).reshape(-1)
-                    coord_exps.target = self.rollout_coord_target[:-1].transpose(0, 1).reshape(-1)
-
 
                 if self.acmodel.use_act_values:
                     coord_exps.value_swa = self.rollout_coord_value_swa[:-1].transpose(0, 1).reshape(-1)
@@ -592,6 +589,10 @@ class BaseAlgo(ABC):
 
                     exps[j].value_b = self.rollout_values_b[j][:-1].transpose(0, 1).reshape(-1)
                     exps[j].value_sw_b = self.rollout_values_sw_b[j][:-1].transpose(0, 1).reshape(-1)
+
+                    exps[j].target = self.rollout_targets[j][:-1].transpose(0, 1).reshape(-1)
+
+                    coord_exps.target = self.rollout_coord_target[:-1].transpose(0, 1).reshape(-1)
 
 
                 else:
@@ -619,8 +620,6 @@ class BaseAlgo(ABC):
 
         return coord_exps, exps, logs
 
-
-    # Finish the following
     @abstractmethod
     def update_parameters(self):
         pass

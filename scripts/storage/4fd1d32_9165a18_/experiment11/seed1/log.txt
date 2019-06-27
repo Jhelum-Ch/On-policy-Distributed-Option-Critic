@@ -1,0 +1,47 @@
+20/06/2019 17:18:33 - DEBUG -  - /Users/jhelumchakravorty/Dropbox/From_desktop/simulations/maoc1/scripts/train.py
+
+20/06/2019 17:18:33 - DEBUG -  - Namespace(algo='doc', auto_resume=False, batch_size=256, broadcast_penalty=-0.01, clip_eps=0.2, desc='', discount=0.99, entropy_coef=0.01, env='TEAMGrid-FourRooms-v0', epochs=4, experiment_dir=None, frames=10000000, frames_per_proc=None, gae_lambda=0.95, log_interval=1, lr=0.0007, max_grad_norm=0.5, mem=False, num_agents=2, num_options=3, optim_alpha=0.99, optim_eps=1e-05, procs=16, recurrence=1, save_interval=100, seed=1, shared_rewards=True, tb=True, termination_loss_coef=0.5, termination_reg=0.01, text=False, value_loss_coef=0.5)
+
+20/06/2019 17:18:33 - DEBUG -  - Model successfully created
+
+20/06/2019 17:18:33 - DEBUG -  - ACModel(
+  (image_conv): Sequential(
+    (0): Conv2d(3, 16, kernel_size=(2, 2), stride=(1, 1))
+    (1): ReLU()
+    (2): MaxPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0, dilation=1, ceil_mode=False)
+    (3): Conv2d(16, 32, kernel_size=(2, 2), stride=(1, 1))
+    (4): ReLU()
+    (5): Conv2d(32, 64, kernel_size=(2, 2), stride=(1, 1))
+    (6): ReLU()
+  )
+  (actor): Sequential(
+    (0): Linear(in_features=64, out_features=64, bias=True)
+    (1): Tanh()
+    (2): Linear(in_features=64, out_features=9, bias=True)
+  )
+  (broadcast_net): Sequential(
+    (0): Linear(in_features=64, out_features=64, bias=True)
+    (1): Tanh()
+    (2): Linear(in_features=64, out_features=6, bias=True)
+  )
+  (term_fn): Sequential(
+    (0): Linear(in_features=64, out_features=64, bias=True)
+    (1): Tanh()
+    (2): Linear(in_features=64, out_features=3, bias=True)
+  )
+  (coordinator_rnn): LSTMCell(140, 140)
+  (central_critic): Sequential(
+    (0): Linear(in_features=140, out_features=64, bias=True)
+    (1): Tanh()
+    (2): Linear(in_features=64, out_features=1, bias=True)
+  )
+  (agent_critic): Sequential(
+    (0): Linear(in_features=64, out_features=64, bias=True)
+    (1): Tanh()
+    (2): Linear(in_features=64, out_features=9, bias=True)
+  )
+)
+
+20/06/2019 17:18:33 - DEBUG -  - Numer of params: 195948
+20/06/2019 17:18:33 - DEBUG -  - CUDA available: False
+
