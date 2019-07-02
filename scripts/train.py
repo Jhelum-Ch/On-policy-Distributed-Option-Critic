@@ -76,8 +76,10 @@ def get_training_args(overwritten_args=None):
                         help="number of epochs for PPO (default: 4)")
     parser.add_argument("--batch_size", type=int, default=256,
                         help="batch size for PPO (default: 256)")
-    parser.add_argument("--recurrence", type=int, default=2,
+    parser.add_argument("--recurrence", type=int, default=1,
                         help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
+    # parser.add_argument("--recurrence_coord", type=int, default=1,
+    #                     help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
     parser.add_argument("--text", action="store_true", default=False,
                         help="add a GRU to the model to handle text input")
     parser.add_argument("--auto_resume", action="store_true", default=False,
@@ -104,7 +106,8 @@ def get_training_args(overwritten_args=None):
 def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     # if USE_TEAMGRID == False:
     #     config.env = make_env('simple_speaker_listener') #choose any scenario
-    config.mem = config.recurrence > 1
+    config.mem_agents = config.recurrence > 1
+    config.mem_coord = config.recurrence > 1
     # In the multi-agent setup, for DOC, different agents really are empty slots in which options are executed
     # Therefore, the number of options (policies) needs to be greater or equal to the number of agents (slots)
     if config.algo == 'doc':
@@ -189,7 +192,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     else:
         acmodel = ACModel(obs_space=obs_space,
                           action_space=envs[0].action_space,
-                          use_memory=config.mem,
+                          use_memory_agents=config.mem_agents,
+                          use_memory_coord = config.mem_coord,
                           use_text=config.text,
                           num_agents=config.num_agents,
                           num_options=config.num_options,
@@ -227,7 +231,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                config.optim_alpha, config.optim_eps, preprocess_obss,
                                config.num_options, config.termination_loss_coef, config.termination_reg)
     elif config.algo == "doc":
-        config.recurrence = 2
+        #config.recurrence = 2
         algo = torch_rl.DOCAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
                                config.optim_alpha, config.optim_eps, preprocess_obss,
@@ -307,7 +311,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
             graph_data["num_frames"].append(num_frames)
             graph_data["return_mean"].append(return_per_episode['mean'])
-            #print('return', graph_data["return_mean"])
             graph_data["return_std"].append(return_per_episode['std'])
             graph_data["return_with_broadcast_penalties_mean"].append(return_per_episode_with_broadcast_penalties['mean'])
             graph_data["return_with_broadcast_penalties_std"].append(return_per_episode_with_broadcast_penalties['std'])
@@ -359,6 +362,17 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                        labels=[f"agent {i}" for i in range(config.num_agents)],
                        xlabel="frames", title="Average Return")
             fig.savefig(str(dir_manager.seed_dir / 'return.png'))
+            plt.close(fig)
+
+            # Episode length
+            fig, ax = create_fig((1, 1))
+            plot_curve(ax, [graph_data["num_frames"]],
+                       np.array(graph_data["episode_length_mean"]).T,
+                       stds=np.array(graph_data["episode_length_std"]).T,
+                       colors=[envs[0].agents[j].color for j in range(config.num_agents)],
+                       labels=[f"agent {i}" for i in range(config.num_agents)],
+                       xlabel="frames", title="Average Episode Length")
+            fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
             plt.close(fig)
 
 if __name__ == "__main__":
