@@ -76,7 +76,7 @@ def get_training_args(overwritten_args=None):
                         help="number of epochs for PPO (default: 4)")
     parser.add_argument("--batch_size", type=int, default=256,
                         help="batch size for PPO (default: 256)")
-    parser.add_argument("--recurrence", type=int, default=1,
+    parser.add_argument("--recurrence", type=int, default=2,
                         help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
     # parser.add_argument("--recurrence_coord", type=int, default=1,
     #                     help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
@@ -356,8 +356,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             # Return
             fig, ax = create_fig((1, 1))
             plot_curve(ax, [graph_data["num_frames"]],
-                       np.array(graph_data["return_mean"]).T,
-                       stds=np.array(graph_data["return_std"]).T,
+                       np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
+                       stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
                        colors=[envs[0].agents[j].color for j in range(config.num_agents)],
                        labels=[f"agent {i}" for i in range(config.num_agents)],
                        xlabel="frames", title="Average Return")

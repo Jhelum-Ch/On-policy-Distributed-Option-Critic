@@ -37,6 +37,7 @@ class DOCAlgo(BaseAlgo):
         # Collect experiences
 
         coord_exps, exps, logs = self.collect_experiences()
+        #exps, logs = self.collect_experiences()
 
         # Compute starting indexes
 
@@ -49,31 +50,32 @@ class DOCAlgo(BaseAlgo):
         sbs                 = [None for _ in range(self.num_agents)]
         embeddings          = [None for _ in range(self.num_agents)]
         masked_embeddings   = [None for _ in range(self.num_agents)]
+        estimated_embeddings = [None for _ in range(self.num_agents)]
         #last_broadcasts     = [None for _ in range(self.num_agents)]
-        last_masked_embeddings = [None for _ in range(self.num_agents)]
+       # last_masked_embeddings = [None for _ in range(self.num_agents)]
 
 
         if self.acmodel.recurrent:
             memories = [exps[j].memory[inds] for j in range(self.num_agents)]
-            coordinator_memory = coord_exps.memory[inds]
+            #coordinator_memory = coord_exps.memory[inds]
 
         update_entropy      = [0 for _ in range(self.num_agents)]
         update_broadcast_entropy = [0 for _ in range(self.num_agents)]
         update_policy_loss  = [0 for _ in range(self.num_agents)]
         update_broadcast_loss = [0 for _ in range(self.num_agents)]
         update_actor_loss   = [0 for _ in range(self.num_agents)]
-        update_agent_critic_loss = [0 for _ in range(self.num_agents)]
+        #update_agent_critic_loss = [0 for _ in range(self.num_agents)]
 
         # Initialize scalars for central-critic info
 
         update_value        = 0
         update_values = [0 for _ in range(self.num_agents)]
-        update_values_b = [0 for _ in range(self.num_agents)]
+        #update_values_b = [0 for _ in range(self.num_agents)]
         update_value_loss   = 0
-        update_values_loss = [0 for _ in range(self.num_agents)]
-        update_values_b_loss = [0 for _ in range(self.num_agents)]
-        update_agent_critic_loss = [0 for _ in range(self.num_agents)]
-        update_agent_critic_loss_b = [0 for _ in range(self.num_agents)]
+        #update_values_loss = [0 for _ in range(self.num_agents)]
+        #update_values_b_loss = [0 for _ in range(self.num_agents)]
+        #update_agent_critic_loss = [0 for _ in range(self.num_agents)]
+        #update_agent_critic_loss_b = [0 for _ in range(self.num_agents)]
         update_critic_loss  = 0
 
         # Feed experience to model with gradient-tracking on a single process
@@ -88,19 +90,65 @@ class DOCAlgo(BaseAlgo):
                 # Create a sub-batch of experience
 
 
+
                 sbs[j] = exps[j][inds + i]
 
                 # Actor forward propagation
 
-                act_dist, _, _, memory, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, \
+               # print('i', i, 'inds + i', len(inds + i), 'sbs_em', sbs[j].embeddings.size())
+
+                if not self.always_broadcast:
+                    act_dist, _, _, memory, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, \
                                                                                                         memories[j] * \
                                                                                                         sbs[j].mask)
+                else:
+                    act_dist, _, memory, term_dist, embedding = self.acmodel.forward_agent_critic(
+                        sbs[j].obs, \
+                        memories[j] * \
+                        sbs[j].mask)
 
+                #print('embed', embedding.size())
+                # To find the last successfully broadcast embedding
+                # idx_list = torch.zeros(self.num_procs, device=self.device)
+                # agent_successfully_broadcast_embedding = torch.zeros(self.num_procs, self.acmodel.semi_memory_size,
+                #                                                      device=self.device)
+
+                # for p in range(self.num_procs):
+                #     id_list = [i for i, e in
+                #                enumerate(self.rollout_broadcast_masks[j][:-1].transpose(0, 1)[p].tolist()) if
+                #                e == 1]
+                #     if len(id_list) != 0:
+                #         idx_list[p] = max(id_list)
+                #         agent_successfully_broadcast_embedding[p] = \
+                #             self.rollout_agent_embeddings[j][:-1].transpose(0, 1)[p, idx_list[p].long()]
+                #     else:
+                #         agent_successfully_broadcast_embedding[p] = self.rollout_agent_embeddings[j, 0, p]
+                # print('size_n', sbs[j].embeddings.reshape(self.num_procs,-1, self.acmodel.semi_memory_size).size())
+                # for p in range(self.num_procs):
+                #     id_list = [i for i, e in
+                #                enumerate(sbs[j].embeddings.reshape(self.num_procs,-1, self.acmodel.semi_memory_size)[p].tolist()) if
+                #                e == 1]
+                #     if len(id_list) != 0:
+                #         idx_list[p] = max(id_list)
+                #         agent_successfully_broadcast_embedding[p] = \
+                #             sbs[j].embeddings.reshape(self.num_procs,-1, self.acmodel.semi_memory_size)[p, idx_list[p].long()]
+                #     else:
+                #         agent_successfully_broadcast_embedding[p] = sbs[j].embeddings.reshape(self.num_procs,-1, self.acmodel.semi_memory_size)[p,0]
+
+
+                #print('successful', agent_successfully_broadcast_embedding.size())
 
                 # Actor losses
 
                 entropy = act_dist.entropy().mean()
-                broadcast_entropy = broadcast_dist.entropy().mean()
+                if self.acmodel.use_broadcasting and not self.always_broadcast:
+                    broadcast_entropy = broadcast_dist.entropy().mean()
+                    broadcast_log_probs = broadcast_dist.log_prob(
+                        sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions))[
+                        range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
+                    broadcast_loss = -(broadcast_log_probs * (sbs[j].value_swa - sbs[j].value_sw)).mean()
+                    # broadcast_loss = -(broadcast_log_probs * (sbs[j].value_swa_b - sbs[j].value_sw_b)).mean()
+                    # broadcast_loss = -(broadcast_log_probs * (sbs_coord.value_swa - sbs_coord.value_sw)).mean()
 
                 act_log_probs = act_dist.log_prob(sbs[j].action.view(-1, 1).repeat(1, self.num_options))[range(sbs[j].action.shape[0]), sbs[j].current_options]
                 policy_loss = -(act_log_probs * (sbs[j].value_swa - sbs[j].value_sw)).mean() #the second term should be coordinator value
@@ -111,22 +159,27 @@ class DOCAlgo(BaseAlgo):
                 termination_loss = (term_prob * (sbs[j].advantage + self.termination_reg)).mean()
                 #termination_loss = (term_prob * (sbs_coord.advantage + self.termination_reg)).mean()
 
-                broadcast_log_probs = broadcast_dist.log_prob(sbs[j].broadcast.view(-1, 1).repeat(1, self.num_options))[range(sbs[j].broadcast.shape[0]), sbs[j].current_options]
-                broadcast_loss = -(broadcast_log_probs * (sbs[j].value_swa_b - sbs[j].value_sw_b)).mean()
-                #broadcast_loss = -(broadcast_log_probs * (sbs_coord.value_swa - sbs_coord.value_sw)).mean()
 
-                loss = policy_loss \
-                       - self.entropy_coef * entropy \
-                        + broadcast_loss \
-                        - self.entropy_coef * broadcast_entropy \
-                       + self.term_loss_coef * termination_loss
+                if self.acmodel.use_broadcasting and not self.always_broadcast:
+                    loss = policy_loss \
+                           - self.entropy_coef * entropy \
+                            + broadcast_loss \
+                            - self.entropy_coef * broadcast_entropy \
+                           + self.term_loss_coef * termination_loss
+                else:
+                    loss = policy_loss \
+                           - self.entropy_coef * entropy \
+                           + self.term_loss_coef * termination_loss
+
 
 
                 # Update batch values
                 update_entropy[j] += entropy.item()
-                update_broadcast_entropy[j] += broadcast_entropy.item()
+                if self.acmodel.use_broadcasting and not self.always_broadcast:
+                    update_broadcast_entropy[j] += broadcast_entropy.item()
+                    update_broadcast_loss[j] += broadcast_loss.item()
                 update_policy_loss[j] += policy_loss.item()
-                update_broadcast_loss[j] += broadcast_loss.item()
+
                 update_actor_loss[j] += loss
 
 
@@ -136,13 +189,17 @@ class DOCAlgo(BaseAlgo):
                 embeddings[j] = embedding
 
 
+
                 # Collect masked (coord) embedding
 
 
-                if self.always_broadcast:
+                if self.acmodel.use_broadcasting and self.always_broadcast:
                     masked_embeddings[j] = embedding
+                    estimated_embeddings[j] = embedding
                 else:
                     masked_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding
+                    estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].embedding
+                #print('check', estimated_embeddings[j] == embedding)
                 # print('size1', masked_embeddings[j].size(), 'size2', embedding.size())
                 # #last_broadcasts[j] = sbs[j].last_broadcast
                 # last_masked_embeddings[j] = sbs[j].last_masked_embedding
@@ -166,15 +223,17 @@ class DOCAlgo(BaseAlgo):
                 #     2).mean()
 
 
-
+            #print('masked', masked_embeddings[0].size(),'est', estimated_embeddings[0].size())
 
             # Central-critic forward propagation
 
             option_idxs = [sbs[j].current_options for j in range(self.num_agents)]
             action_idxs = [sbs[j].action for j in range(self.num_agents)]
-            broadcast_idxs = [sbs[j].broadcast for j in range(self.num_agents)]
 
-            value_a_b, _ = self.acmodel.forward_central_critic(masked_embeddings, option_idxs, action_idxs, broadcast_idxs, sbs_coord.memory)
+            if self.acmodel.use_broadcasting:
+                broadcast_idxs = [sbs[j].broadcast for j in range(self.num_agents)]
+
+                value_a_b, _ = self.acmodel.forward_central_critic(estimated_embeddings, option_idxs, action_idxs, broadcast_idxs, sbs_coord.memory)
 
             # for j in range(self.num_agents):
             #     modified_masked_embeddings = copy.deepcopy(last_masked_embeddings)
@@ -255,12 +314,15 @@ class DOCAlgo(BaseAlgo):
         for j in range(self.num_agents):
 
             update_entropy[j] /= self.recurrence #recurrence_agents
-            update_broadcast_entropy[j] /= self.recurrence
+
             update_policy_loss[j] /= self.recurrence
-            update_broadcast_loss[j] /= self.recurrence
+            if not self.always_broadcast:
+                update_broadcast_entropy[j] /= self.recurrence
+                update_broadcast_loss[j] /= self.recurrence
+
             update_actor_loss[j] /= self.recurrence
             update_values[j] /= self.recurrence
-            update_values_b[j] /= self.recurrence
+            #update_values_b[j] /= self.recurrence
 
             update_actor_loss[j].backward(retain_graph=True)
 

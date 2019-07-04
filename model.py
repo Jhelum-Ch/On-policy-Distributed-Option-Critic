@@ -32,7 +32,8 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                  use_act_values=True,
                  use_term_fn=True,
                  use_central_critic=True,
-                 use_broadcasting=True
+                 use_broadcasting=True,
+                 always_broadcast = True
                  ):
         super().__init__()
 
@@ -43,9 +44,13 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         self.use_memory_coord = use_memory_coord
         self.num_agents = num_agents
         self.num_options = num_options
+        self.always_broadcast = always_broadcast
+        self.num_broadcasts = 1 if self.always_broadcast or not self.recurrent else 2 #1 if self.always_broadcast else 2
         self.use_term_fn = use_term_fn
         self.use_central_critic = use_central_critic
         self.use_broadcasting = use_broadcasting
+
+        #print('num_b', self.num_broadcasts)
 
         if isinstance(action_space, gym.spaces.Discrete):
             self.num_actions = action_space.n
@@ -93,11 +98,11 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         )
 
         # Define broadcast_net
-        if self.use_broadcasting:
+        if self.use_broadcasting and not self.always_broadcast:
             self.broadcast_net = nn.Sequential(
                 nn.Linear(self.embedding_size, 64),
                 nn.Tanh(),
-                nn.Linear(64, self.num_options * 2)
+                nn.Linear(64, self.num_options * self.num_actions * self.num_broadcasts)
             )
 
         # Define termination functions and option policy (policy over option)
@@ -109,7 +114,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             )
 
         # Define central_critic model (sees all agents's embeddings)
-        central_critic_input_size = self.num_agents * (self.embedding_size + self.num_options + self.num_actions + 2) #2 for broadcast actions
+        central_critic_input_size = self.num_agents * (self.embedding_size + self.num_options + self.num_actions + self.num_broadcasts)
         central_critic_output_size = 1
 
 
@@ -141,7 +146,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
     @property
     def coord_semi_memory_size(self):
-        return self.num_agents * (self.embedding_size + self.num_options + self.num_actions + 2)
+        return self.num_agents * (self.embedding_size + self.num_options + self.num_actions + self.num_broadcasts)
 
     # Forward path for agent_critics to learn intra-option policies and broadcasts   
     def forward_agent_critic(self, obs, agent_memory):
@@ -163,14 +168,15 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         else:
             term_dist = None
 
-        if self.use_broadcasting:
-            x_b = self.broadcast_net(embedding).view((-1, self.num_options, 2))
+        if self.use_broadcasting and not self.always_broadcast:
+            x_b = self.broadcast_net(embedding).view((-1, self.num_options, self.num_actions, self.num_broadcasts))
             broadcast_dist = Categorical(
                 logits=F.log_softmax(x_b, dim=-1))  # we need softmax on values depending on broadcast penalty
 
-            agent_values_b = x_b.view((-1, self.num_options, 2)) if self.use_act_values else x_b.view((-1, self.num_options))
+            agent_values_b = x_b.view((-1, self.num_options, self.num_actions, self.num_broadcasts)) if self.use_act_values else x_b.view((-1, self.num_options))
 
-        return act_dist, agent_values, agent_values_b, new_agent_memory, term_dist, broadcast_dist, embedding
+            return act_dist, agent_values, agent_values_b, new_agent_memory, term_dist, broadcast_dist, embedding
+        return act_dist, agent_values, new_agent_memory, term_dist, embedding
 
 
 
@@ -183,11 +189,21 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         for action_idxs_j in action_idxs:
             action_onehots.append(utils.idx_to_onehot(action_idxs_j.long(), self.num_actions))
 
-        broadcast_onehots = []
-        for broadcast_idxs_j in broadcast_idxs:
-            broadcast_onehots.append(utils.idx_to_onehot(broadcast_idxs_j.long(), 2))
+        #print('brd_idx', broadcast_idxs)
+        if self.num_broadcasts == 1:
+            broadcast_onehots = copy.deepcopy(broadcast_idxs)
+            broadcast_onehots = [item.unsqueeze(1) for item in broadcast_onehots]
+            # for i in range(len(broadcast_onehots)):
+            #     broadcast_onehots[i] = broadcast_onehots[i].long()
 
+            #print('broadcast_onehots',broadcast_onehots)
+        else:
+            broadcast_onehots = []
+            #print('self.num_broadcasts', self.num_broadcasts)
+            for broadcast_idxs_j in broadcast_idxs:
+                broadcast_onehots.append(utils.idx_to_onehot(broadcast_idxs_j.long(), self.num_broadcasts))
 
+       # print('star', *broadcast_onehots)
         coordinator_embedding = torch.cat([*masked_embeddings, *option_onehots, *action_onehots, *broadcast_onehots], dim=1)
 
         if self.use_memory_coord:
