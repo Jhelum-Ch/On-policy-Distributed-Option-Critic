@@ -21,7 +21,7 @@ class DOCAlgo(BaseAlgo):
     def __init__(self, num_agents, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence = 4,
                  rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=4,
-                 termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None, always_broadcast = True, broadcast_penalty=-0.01):
+                 termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None, always_broadcast = False, broadcast_penalty=-0.01):
 
         num_frames_per_proc = num_frames_per_proc or 8
 

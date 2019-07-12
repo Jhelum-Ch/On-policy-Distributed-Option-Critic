@@ -14,7 +14,7 @@ class BaseAlgo(ABC):
     def __init__(self, num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward, broadcast_penalty,
                  num_options=None, termination_loss_coef=None, termination_reg=None, option_epsilon=0.05,
-                 always_broadcast=True):
+                 always_broadcast=False):
         """
         Initializes a `BaseAlgo` instance.
         Parameters:
@@ -77,14 +77,14 @@ class BaseAlgo(ABC):
         #self.recurrence_coord = recurrence_coord
         self.preprocess_obss = preprocess_obss or default_preprocess_obss
         self.reshape_reward = reshape_reward
-        self.broadcast_penalty = broadcast_penalty
+        self.always_broadcast = always_broadcast
+        self.broadcast_penalty = broadcast_penalty if not self.always_broadcast else 0.
         self.num_actions = self.acmodel.num_actions
         #self.num_options = num_options
         self.num_options = self.acmodel.num_options
         self.term_loss_coef = termination_loss_coef
         self.termination_reg = termination_reg
         self.option_epsilon = option_epsilon
-        self.always_broadcast = always_broadcast
         self.num_broadcasts = 1 if self.always_broadcast or not self.acmodel.recurrent else 2
 
 

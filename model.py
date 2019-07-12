@@ -33,7 +33,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                  use_term_fn=True,
                  use_central_critic=True,
                  use_broadcasting=True,
-                 always_broadcast = True
+                 always_broadcast = False
                  ):
         super().__init__()
 
