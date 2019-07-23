@@ -141,7 +141,8 @@ class BaseAlgo(ABC):
         self.current_mask = torch.ones(shape[1], device=self.device)
         self.rollout_masks = torch.zeros(*shape, device=self.device)
         self.rollout_masked_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size, device=self.device) for _ in range(self.num_agents)]
-
+        self.rollout_estimated_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size, device=self.device) for _
+                                          in range(self.num_agents)]
 
         self.rollout_actions = [torch.zeros(*shape, device=self.device, dtype=torch.int) for _ in range(self.num_agents)]
         self.rollout_rewards = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
@@ -368,7 +369,6 @@ class BaseAlgo(ABC):
                                     action_idxs = [action_idxs_agent_j if k == j else agents_action[k] for k in range(self.num_agents)]
 
                                     if self.always_broadcast:
-                                        'Hi'
                                         broadcast_idxs = [agents_broadcast[k] for k in range(self.num_agents)]
                                     else:
                                         broadcast_idxs = [broadcast_idxs_agent_j if k == j else agents_broadcast[k] for k in range(self.num_agents)]
