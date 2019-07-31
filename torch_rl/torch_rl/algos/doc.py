@@ -51,6 +51,7 @@ class DOCAlgo(BaseAlgo):
         embeddings          = [None for _ in range(self.num_agents)]
         masked_embeddings   = [None for _ in range(self.num_agents)]
         estimated_embeddings = [None for _ in range(self.num_agents)]
+
         #last_broadcasts     = [None for _ in range(self.num_agents)]
        # last_masked_embeddings = [None for _ in range(self.num_agents)]
 
@@ -364,6 +365,8 @@ class DOCAlgo(BaseAlgo):
         logs["broadcast_loss"] = update_broadcast_loss
         logs["value_loss"] = update_value_loss
         logs["grad_norm"] = update_grad_norm
+        logs["options"] = option_idxs
+        logs["actions"] = action_idxs
 
         return logs
 

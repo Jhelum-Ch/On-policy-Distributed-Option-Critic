@@ -745,6 +745,7 @@ class BaseAlgo(ABC):
             coord_exps = DictList()
             logs = {k:[] for k in ["return_per_episode",
                                    "return_per_episode_with_broadcast_penalties",
+                                   "mean_agent_return_with_broadcast_penalties",
                                    "reshaped_return_per_episode",
                                    "num_frames_per_episode",
                                    "num_frames",
@@ -856,8 +857,10 @@ class BaseAlgo(ABC):
 
                 keep = max(self.log_done_counter[j], self.num_procs)
 
+
                 logs["return_per_episode"].append(self.log_return[j][-keep:])
                 logs["return_per_episode_with_broadcast_penalties"].append(self.log_return_with_broadcast_penalties[j][-keep:]) # this is what we plot
+
                 logs["reshaped_return_per_episode"].append(self.log_reshaped_return[j][-keep:])
                 logs["num_frames_per_episode"].append(self.log_num_frames[j][-keep:])
                 logs["num_frames"].append(self.num_frames)
@@ -866,6 +869,9 @@ class BaseAlgo(ABC):
                 self.log_return_with_broadcast_penalties[j] = self.log_return_with_broadcast_penalties[j][-self.num_procs:]
                 self.log_reshaped_return[j] = self.log_reshaped_return[j][-self.num_procs:]
                 self.log_num_frames[j] = self.log_num_frames[j][-self.num_procs:]
+            mean_agent_return = np.mean(self.log_return_with_broadcast_penalties, axis=0)
+            #print('log', self.log_return_with_broadcast_penalties, 'mean_agent_return',mean_agent_return)
+            logs["mean_agent_return_with_broadcast_penalties"].append(mean_agent_return)
 
         return coord_exps, exps, logs
         #return exps, logs

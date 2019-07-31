@@ -267,6 +267,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         "return_std": [],
         "return_with_broadcast_penalties_mean": [],
         "return_with_broadcast_penalties_std": [],
+        "mean_agent_return_with_broadcast_penalties_mean": [],
+        "mean_agent_return_with_broadcast_penalties_std": [],
         "episode_length_mean": [],
         "episode_length_std": [],
         "entropy": [],
@@ -302,8 +304,11 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             duration = int(time.time() - total_start_time)
             return_per_episode = utils.synthesize(logs["return_per_episode"])
             return_per_episode_with_broadcast_penalties = utils.synthesize(logs["return_per_episode_with_broadcast_penalties"])
+            mean_agent_return_per_episode_with_broadcast_penalties = utils.synthesize(logs["mean_agent_return_with_broadcast_penalties"])
             rreturn_per_episode = utils.synthesize(logs["reshaped_return_per_episode"])
             num_frames_per_episode = utils.synthesize(logs["num_frames_per_episode"])
+            options = logs["options"]
+            actions = logs["actions"]
 
             status = {"num_frames": num_frames, "update": update}
 
@@ -313,6 +318,11 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             graph_data["return_mean"].append(return_per_episode['mean'])
             graph_data["return_std"].append(return_per_episode['std'])
             graph_data["return_with_broadcast_penalties_mean"].append(return_per_episode_with_broadcast_penalties['mean'])
+            graph_data["return_with_broadcast_penalties_std"].append(return_per_episode_with_broadcast_penalties['std'])
+            graph_data["mean_agent_return_with_broadcast_penalties_mean"].append(
+                mean_agent_return_per_episode_with_broadcast_penalties['mean'])
+            graph_data["mean_agent_return_with_broadcast_penalties_std"].append(
+                mean_agent_return_per_episode_with_broadcast_penalties['std'])
             graph_data["return_with_broadcast_penalties_std"].append(return_per_episode_with_broadcast_penalties['std'])
             graph_data["episode_length_mean"].append(num_frames_per_episode['mean'])
             graph_data["episode_length_std"].append(num_frames_per_episode['std'])
@@ -362,6 +372,15 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                        labels=[f"agent {i}" for i in range(config.num_agents)],
                        xlabel="frames", title="Average Return")
             fig.savefig(str(dir_manager.seed_dir / 'return.png'))
+            plt.close(fig)
+
+            # mean Return from agents
+            fig, ax = create_fig((1, 1))
+            plot_curve(ax, [graph_data["num_frames"]],
+                       np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
+                       stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
+                       xlabel="frames", title="Average Return")
+            fig.savefig(str(dir_manager.seed_dir / 'mean_return_from_agents.png'))
             plt.close(fig)
 
             # Episode length
