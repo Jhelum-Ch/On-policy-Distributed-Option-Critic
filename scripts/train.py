@@ -69,7 +69,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--optim_eps", type=float, default=1e-5,
                         help="Adam and RMSprop optimizer epsilon (default: 1e-5)")
     parser.add_argument("--optim_alpha", type=float, default=0.99,
-                        help="RMSprop optimizer apha (default: 0.99)")
+                        help="RMSprop optimizer alpha (default: 0.99)")
     parser.add_argument("--clip_eps", type=float, default=0.2,
                         help="clipping epsilon for PPO (default: 0.2)")
     parser.add_argument("--epochs", type=int, default=4,
@@ -323,7 +323,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 mean_agent_return_per_episode_with_broadcast_penalties['mean'])
             graph_data["mean_agent_return_with_broadcast_penalties_std"].append(
                 mean_agent_return_per_episode_with_broadcast_penalties['std'])
-            graph_data["return_with_broadcast_penalties_std"].append(return_per_episode_with_broadcast_penalties['std'])
             graph_data["episode_length_mean"].append(num_frames_per_episode['mean'])
             graph_data["episode_length_std"].append(num_frames_per_episode['std'])
             graph_data["entropy"].append(logs["entropy"])
@@ -363,6 +362,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
             plt.close(fig)
 
+
             # Return
             fig, ax = create_fig((1, 1))
             plot_curve(ax, [graph_data["num_frames"]],
@@ -374,11 +374,22 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             fig.savefig(str(dir_manager.seed_dir / 'return.png'))
             plt.close(fig)
 
+            # # Return
+            # fig, ax = create_fig((1, 1))
+            # plot_curve(ax, [graph_data["num_frames"]],
+            #            np.array(graph_data["return_mean"]).T,
+            #            stds=np.array(graph_data["return_std"]).T,
+            #            colors=[envs[0].agents[j].color for j in range(config.num_agents)],
+            #            labels=[f"agent {i}" for i in range(config.num_agents)],
+            #            xlabel="frames", title="Average Return")
+            # fig.savefig(str(dir_manager.seed_dir / 'return.png'))
+            # plt.close(fig)
+
             # mean Return from agents
             fig, ax = create_fig((1, 1))
             plot_curve(ax, [graph_data["num_frames"]],
-                       np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
-                       stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
+                       np.array(graph_data["mean_agent_return_with_broadcast_penalties_mean"]).T,
+                       stds=np.array(graph_data["mean_agent_return_with_broadcast_penalties_std"]).T,
                        xlabel="frames", title="Average Return")
             fig.savefig(str(dir_manager.seed_dir / 'mean_return_from_agents.png'))
             plt.close(fig)

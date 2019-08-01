@@ -220,6 +220,7 @@ class BaseAlgo(ABC):
         self.log_done_counter = 0
         self.log_return = [[0] * shape[1] for _ in range(self.num_agents)]
         self.log_return_with_broadcast_penalties = [[0] * shape[1] for _ in range(self.num_agents)]
+        self.log_mean_agent_return = [0] * shape[1]
         self.log_reshaped_return = [[0] * shape[1] for _ in range(self.num_agents)]
         self.log_num_frames = [[0] * shape[1] for _ in range(self.num_agents)]
 
@@ -647,7 +648,7 @@ class BaseAlgo(ABC):
                     self.log_episode_num_frames[j] *= self.current_mask
 
             # Add advantage and return to experiences
-
+            #print('log_return_penalty_shape', np.shape(self.log_return_with_broadcast_penalties[0]), 'log_return_shape', np.shape(self.log_return[0]))
             for j in range(self.num_agents):
 
                 for i in reversed(range(self.num_frames_per_proc)):
@@ -861,6 +862,7 @@ class BaseAlgo(ABC):
                 logs["return_per_episode"].append(self.log_return[j][-keep:])
                 logs["return_per_episode_with_broadcast_penalties"].append(self.log_return_with_broadcast_penalties[j][-keep:]) # this is what we plot
 
+                #print('shape', np.shape(self.log_return_with_broadcast_penalties[j][-keep:]))
                 logs["reshaped_return_per_episode"].append(self.log_reshaped_return[j][-keep:])
                 logs["num_frames_per_episode"].append(self.log_num_frames[j][-keep:])
                 logs["num_frames"].append(self.num_frames)
@@ -869,9 +871,9 @@ class BaseAlgo(ABC):
                 self.log_return_with_broadcast_penalties[j] = self.log_return_with_broadcast_penalties[j][-self.num_procs:]
                 self.log_reshaped_return[j] = self.log_reshaped_return[j][-self.num_procs:]
                 self.log_num_frames[j] = self.log_num_frames[j][-self.num_procs:]
-            mean_agent_return = np.mean(self.log_return_with_broadcast_penalties, axis=0)
-            #print('log', self.log_return_with_broadcast_penalties, 'mean_agent_return',mean_agent_return)
-            logs["mean_agent_return_with_broadcast_penalties"].append(mean_agent_return)
+            self.log_mean_agent_return = list(np.mean(self.log_return_with_broadcast_penalties, axis=0))[-keep:]
+            #print('self.log_mean_agent_return_shape', np.shape(self.log_return_with_broadcast_penalties), 'shape_mean_return', np.shape(self.log_mean_agent_return))
+            logs["mean_agent_return_with_broadcast_penalties"].append(self.log_mean_agent_return)
 
         return coord_exps, exps, logs
         #return exps, logs
