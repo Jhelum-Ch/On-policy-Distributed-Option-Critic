@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-USE_TEAMGRID = True
+USE_TEAMGRID = False
+USE_CENTRAL_CRITIC = True #Always True for DOC, False for OC
+USE_ALWAYS_BROADCAST = False # Always TRUE if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
 
 import argparse
 import gym
@@ -21,6 +23,8 @@ else:
     #import gym_minigrid
     import multiagent
     from make_env import make_env
+    from multiagent.environment import MultiAgentEnv
+    import multiagent.scenarios as scenarios
 
 
 import utils
@@ -88,7 +92,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--broadcast_penalty", type=float, default=-0.01,
                         help="broadcast penalty (default: -0.01, 0. implies no penalty)")
     # Option-Critic configs
-    parser.add_argument("--num_options", type=int, default=3,
+    parser.add_argument("--num_options", type=int, default=2,
                         help="number of options (default: 1, 1 means no options)")
     parser.add_argument("--termination_loss_coef", type=float, default=0.5,
                         help="termination loss term coefficient (default: 0.5)")
@@ -99,13 +103,21 @@ def get_training_args(overwritten_args=None):
                         help="number of trainable agents interacting with the teamgrid environment")
     parser.add_argument("--shared_rewards", type=parse_bool, default=True,
                         help="whether the reward is individual or shared as the sum of all rewards among agents")
+    parser.add_argument("--num_goals", type=int, default=3,
+                        help="number of goals the agents need to discover")
+
+    # Multiagent Particle Env
+    parser.add_argument("--scenario", type=str, default="simple", help="name of the scenario script")
+    parser.add_argument("--benchmark", action="store_true", default=False)
+
+    #MADDPG
+    parser.add_argument("--local_q_func", default=False)
 
     return parser.parse_args(overwritten_args)
 
 
+
 def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
-    # if USE_TEAMGRID == False:
-    #     config.env = make_env('simple_speaker_listener') #choose any scenario
     config.mem_agents = config.recurrence > 1
     config.mem_coord = config.recurrence > 1
     # In the multi-agent setup, for DOC, different agents really are empty slots in which options are executed
@@ -116,7 +128,12 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     # However, for implementation uniformity, we will consider them as if they were different options
     # (but each agent will always keep the same "option")
     elif config.algo in ['a2c', 'ppo']:
-        config.num_options = config.num_agents
+        #config.num_options = config.num_agents
+        config.num_options = 1
+
+    # In the multi-agent setup, for selfish OC, each agent has its own policy and option.
+    elif config.algo == 'oc':
+        assert config.num_options >= config.num_agents # same set of options available to each agent
 
     if dir_manager is None:
 
@@ -157,8 +174,9 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         if USE_TEAMGRID:
             env = gym.make(config.env, num_agents=config.num_agents, shared_rewards=config.shared_rewards)
         else:
-            config.env = make_env('simple_speaker_listener')  # choose any scenario
-            env = config.env #gym.make(config.env)
+            env = make_env(config.scenario, config, config.benchmark)
+            #config.env = make_env('simple_speaker_listener')  # choose any scenario
+            #env = config.env #gym.make(config.env)
         env.seed(config.seed + 10000 * i)
         envs.append(env)
 
@@ -166,10 +184,14 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
     # Define obss preprocessor
 
-    if USE_TEAMGRID:
-        obs_space, preprocess_obss = utils.get_obss_preprocessor(config.env, envs[0].observation_space, dir_manager.seed_dir)
-    else:
-        obs_space, config.num_agents = config.env.observation_space, env.n
+    # if USE_TEAMGRID:
+    #     obs_space, preprocess_obss = utils.get_obss_preprocessor(config.env, envs[0].observation_space, dir_manager.seed_dir)
+    # else:
+    #     obs_space, config.num_agents = config.env.observation_space, env.n
+
+    obs_space, preprocess_obss = utils.get_obss_preprocessor(config.env, envs[0].observation_space,
+                                                                 dir_manager.seed_dir)
+
     # Load training status
 
     try:
@@ -199,8 +221,12 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                           num_options=config.num_options,
                           use_act_values=True if config.algo in ["oc", "doc"] else False,
                           use_term_fn=True if config.algo in ["oc", "doc"] else False,
-                          use_central_critic=True if config.algo == "doc" else False,
+                          #use_central_critic=True if config.algo == "doc" else False,
+                          use_central_critic=USE_CENTRAL_CRITIC,
                           use_broadcasting=True if config.algo == "doc" else False,
+                          termination_reg = config.termination_reg,
+                          use_teamgrid=USE_TEAMGRID,
+                          always_broadcast= USE_ALWAYS_BROADCAST
                           )
 
         logger.debug("Model successfully created\n")
@@ -237,10 +263,16 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                config.optim_alpha, config.optim_eps, preprocess_obss,
                                config.num_options, config.termination_loss_coef, config.termination_reg)
 
+    elif config.algo == "maddpg":
+        algo = torch_rl.MADDPGAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
+                 config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
+                 config.adam_eps, config.clip_eps, config.epochs, config.batch_size, config.preprocess_obss, config.num_options,
+                 config.reshape_reward, config.local_q_func)
+
     else:
         raise ValueError("Incorrect algorithm name: {}".format(config.algo))
 
-
+    print('config_num_op', config.num_options)
 
     # Creates a progress-bar
 

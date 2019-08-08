@@ -29,61 +29,105 @@ class PPOAlgo(BaseAlgo):
     def update_parameters(self):
         # Collect experiences
 
-        exps, logs = self.collect_experiences()
+        if self.acmodel.use_central_critic:
+            coord_exps, exps, logs = self.collect_experiences()
+        else:
+            exps, logs = self.collect_experiences()
+
+        #exps, logs = self.collect_experiences()
 
         # Compute starting indexes
 
 
-        for j in range(self.num_agents):
 
-            for _ in range(self.epochs):
-                # Initialize log values
+        #for j in range(self.num_agents):
 
-                log_entropies = []
-                log_values = []
-                log_policy_losses = []
-                log_value_losses = []
-                log_grad_norms = []
+        for _ in range(self.epochs):
+            # Initialize log values
 
-                for inds in self._get_batches_starting_indexes():
-                    # Initialize batch values
+            log_entropies = []
+            log_values = []
+            log_policy_losses = []
+            log_value_losses = []
+            log_grad_norms = []
 
-                    batch_entropy = 0
-                    batch_value = 0
-                    batch_policy_loss = 0
-                    batch_value_loss = 0
-                    batch_loss = 0
+            for inds in self._get_batches_starting_indexes():
 
-                    # Initialize memory
+                # Initialize containers for actors info
 
-                    if self.acmodel.recurrent:
-                        memory = exps[j].memory[inds]
+                sbs = [None for _ in range(self.num_agents)]
+                embeddings = [None for _ in range(self.num_agents)]
+                masked_embeddings = [None for _ in range(self.num_agents)]
+                estimated_embeddings = [None for _ in range(self.num_agents)]
+
+                if self.acmodel.use_central_critic:
+                    sbs_coord = None
+                    update_critic_loss = 0
+                    update_value = 0
+                    update_value_loss = 0
+                    option_idxs = [None for _ in range(self.num_agents)]
+                    action_idxs = [None for _ in range(self.num_agents)]
+                    broadcast_idxs = [None for _ in range(self.num_agents)]
+                else:
+                    update_value = [0 for _ in range(self.num_agents)]
+                    update_value_loss = [0 for _ in range(self.num_agents)]
+                    update_critic_loss = [0 for _ in range(self.num_agents)]
+
+                    update_entropy = [0 for _ in range(self.num_agents)]
+                    update_broadcast_entropy = [0 for _ in range(self.num_agents)]
+                    update_policy_loss = [0 for _ in range(self.num_agents)]
+                    update_broadcast_loss = [0 for _ in range(self.num_agents)]
+                    update_actor_loss = [0 for _ in range(self.num_agents)]
+
+                if self.acmodel.recurrent:
+                    memories = [exps[j].memory[inds] for j in range(self.num_agents)]
+
+
+
+                for j in range(self.num_agents):
 
                     for i in range(self.recurrence):
+                        # Initialize batch values
+
+                        batch_entropy = 0
+                        batch_value = 0
+                        batch_policy_loss = 0
+                        batch_value_loss = 0
+                        batch_loss = 0
+
+                        # Initialize memory
+
+                        if self.acmodel.recurrent:
+                            #memory = exps[j].memory[inds]
+                            memory = memories[j]
+
+
+                        if self.acmodel.use_central_critic:
+                            sbs_coord = coord_exps[inds + i]
                         # Create a sub-batch of experience
 
-                        sb = exps[j][inds + i]
+                        sbs[j] = exps[j][inds + i]
 
                         # Compute loss
 
                         if self.acmodel.recurrent:
-                            act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
+                            act_dist, values, memory, term_dist, _ = self.acmodel(sbs[j].obs, memory * sbs[j].mask)
                         else:
-                            act_dist, values = self.acmodel(sb.obs)
+                            act_dist, values = self.acmodel(sbs[j].obs)
 
                         entropy = act_dist.entropy().mean()
 
-                        agent_act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, self.num_options))[range(sb.action.shape[0]), sb.current_options]
-                        agent_values = values[range(sb.action.shape[0]), sb.current_options]
+                        agent_act_log_probs = act_dist.log_prob(sbs[j].action.view(-1, 1).repeat(1, self.num_options))[range(sbs[j].action.shape[0]), sbs[j].current_options]
+                        agent_values = values[range(sbs[j].action.shape[0]), sbs[j].current_options]
 
-                        ratio = torch.exp(agent_act_log_probs - sb.log_prob)
-                        surr1 = ratio * sb.advantage
-                        surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * sb.advantage
+                        ratio = torch.exp(agent_act_log_probs - sbs[j].log_prob)
+                        surr1 = ratio * sbs[j].advantage
+                        surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * sbs[j].advantage
                         policy_loss = -torch.min(surr1, surr2).mean()
 
-                        value_clipped = sb.value + torch.clamp(agent_values - sb.value, -self.clip_eps, self.clip_eps)
-                        surr1 = (agent_values - sb.returnn).pow(2)
-                        surr2 = (value_clipped - sb.returnn).pow(2)
+                        value_clipped = sbs[j].value + torch.clamp(agent_values - sbs[j].value, -self.clip_eps, self.clip_eps)
+                        surr1 = (agent_values - sbs[j].returnn).pow(2)
+                        surr2 = (value_clipped - sbs[j].returnn).pow(2)
                         value_loss = torch.max(surr1, surr2).mean()
 
                         loss = policy_loss - self.entropy_coef * entropy + self.value_loss_coef * value_loss

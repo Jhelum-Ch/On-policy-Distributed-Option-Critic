@@ -30,6 +30,13 @@ def get_obss_preprocessor(env_id, obs_space, save_dir, use_teamgrid=False):
             return torch_rl.DictList({
                 "image": preprocess_images(obss, device=device)
             })
+    elif isinstance(obs_space, list):
+        obs_space = {"image": [obs_space[i].shape for i in range(len(obs_space))]}
+        #obs_shape_n = [obs_space.shape for i in range(env.n)]
+        def preprocess_obss(obss, device=None):
+            return torch_rl.DictList({
+                "image": preprocess_images(obss, device=device)
+            })
 
     else:
         raise ValueError("Unknown observation space: " + str(obs_space))

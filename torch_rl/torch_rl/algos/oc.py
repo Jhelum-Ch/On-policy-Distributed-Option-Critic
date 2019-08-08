@@ -5,17 +5,20 @@ import torch.nn.functional as F
 from torch_rl.algos.base import BaseAlgo
 
 class OCAlgo(BaseAlgo):
-    """The class for the Advantage Actor-Critic algorithm."""
+    """The class for the Selfish Option-Critic algorithm."""
 
     def __init__(self, num_agents, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
-                 rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=4,
-                 termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None):
+                 rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=3,
+                 termination_loss_coef=0.5, termination_reg= 0.01, reshape_reward=None):
         num_frames_per_proc = num_frames_per_proc or 8
 
+        # super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
+        #                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
+        #                  num_options, termination_loss_coef, termination_reg)
         super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
-                         value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
-                         num_options, termination_loss_coef, termination_reg)
+                 value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
+                 termination_reg, termination_loss_coef)
 
         self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
                                              alpha=rmsprop_alpha, eps=rmsprop_eps)
@@ -52,9 +55,18 @@ class OCAlgo(BaseAlgo):
                 # Forward propagation
 
                 if self.acmodel.recurrent:
-                    act_dist, act_values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
+                    if not self.acmodel.always_broadcast:
+                        act_dist, act_values, _, memory, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                            sb.obs, memory * sb.mask)
+                    else:
+                        act_dist, act_values, memory, term_dist, embedding = self.acmodel.forward_agent_critic(sb.obs, memory * sb.mask)
+
                 else:
-                    act_dist, act_values, _, term_dist = self.acmodel(sb.obs)
+                    if not self.acmodel.always_broadcast:
+                        act_dist, act_values, _, _, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                            sb.obs, memory * sb.mask)
+                    else:
+                        act_dist, act_values, _, term_dist, embedding = self.acmodel.forward_agent_critic(sb.obs)
 
                 # Compute losses
 
@@ -67,6 +79,7 @@ class OCAlgo(BaseAlgo):
                 value_loss = (Q_U_swa - sb.target).pow(2).mean()
 
                 term_prob = term_dist.probs[range(sb.action.shape[0]), sb.current_options]
+                #print('sb.adv', sb.advantage, 'self.termination_reg', self.termination_reg)
                 termination_loss = (term_prob * (sb.advantage + self.termination_reg)).mean()
 
                 loss = policy_loss \
@@ -94,6 +107,11 @@ class OCAlgo(BaseAlgo):
 
             self.optimizer.zero_grad()
             update_loss.backward()
+
+            for name, param in self.acmodel.named_parameters():
+                # print('name', name) #'param_data', param.data, 'param_grad', param.grad)
+                if param.grad is None:
+                    print('Grad_none', name)
             update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
             torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
             self.optimizer.step()
