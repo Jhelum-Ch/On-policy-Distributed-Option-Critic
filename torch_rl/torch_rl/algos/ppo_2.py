@@ -8,14 +8,17 @@ class PPOAlgo(BaseAlgo):
     """The class for the Proximal Policy Optimization algorithm
     ([Schulman et al., 2015](https://arxiv.org/abs/1707.06347))."""
 
+    # def __init__(self, num_agents, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
+    #              entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
+    #              adam_eps=1e-5, clip_eps=0.2, epochs=4, batch_size=256, preprocess_obss=None, num_options=None,
+    #              reshape_reward=None):
     def __init__(self, num_agents, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
-                 adam_eps=1e-5, clip_eps=0.2, epochs=4, batch_size=256, preprocess_obss=None, num_options=None,
-                 reshape_reward=None):
+                 rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=2, reshape_reward=None, clip_eps=0.2, epochs=4, batch_size=256):
         num_frames_per_proc = num_frames_per_proc or 128
 
         super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
-                         value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward, num_options)
+                         value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward)
 
         self.clip_eps = clip_eps
         self.epochs = epochs
@@ -23,7 +26,9 @@ class PPOAlgo(BaseAlgo):
 
         assert self.batch_size % self.recurrence == 0
 
-        self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=adam_eps)
+        #self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=adam_eps)
+        self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
+                                             alpha=rmsprop_alpha, eps=rmsprop_eps)
         self.batch_num = 0
 
     def update_parameters(self):
@@ -110,15 +115,31 @@ class PPOAlgo(BaseAlgo):
 
                         # Compute loss
 
+                        # if self.acmodel.recurrent:
+                        #     act_dist, values, memory, term_dist, _ = self.acmodel(sbs[j].obs, memory * sbs[j].mask)
+                        # else:
+                        #     act_dist, values = self.acmodel(sbs[j].obs)
+
                         if self.acmodel.recurrent:
-                            act_dist, values, memory, term_dist, _ = self.acmodel(sbs[j].obs, memory * sbs[j].mask)
+                            if not self.acmodel.always_broadcast:
+                                # act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
+                                act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                    sbs[j].obs, memory * sbs[j].mask)
+                            else:
+                                act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(
+                                    sbs[j].obs, memory * sbs[j].mask)
                         else:
-                            act_dist, values = self.acmodel(sbs[j].obs)
+                            if not self.acmodel.always_broadcast:
+                                # act_dist, values = self.acmodel(sb.obs)
+                                act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                    sbs[j].obs, memory * sbs[j].mask)
+                            else:
+                                act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(sbs[j].obs)
 
                         entropy = act_dist.entropy().mean()
 
                         agent_act_log_probs = act_dist.log_prob(sbs[j].action.view(-1, 1).repeat(1, self.num_options))[range(sbs[j].action.shape[0]), sbs[j].current_options]
-                        agent_values = values[range(sbs[j].action.shape[0]), sbs[j].current_options]
+                        agent_values = act_values[range(sbs[j].action.shape[0]), sbs[j].current_options]
 
                         ratio = torch.exp(agent_act_log_probs - sbs[j].log_prob)
                         surr1 = ratio * sbs[j].advantage
@@ -130,7 +151,21 @@ class PPOAlgo(BaseAlgo):
                         surr2 = (value_clipped - sbs[j].returnn).pow(2)
                         value_loss = torch.max(surr1, surr2).mean()
 
-                        loss = policy_loss - self.entropy_coef * entropy + self.value_loss_coef * value_loss
+                        #loss = policy_loss - self.entropy_coef * entropy + self.value_loss_coef * value_loss
+
+                        if not self.acmodel.always_broadcast:
+                            broadcast_entropy = broadcast_dist.entropy().mean()
+                            broadcast_log_probs = broadcast_dist.log_prob(
+                                sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions))[
+                                range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
+                            broadcast_loss = -(broadcast_log_probs * sbs[j].advantage).mean()
+
+                            loss = policy_loss - self.entropy_coef * entropy \
+                                   + broadcast_loss \
+                                   - self.entropy_coef * broadcast_entropy
+                        else:
+                            loss = policy_loss - self.entropy_coef * entropy \
+ \
 
                         # Update batch values
 

@@ -66,15 +66,31 @@ class PPOAlgo(BaseAlgo):
 
                         # Compute loss
 
+                        # if self.acmodel.recurrent:
+                        #     act_dist, values, memory, term_dist, _ = self.acmodel.forward_agent_critic(sb.obs, memory * sb.mask)
+                        # else:
+                        #     act_dist, values = self.acmodel.forward_agent_critic(sb.obs)
+
                         if self.acmodel.recurrent:
-                            act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
+                            if not self.acmodel.always_broadcast:
+                                # act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
+                                act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                    sb.obs, memory * sb.mask)
+                            else:
+                                act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(
+                                    sb.obs, memory * sb.mask)
                         else:
-                            act_dist, values = self.acmodel(sb.obs)
+                            if not self.acmodel.always_broadcast:
+                                # act_dist, values = self.acmodel(sb.obs)
+                                act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                    sb.obs, memory * sb.mask)
+                            else:
+                                act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(sb.obs)
 
                         entropy = act_dist.entropy().mean()
 
                         agent_act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, self.num_options))[range(sb.action.shape[0]), sb.current_options]
-                        agent_values = values[range(sb.action.shape[0]), sb.current_options]
+                        agent_values = act_values[range(sb.action.shape[0]), sb.current_options]
 
                         ratio = torch.exp(agent_act_log_probs - sb.log_prob)
                         surr1 = ratio * sb.advantage
@@ -99,7 +115,8 @@ class PPOAlgo(BaseAlgo):
                         # Update memories for next epoch
 
                         if self.acmodel.recurrent and i < self.recurrence - 1:
-                            exps.memory[inds + i + 1] = memory.detach()
+                            # exps.memory[inds + i + 1] = memory.detach()
+                            exps[j].memory[inds + i + 1] = memory.detach()
 
                     # Update batch values
 
