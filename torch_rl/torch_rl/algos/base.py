@@ -660,8 +660,8 @@ class BaseAlgo(ABC):
 
                         b = torch.tensor(agents_broadcast[j].unsqueeze(1).float()*self.broadcast_penalty, device=self.device)
 
-                        #self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a,b.squeeze().long()) # TODO: uncomment this when use_teamgrid is True
-                        self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a, b.squeeze()) # TODO: uncomment this when use_teamgrid is False
+                        self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a,b.squeeze().long()) # TODO: uncomment this when use_teamgrid is True
+                        #self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a, b.squeeze()) # TODO: uncomment this when use_teamgrid is False
 
                     if self.acmodel.use_term_fn:
                         # change current_option w.r.t. episode ending
