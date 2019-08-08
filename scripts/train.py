@@ -35,7 +35,7 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='oc', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
+    parser.add_argument("--algo", default='a2c', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
     parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)")
@@ -92,7 +92,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--broadcast_penalty", type=float, default=-0.01,
                         help="broadcast penalty (default: -0.01, 0. implies no penalty)")
     # Option-Critic configs
-    parser.add_argument("--num_options", type=int, default=3,
+    parser.add_argument("--num_options", type=int, default=1,
                         help="number of options (default: 1, 1 means no options)")
     parser.add_argument("--termination_loss_coef", type=float, default=0.5,
                         help="termination loss term coefficient (default: 0.5)")
