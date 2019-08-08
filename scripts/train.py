@@ -92,7 +92,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--broadcast_penalty", type=float, default=-0.01,
                         help="broadcast penalty (default: -0.01, 0. implies no penalty)")
     # Option-Critic configs
-    parser.add_argument("--num_options", type=int, default=2,
+    parser.add_argument("--num_options", type=int, default=3,
                         help="number of options (default: 1, 1 means no options)")
     parser.add_argument("--termination_loss_coef", type=float, default=0.5,
                         help="termination loss term coefficient (default: 0.5)")
@@ -272,7 +272,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     else:
         raise ValueError("Incorrect algorithm name: {}".format(config.algo))
 
-    print('config_num_op', config.num_options)
+    #print('config_num_op', config.num_options)
 
     # Creates a progress-bar
 
@@ -310,7 +310,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         "value_loss": [],
         "grad_norm": []
     }
-    graph_data["agent_colors"] = [envs[0].agents[j].color for j in range(config.num_agents)]
+   # graph_data["agent_colors"] = [envs[0].agents[j].color for j in range(config.num_agents)]
 
     while num_frames < config.frames:
         # Update model parameters

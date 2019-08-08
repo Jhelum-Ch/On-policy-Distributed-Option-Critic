@@ -49,7 +49,6 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         self.num_options = num_options
         self.use_central_critic = use_central_critic
         self.always_broadcast = not self.use_central_critic if not self.use_central_critic else always_broadcast
-        print('central_critic', self.use_central_critic, 'always', self.always_broadcast)
         self.num_broadcasts = 1 if self.always_broadcast or not self.recurrent else 2 #1 if self.always_broadcast else 2
         self.use_term_fn = use_term_fn
         self.use_broadcasting = use_broadcasting
