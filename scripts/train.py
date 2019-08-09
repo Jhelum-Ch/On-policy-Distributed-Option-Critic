@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-USE_TEAMGRID = False
+USE_TEAMGRID = True
 USE_CENTRAL_CRITIC = True #Always True for DOC, False for OC
-USE_ALWAYS_BROADCAST = False # Always TRUE if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
+USE_ALWAYS_BROADCAST = True # Always TRUE if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
 
 import argparse
 import gym
