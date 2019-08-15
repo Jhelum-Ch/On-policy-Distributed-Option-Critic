@@ -35,7 +35,7 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='a2c', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
+    parser.add_argument("--algo", default='ppo', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
     parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
