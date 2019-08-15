@@ -183,7 +183,7 @@ class A2CAlgo(BaseAlgo):
                 # if self.acmodel.use_broadcasting:
                 #     broadcast_idxs = [sbs[j].broadcast for j in range(self.num_agents)]
 
-                value_a_b, _ = self.acmodel.forward_central_critic(estimated_embeddings, option_idxs,
+                _, value_a_b, _ = self.acmodel.forward_central_critic(estimated_embeddings, option_idxs,
                                                                    action_idxs, broadcast_idxs, sbs_coord.memory)
 
                 avg_value_loss = 0

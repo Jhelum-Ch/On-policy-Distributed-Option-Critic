@@ -203,16 +203,17 @@ class DOCAlgo(BaseAlgo):
                 # Collect masked (coord) embedding
 
 
-                if self.acmodel.use_broadcasting and self.acmodel.always_broadcast:
+                # if self.acmodel.use_broadcasting and self.acmodel.always_broadcast:
+                if self.acmodel.always_broadcast:
                     masked_embeddings[j] = embedding
                     estimated_embeddings[j] = embedding
                 else:
                     masked_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding
-                    estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].embedding
-                #print('check', estimated_embeddings[j] == embedding)
-                # print('size1', masked_embeddings[j].size(), 'size2', embedding.size())
-                # #last_broadcasts[j] = sbs[j].last_broadcast
-                # last_masked_embeddings[j] = sbs[j].last_masked_embedding
+                    #estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].embedding
+                    #estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].estimated_embedding
+                    estimated_embeddings[j] = sbs[j].estimated_embedding
+                    #print('check1', estimated_embeddings[j] == masked_embeddings[j], 'check2', estimated_embeddings[j] == embedding)
+
 
                 #curr_broadcast = broadcast_dist.sample() #[range(self.num_procs), self.current_options[j].long()]
 
@@ -243,7 +244,7 @@ class DOCAlgo(BaseAlgo):
             if self.acmodel.use_broadcasting:
                 broadcast_idxs = [sbs[j].broadcast for j in range(self.num_agents)]
 
-            value_a_b, _ = self.acmodel.forward_central_critic(estimated_embeddings, option_idxs, action_idxs, broadcast_idxs, sbs_coord.memory)
+            _, value_a_b, _ = self.acmodel.forward_central_critic(estimated_embeddings, option_idxs, action_idxs, broadcast_idxs, sbs_coord.memory)
 
             # for j in range(self.num_agents):
             #     modified_masked_embeddings = copy.deepcopy(last_masked_embeddings)

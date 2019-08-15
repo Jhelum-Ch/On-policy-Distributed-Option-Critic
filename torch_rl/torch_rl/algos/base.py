@@ -24,6 +24,15 @@ def make_env(scenario_name, config, benchmark=False):
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation)
     return env
 
+def esimate_embedding(masked_embedding, broadcast, rollout_embedding, broadcast_idx):
+    est_embed = copy.deepcopy(masked_embedding)
+    for k in range(len(broadcast)):
+        if broadcast[k] == 1:
+            est_embed[k] == masked_embedding[k]
+        else:
+            est_embed[k] = rollout_embedding[broadcast_idx[k].long()][k]
+    return est_embed
+
 
 
 class BaseAlgo(ABC):
@@ -152,6 +161,7 @@ class BaseAlgo(ABC):
             self.rollout_agent_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size, device=self.device) for _ in range(self.num_agents)]
 
 
+
             if self.acmodel.use_central_critic:
 
                 self.current_coord_memory = torch.zeros(shape[1], self.acmodel.coord_memory_size, device=self.device)
@@ -271,6 +281,9 @@ class BaseAlgo(ABC):
 
             rollout_length = len(self.rollout_obss)
 
+            #agents_broadcast_idx = [0 for _ in range(self.num_agents)]
+            agents_broadcast_idx = torch.zeros((self.num_agents, self.num_procs), device=self.device)
+
             for i in range(rollout_length):
 
                 #print('i', i)
@@ -285,6 +298,7 @@ class BaseAlgo(ABC):
                 agents_action = []
                 agents_broadcast = []
 
+
                 agents_act_dist = []
                 agents_values = []
                 agents_values_b = []
@@ -293,6 +307,7 @@ class BaseAlgo(ABC):
                 agents_broadcast_dist = []
                 agents_embedding = []
                 agents_broadcast_embedding = []
+                agents_estimated_embedding = []
 
 
 
@@ -308,6 +323,7 @@ class BaseAlgo(ABC):
                             act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
                                                                   * self.current_mask.unsqueeze(1))
+
                             agents_values_b.append(values_b)
                             agents_broadcast_dist.append(broadcast_dist)
 
@@ -345,18 +361,23 @@ class BaseAlgo(ABC):
                     action = agents_act_dist[j].sample()[range(self.num_procs), self.current_options[j].long()]
                     agents_action.append(action)
 
-                    #print('always', self.always_broadcast)
                     # broadcast selection for each agent
-
-                    if self.acmodel.always_broadcast:
-                        broadcast = torch.ones((self.num_procs,), device=self.device)
+                    if i == 0:
+                        broadcast = torch.ones((self.num_procs,), device=self.device) # We assume that each agent broadcasts at the first instant
                     else:
-                        broadcast = agents_broadcast_dist[j].sample()[range(self.num_procs), self.current_options[j].long(), agents_action[j].long()]
+                        if self.acmodel.always_broadcast:
+                            broadcast = torch.ones((self.num_procs,), device=self.device)
+                        else:
+                            broadcast = agents_broadcast_dist[j].sample()[range(self.num_procs), self.current_options[j].long(), agents_action[j].long()]
 
                     agents_broadcast.append(broadcast)
                     agents_broadcast_embedding.append(broadcast.unsqueeze(
                         1).float() * embedding)  # check embedding before and after multiplying with broadcast
 
+
+
+                    estimated_embedding = esimate_embedding(agents_broadcast_embedding[j], agents_broadcast[j], self.rollout_agent_embeddings[j], agents_broadcast_idx[j])
+                    agents_estimated_embedding.append(estimated_embedding)
 
                 # compute option-action values with coordinator (doc)
                 # FOR CENTRALIZED+DECENTRALIZED POLICY AND BROADCAST
@@ -426,18 +447,19 @@ class BaseAlgo(ABC):
                                     #                                                             broadcast_idxs,
                                     #                                                             self.current_coord_memory* self.current_mask.unsqueeze(1))
                                     if self.acmodel.use_central_critic:
-                                        mod_agent_values, new_coord_memory = self.acmodel.forward_central_critic(
+                                        _, mod_agent_values, new_coord_memory = self.acmodel.forward_central_critic(
                                             agents_broadcast_embedding,
                                             option_idxs,
                                             action_idxs,
                                             broadcast_idxs,
                                             self.current_coord_memory * self.current_mask.unsqueeze(1))
 
-
+                                        #print('coord_embedding', coord_embedding)
                                         all_opt_act_values[:, o, a, b, j] = mod_agent_values #torch.tensor(np.array(mod_agent_values)[:,0])
 
 
                         agents_values[j] = all_opt_act_values[:,:,:,:,j]
+                        #agents_estimated_embedding[j] = coord_embedding[j]
 
                         #agents_target_values[j] = all_opt_act_target_values[:,:,:,j]
                         #agents_values_b[j] = all_opt_act_values_b[:,:,:,j]
@@ -534,7 +556,25 @@ class BaseAlgo(ABC):
 
 
 
-                    self.rollout_agent_embeddings[j][i] = embedding
+                    self.rollout_agent_embeddings[j][i] = agents_embedding[j] #embedding
+
+                    #agent_broadcast_embedding_list = torch.zeros((self.num_procs,), self.acmodel.memory_size, device=self.device)
+
+                    # for k in range(len(agents_broadcast[j])):
+                    #     if agents_broadcast[j][k] == torch.tensor(1):
+                    #         self.rollout_estimated_embeddings[j][i] = embedding
+                    #     else:
+                    #         agent_broadcast_embedding_list.append
+                    #         #last_idx = agents_broadcast_idx[j][-1]
+                    #         self.rollout_estimated_embeddings[j][i] = self.rollout_agent_embeddings[j][agents_broadcast_idx[j]]
+
+                    self.rollout_estimated_embeddings[j][i] = agents_estimated_embedding[j]
+
+                    # store broadcast indices
+                    for k in range(len(broadcast)):
+                        if broadcast[k] == 1:
+                            agents_broadcast_idx[j][k] = i
+
                     self.rollout_actions[j][i] = agents_action[j]
                     self.rollout_options[j][i] = self.current_options[j]
                     self.rollout_log_probs[j][i] = agents_act_dist[j].logits[range(self.num_procs), self.current_options[j].long(), agents_action[j]]
@@ -834,7 +874,7 @@ class BaseAlgo(ABC):
                 exps[j].embedding = self.rollout_agent_embeddings[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_agent_embeddings[j].shape[2:])
                 exps[j].masked_embedding = self.rollout_masked_embeddings[j][:-1].transpose(0, 1).reshape(-1, *
                 self.rollout_masked_embeddings[j].shape[2:])
-               # print('exps[j].embeddings_size',  exps[j].embedding.size())
+                exps[j].estimated_embedding = self.rollout_estimated_embeddings[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_estimated_embeddings[j].shape[2:])
                 exps[j].action = self.rollout_actions[j][:-1].transpose(0, 1).reshape(-1) #.long()
                 # if self.acmodel.use_broadcasting:
                 exps[j].broadcast = self.rollout_broadcast_masks[j][:-1].transpose(0, 1).reshape(-1) #.long()

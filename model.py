@@ -34,7 +34,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                  num_options= 2, # TODO: choose num_options = 1 for selfish A2C and PPO;
                  use_act_values=True,
                  use_term_fn=True, # TODO: choose False for A2C and PPO
-                 use_central_critic=False, # TODO: True for DOC, False for other algos
+                 use_central_critic=False, # TODO: True for DOC, False for OC and PPO
                  use_broadcasting=True, #TODO: Always True
                  #always_broadcast = not use_central_critic
                  ):
@@ -264,7 +264,9 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
 
 
-    def forward_central_critic(self, masked_embeddings, option_idxs, action_idxs, broadcast_idxs, coordinator_memory):
+    # def forward_central_critic(self, masked_embeddings, option_idxs, action_idxs, broadcast_idxs, coordinator_memory):
+    def forward_central_critic(self, masked_embeddings, option_idxs, action_idxs, broadcast_idxs,
+                                   coordinator_memory):
         if self.num_options is not None:
             option_onehots = []
             for option_idxs_j in option_idxs:
@@ -293,8 +295,12 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
        # print('star', *broadcast_onehots)
         if self.num_options is not None:
-            coordinator_embedding = torch.cat([*masked_embeddings, *option_onehots, *action_onehots, *broadcast_onehots], dim=1)
+            # coordinator_embedding = torch.cat([*masked_embeddings, *option_onehots, *action_onehots, *broadcast_onehots], dim=1)
+            coordinator_embedding = torch.cat(
+                [*masked_embeddings, *option_onehots, *action_onehots, *broadcast_onehots], dim=1)
         else:
+            # coordinator_embedding = torch.cat(
+            #     [*masked_embeddings, *action_onehots, *broadcast_onehots], dim=1)
             coordinator_embedding = torch.cat(
                 [*masked_embeddings, *action_onehots, *broadcast_onehots], dim=1)
 
@@ -311,7 +317,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         # value_a = torch.tensor(np.array(values)[:,0])
         # value_b = torch.tensor(np.array(values)[:,1])
 
-        return value.squeeze(), coordinator_memory.squeeze()
+        return coordinator_embedding, value.squeeze(), coordinator_memory.squeeze()
 
     def _get_embed_text(self, text):
         _, hidden = self.text_rnn(self.word_embedding(text))
