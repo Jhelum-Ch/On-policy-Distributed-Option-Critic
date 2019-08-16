@@ -12,7 +12,11 @@ import matplotlib.pyplot as plt
 if USE_TEAMGRID:
     import teamgrid
 else:
-    import gym_minigrid
+    # import gym_minigrid
+    import multiagent
+    from make_env import make_env
+    from multiagent.environment import MultiAgentEnv
+    import multiagent.scenarios as scenarios
 
 
 import utils
@@ -59,8 +63,15 @@ train_config = utils.load_config_from_json(filename=dir_manager.seed_dir / "conf
 if args.env is None:
     args.env = train_config.env
 
-env = gym.make(args.env, num_agents=train_config.num_agents)
+
+#envs =[]
+if USE_TEAMGRID:
+    env = gym.make(args.env, num_agents=train_config.num_agents)
+else:
+    env = make_env(train_config.scenario, train_config, train_config.benchmark)
 env.seed(args.seed)
+#envs.append(env)
+
 for _ in range(args.shift):
     env.reset()
 
@@ -110,6 +121,7 @@ while True:
     # environment step
 
     obss, rewards, done, _ = env.step(actions)
+    #print('done', done)
 
     for j, reward in enumerate(rewards):
         agent.analyze_feedback(reward, done)

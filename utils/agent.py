@@ -35,7 +35,29 @@ class Agent:
             # forward propagation
 
             with torch.no_grad():
-                act_dist, values, memory, term_dist, _ = self.acmodel(preprocessed_obss, self.memories)
+                #act_dist, values, memory, term_dist, _ = self.acmodel(preprocessed_obss, self.memories)
+                if self.num_options is not None:
+                    if not self.acmodel.always_broadcast:
+                        act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = \
+                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories)
+
+                        #agents_values_b.append(values_b)
+                        #agents_broadcast_dist.append(broadcast_dist)
+
+                    else:
+                        act_dist, values, memory, term_dist, embedding = \
+                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories)
+                else:
+                    if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
+                        act_dist, values, values_b, memory, broadcast_dist, embedding = \
+                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories)
+                        #agents_values_b.append(values_b)
+                        #agents_broadcast_dist.append(broadcast_dist)
+                    else:
+                        act_dist, values, memory, embedding = \
+                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories)
+
+
 
             if self.acmodel.use_term_fn:
 
@@ -67,10 +89,15 @@ class Agent:
             new_obss.append([obs])
         return self.get_actions(new_obss)
 
-    def analyze_feedbacks(self, rewards, dones):
+    def analyze_feedbacks(self, rewards, done):
+        if not self.acmodel.use_teamgrid:
+            done = all(done)
+            print('done', done)
         if self.acmodel.recurrent:
-            masks = 1 - torch.tensor(dones, dtype=torch.float).unsqueeze(1)
+            masks = 1. - torch.tensor(done, dtype=torch.float) #.unsqueeze(1)
+            print('masks_size', masks.size(), 'memory_size', self.memories.size())
             self.memories *= masks
+            print('memories', self.memories)
 
     def analyze_feedback(self, reward, done):
         return self.analyze_feedbacks([reward], [done])

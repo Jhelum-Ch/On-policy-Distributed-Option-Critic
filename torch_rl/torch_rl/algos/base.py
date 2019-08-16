@@ -683,7 +683,7 @@ class BaseAlgo(ABC):
                 if not self.acmodel.use_teamgrid:
                     #done = [np.prod(item) for item in done]
                     done = [all(item) for item in done]
-                    #print('terminal', terminal, 'done', done)
+                    #print('done', done)
 
 
                 #print('rewards', rewards, 'done', done)
@@ -735,7 +735,7 @@ class BaseAlgo(ABC):
                     self.log_episode_num_frames[j] += torch.ones(self.num_procs, device=self.device)
 
                     for k, done_ in enumerate(done):
-                        if done_ == True or terminal:
+                        if done_ == True: #or terminal
                             self.env_step = 0
                             self.log_done_counter[j] += 1
                             self.log_return[j].append(self.log_episode_return[j][k].item())

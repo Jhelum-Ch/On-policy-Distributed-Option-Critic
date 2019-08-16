@@ -18,7 +18,7 @@ from tqdm import tqdm
 
 def get_run_schedule_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--storage_dir', type=str, default='34b1f45_9165a18_Test') #required=True
+    parser.add_argument('--storage_dir', type=str, required=True)
     parser.add_argument('--n_processes', type=int, default=1)
     parser.add_argument('--n_experiments_per_proc', type=int, default=np.inf)
     parser.add_argument('--use_pbar', type=parse_bool, default=False)
