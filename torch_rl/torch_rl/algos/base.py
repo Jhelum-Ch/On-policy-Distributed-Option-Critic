@@ -248,6 +248,7 @@ class BaseAlgo(ABC):
         self.log_episode_num_frames = [torch.zeros(shape[1], device=self.device) for _ in range(self.num_agents)]
 
         self.log_done_counter = 0
+        self.env_step = 0
         self.log_return = [[0] * shape[1] for _ in range(self.num_agents)]
         self.log_return_with_broadcast_penalties = [[0] * shape[1] for _ in range(self.num_agents)]
         self.log_mean_agent_return = [0] * shape[1]
@@ -279,12 +280,12 @@ class BaseAlgo(ABC):
 
         with torch.no_grad():
 
-            rollout_length = len(self.rollout_obss)
+            self.rollout_length = len(self.rollout_obss)
 
             #agents_broadcast_idx = [0 for _ in range(self.num_agents)]
             agents_broadcast_idx = torch.zeros((self.num_agents, self.num_procs), device=self.device)
 
-            for i in range(rollout_length):
+            for i in range(self.rollout_length):
 
                 #print('i', i)
                 self.rollout_obss[i] = self.current_obss
@@ -656,6 +657,11 @@ class BaseAlgo(ABC):
                 # environment step
                 #if self.use_teamgrid:
                 next_obss, rewards, done, _ = self.env.step(list(map(list, zip(*agents_action))))  # this list(map(list)) thing is used to transpose a list of lists
+                self.env_step += 1
+                terminal = self.env_step >= self.rollout_length
+
+
+
                 #else:
                     # get action
                     #action_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]
@@ -674,7 +680,12 @@ class BaseAlgo(ABC):
 
                 # update experience values (post-step)
                 #done = all(done)
-                done = [np.prod(item) for item in done]
+                if not self.acmodel.use_teamgrid:
+                    #done = [np.prod(item) for item in done]
+                    done = [all(item) for item in done]
+                    #print('terminal', terminal, 'done', done)
+
+
                 #print('rewards', rewards, 'done', done)
                 self.rollout_obss[i] = self.current_obss
                 self.current_obss = next_obss
@@ -700,8 +711,11 @@ class BaseAlgo(ABC):
 
                         b = torch.tensor(agents_broadcast[j].unsqueeze(1).float()*self.broadcast_penalty, device=self.device)
 
-                        self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a,b.squeeze().long()) # TODO: uncomment this when use_teamgrid is True
-                        #self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a, b.squeeze()) # TODO: uncomment this when use_teamgrid is False
+                        if self.acmodel.use_teamgrid:
+                            self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a,b.squeeze().long()) # TODO: uncomment this when use_teamgrid is True
+                        else:
+                            self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a, b.squeeze()) # TODO: uncomment this when use_teamgrid is False
+
 
                     if self.acmodel.use_term_fn:
                         # change current_option w.r.t. episode ending
@@ -716,22 +730,27 @@ class BaseAlgo(ABC):
 
                     self.log_episode_return[j] += self.rollout_rewards[j][i] #torch.tensor(reward, device=self.device, dtype=torch.float)
                     self.log_episode_return_with_broadcast_penalties[j] += self.rollout_rewards_plus_broadcast_penalties[j][i]
+                   # print('self.log_episode_return_with_broadcast_penalties', self.log_episode_return_with_broadcast_penalties)
                     self.log_episode_reshaped_return[j] += self.rollout_rewards[j][i]
                     self.log_episode_num_frames[j] += torch.ones(self.num_procs, device=self.device)
 
                     for k, done_ in enumerate(done):
-                        if done_:
+                        if done_ == True or terminal:
+                            self.env_step = 0
                             self.log_done_counter[j] += 1
                             self.log_return[j].append(self.log_episode_return[j][k].item())
                             self.log_return_with_broadcast_penalties[j].append(self.log_episode_return_with_broadcast_penalties[j][k].item())
                             self.log_reshaped_return[j].append(self.log_episode_reshaped_return[j][k].item())
                             self.log_num_frames[j].append(self.log_episode_num_frames[j][k].item())
 
+
+
                     self.log_episode_return[j] *= self.current_mask
                     self.log_episode_return_with_broadcast_penalties[j] *= self.current_mask
+                    #print('self.log_episode_return_with_broadcast_penalties1', self.log_episode_return_with_broadcast_penalties)
                     self.log_episode_reshaped_return[j] *= self.current_mask
                     self.log_episode_num_frames[j] *= self.current_mask
-
+            #print('current_mask', self.current_mask, 'self.log_episode_return_with_broadcast_penalties2', self.log_episode_return_with_broadcast_penalties)
             # Add advantage and return to experiences
             #print('log_return_penalty_shape', np.shape(self.log_return_with_broadcast_penalties[0]), 'log_return_shape', np.shape(self.log_return[0]))
             for j in range(self.num_agents):
@@ -951,10 +970,11 @@ class BaseAlgo(ABC):
                 # Log some values
 
                 keep = max(self.log_done_counter[j], self.num_procs)
-
+                #print('self.log_return', self.log_return_with_broadcast_penalties, 'keep', keep)
 
                 logs["return_per_episode"].append(self.log_return[j][-keep:])
                 logs["return_per_episode_with_broadcast_penalties"].append(self.log_return_with_broadcast_penalties[j][-keep:]) # this is what we plot
+                #print('base_log_return', logs["return_per_episode_with_broadcast_penalties"])
 
                 #print('shape', np.shape(self.log_return_with_broadcast_penalties[j][-keep:]))
                 logs["reshaped_return_per_episode"].append(self.log_reshaped_return[j][-keep:])

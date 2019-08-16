@@ -377,6 +377,8 @@ class DOCAlgo(BaseAlgo):
         logs["options"] = option_idxs
         logs["actions"] = action_idxs
 
+        #print('doc_log_retun', logs["return_per_episode_with_broadcast_penalties"])
+
         return logs
 
     def _get_starting_indexes(self):
