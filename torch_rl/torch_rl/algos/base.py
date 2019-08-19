@@ -361,6 +361,7 @@ class BaseAlgo(ABC):
 
                     action = agents_act_dist[j].sample()[range(self.num_procs), self.current_options[j].long()]
                     agents_action.append(action)
+                    print('j',j, 'agents_action_size', torch.stack(agents_action).size())
 
                     # broadcast selection for each agent
                     if i == 0:
@@ -424,6 +425,7 @@ class BaseAlgo(ABC):
                                     #print('broadcast_idxs_agent_j', broadcast_idxs_agent_j)
 
                                     option_idxs = [option_idxs_agent_j if k == j else self.current_options[k] for k in range(self.num_agents)]
+                                    print('action_idxs_agent_j', action_idxs_agent_j, 'agents_action_size', torch.stack(agents_action).size())
                                     action_idxs = [action_idxs_agent_j if k == j else agents_action[k] for k in range(self.num_agents)]
 
                                     if self.acmodel.always_broadcast:
