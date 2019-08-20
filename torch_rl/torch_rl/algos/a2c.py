@@ -17,8 +17,12 @@ class A2CAlgo(BaseAlgo):
         super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward)
 
-        self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
-                                             alpha=rmsprop_alpha, eps=rmsprop_eps)
+        if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
+            a = self.acmodel.parametersList
+            self.optimizer = torch.optim.RMSprop(a, lr, alpha=rmsprop_alpha, eps=rmsprop_alpha)
+        else:
+            self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
+                                                 alpha=rmsprop_alpha, eps=rmsprop_eps)
 
     def update_parameters(self):
         # Collect experiences
@@ -101,16 +105,16 @@ class A2CAlgo(BaseAlgo):
                     if self.acmodel.recurrent:
                         if not self.acmodel.always_broadcast:
                         # act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
-                            act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, memory * sbs[j].mask)
+                            act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, memory * sbs[j].mask, agent_index=j)
                         else:
-                            act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, memory * sbs[j].mask)
+                            act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, memory * sbs[j].mask,agent_index=j)
                     else:
                         if not self.acmodel.always_broadcast:
                             #act_dist, values = self.acmodel(sb.obs)
                             act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
-                                sbs[j].obs, memory * sbs[j].mask)
+                                sbs[j].obs, memory * sbs[j].mask,agent_index=j)
                         else:
-                            act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(sbs[j].obs)
+                            act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(sbs[j].obs,agent_index=j)
 
                     entropy = act_dist.entropy().mean()
 
@@ -264,7 +268,7 @@ class A2CAlgo(BaseAlgo):
             logs["options"] = option_idxs
             logs["actions"] = action_idxs
 
-        print('doc_log_retun', logs["return_per_episode_with_broadcast_penalties"])
+        #print('a2c_log_retun', logs["return_per_episode_with_broadcast_penalties"])
 
         return logs
 

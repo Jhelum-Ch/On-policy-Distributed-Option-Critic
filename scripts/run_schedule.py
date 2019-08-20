@@ -66,7 +66,7 @@ def run_schedule(args, master_logger, process_i=0):
                     pbar = None
 
                 master_logger.info(f"PROCESS{process_i} - {dir_manager.storage_dir.name}/{dir_manager.experiment_dir.name}/{dir_manager.seed_dir.name} - Launching...")
-                print('test')
+               # print('test')
                 train(config, dir_manager, experiment_logger, pbar)
 
                 open(str(seed_dir / 'COMPLETED'), 'w+').close()

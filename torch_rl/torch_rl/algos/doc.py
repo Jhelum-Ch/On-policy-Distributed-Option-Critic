@@ -32,6 +32,10 @@ class DOCAlgo(BaseAlgo):
          value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward, broadcast_penalty,
          termination_reg, termination_loss_coef)
 
+        # a = self.acmodel.named_parameters()
+        # print('a', a)
+        #print('Len_a', len(a))
+
         self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
                                              alpha=rmsprop_alpha, eps=rmsprop_eps)
 
@@ -108,12 +112,12 @@ class DOCAlgo(BaseAlgo):
                 if not self.acmodel.always_broadcast:
                     act_dist, _, _, memory, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, \
                                                                                                         memories[j] * \
-                                                                                                        sbs[j].mask)
+                                                                                                        sbs[j].mask, agent_index=j)
                 else:
                     act_dist, _, memory, term_dist, embedding = self.acmodel.forward_agent_critic(
                         sbs[j].obs, \
                         memories[j] * \
-                        sbs[j].mask)
+                        sbs[j].mask, agent_index=j)
 
                 #print('embed', embedding.size())
                 # To find the last successfully broadcast embedding
@@ -152,9 +156,14 @@ class DOCAlgo(BaseAlgo):
                 # if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
                 if not self.acmodel.always_broadcast:
                     broadcast_entropy = broadcast_dist.entropy().mean()
-                    broadcast_log_probs = broadcast_dist.log_prob(
-                        sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions))[
-                        range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
+                    if self.acmodel.use_teamgrid:
+                        broadcast_log_probs = broadcast_dist.log_prob(
+                            sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions))[
+                            range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
+                    else:
+                        broadcast_log_probs = broadcast_dist.log_prob(
+                            sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions[j]))[
+                            range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
                     broadcast_loss = -(broadcast_log_probs * (sbs[j].value_swa - sbs[j].value_sw)).mean()
                     # broadcast_loss = -(broadcast_log_probs * (sbs[j].value_swa_b - sbs[j].value_sw_b)).mean()
                     # broadcast_loss = -(broadcast_log_probs * (sbs_coord.value_swa - sbs_coord.value_sw)).mean()

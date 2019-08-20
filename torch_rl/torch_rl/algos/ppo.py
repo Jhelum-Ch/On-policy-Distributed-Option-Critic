@@ -23,7 +23,9 @@ class PPOAlgo(BaseAlgo):
 
         assert self.batch_size % self.recurrence == 0
 
-        self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=adam_eps)
+        a = self.acmodel.parametersList
+        self.optimizer = torch.optim.Adam(a, lr, eps=adam_eps)
+        # self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=adam_eps)
         self.batch_num = 0
 
     def update_parameters(self):
@@ -75,17 +77,17 @@ class PPOAlgo(BaseAlgo):
                             if not self.acmodel.always_broadcast:
                                 # act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
                                 act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
-                                    sb.obs, memory * sb.mask)
+                                    sb.obs, memory * sb.mask, agent_index=j)
                             else:
                                 act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(
-                                    sb.obs, memory * sb.mask)
+                                    sb.obs, memory * sb.mask, agent_index=j)
                         else:
                             if not self.acmodel.always_broadcast:
                                 # act_dist, values = self.acmodel(sb.obs)
                                 act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
-                                    sb.obs, memory * sb.mask)
+                                    sb.obs, memory * sb.mask, agent_index=j)
                             else:
-                                act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(sb.obs)
+                                act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(sb.obs, agent_index=j)
 
                         entropy = act_dist.entropy().mean()
 
@@ -149,6 +151,8 @@ class PPOAlgo(BaseAlgo):
             logs["policy_loss"].append(numpy.mean(log_policy_losses))
             logs["value_loss"].append(numpy.mean(log_value_losses))
             logs["grad_norm"].append(numpy.mean(log_grad_norms))
+
+            #print('ppo_log_retun', logs["return_per_episode_with_broadcast_penalties"])
 
         return logs
 

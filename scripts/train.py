@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 USE_TEAMGRID = False
-USE_CENTRAL_CRITIC = True #Always True for DOC, False for OC
+USE_CENTRAL_CRITIC = False #Always True for DOC, False for OC, PPO. For A2C it can be either True or False
 USE_ALWAYS_BROADCAST = True # Always TRUE if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
 
 import argparse
@@ -35,7 +35,7 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
+    parser.add_argument("--algo", default='ppo', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
     parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
@@ -107,7 +107,7 @@ def get_training_args(overwritten_args=None):
                         help="number of goals the agents need to discover")
 
     # Multiagent Particle Env
-    parser.add_argument("--scenario", type=str, default="simple", help="name of the scenario script")
+    parser.add_argument("--scenario", type=str, default="simple_speaker_listener", help="name of the scenario script")
     parser.add_argument("--benchmark", action="store_true", default=False)
 
     #MADDPG
@@ -212,22 +212,41 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             print("Aborting...")
             sys.exit()
     else:
+
         acmodel = ACModel(obs_space=obs_space,
-                          action_space=envs[0].action_space,
-                          use_memory_agents=config.mem_agents,
-                          use_memory_coord = config.mem_coord,
-                          use_text=config.text,
-                          num_agents=config.num_agents,
-                          num_options=config.num_options,
-                          use_act_values=True if config.algo in ["oc", "doc"] else False,
-                          use_term_fn=True if config.algo in ["oc", "doc"] else False,
-                          #use_central_critic=True if config.algo == "doc" else False,
-                          use_central_critic=USE_CENTRAL_CRITIC,
-                          use_broadcasting=True if config.algo == "doc" else False,
-                          termination_reg = config.termination_reg,
-                          use_teamgrid=USE_TEAMGRID,
-                          always_broadcast= USE_ALWAYS_BROADCAST
-                          )
+                action_space=envs[0].action_space,
+                use_memory_agents=config.mem_agents,
+                use_memory_coord=config.mem_coord,
+                use_text=config.text,
+                num_agents=config.num_agents,
+                num_options=config.num_options,
+                use_act_values=True if config.algo in ["oc", "doc"] else False,
+                use_term_fn=True if config.algo in ["oc", "doc"] else False,
+                # use_central_critic=True if config.algo == "doc" else False,
+                use_central_critic=USE_CENTRAL_CRITIC,
+                use_broadcasting=True if config.algo == "doc" else False,
+                termination_reg=config.termination_reg,
+                use_teamgrid=USE_TEAMGRID,
+                always_broadcast=USE_ALWAYS_BROADCAST)
+        # else:
+        #     acmodel = [ACModel(obs_space=obs_space,
+        #                       action_space=envs[0].action_space,
+        #                       use_memory_agents=config.mem_agents,
+        #                       use_memory_coord = config.mem_coord,
+        #                       use_text=config.text,
+        #                       num_agents=config.num_agents,
+        #                       num_options=config.num_options,
+        #                       use_act_values=True if config.algo in ["oc", "doc"] else False,
+        #                       use_term_fn=True if config.algo in ["oc", "doc"] else False,
+        #                       #use_central_critic=True if config.algo == "doc" else False,
+        #                       use_central_critic=USE_CENTRAL_CRITIC,
+        #                       use_broadcasting=True if config.algo == "doc" else False,
+        #                       termination_reg = config.termination_reg,
+        #                       use_teamgrid=USE_TEAMGRID,
+        #                       always_broadcast= USE_ALWAYS_BROADCAST,
+        #                       agent_index = j
+        #                       ) for j in range(config.num_agents)]
+
 
         logger.debug("Model successfully created\n")
         utils.save_config_to_json(config, filename=Path(dir_manager.seed_dir) / "config.json")
@@ -387,21 +406,21 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             value_losses = np.array(graph_data["value_loss"])
             value_losses = value_losses.T if len(value_losses.shape) > 1 else value_losses[np.newaxis, :]
             fig, axes = create_fig((2,2))
-            plot_curve(axes[0,0], [graph_data["num_frames"]], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
-            plot_curve(axes[0,1], [graph_data["num_frames"]], value_losses, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
-            plot_curve(axes[1,0], [graph_data["num_frames"]], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Entropy")
+            plot_curve(axes[0,0], [graph_data["num_frames"]], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
+            plot_curve(axes[0,1], [graph_data["num_frames"]], value_losses, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
+            plot_curve(axes[1,0], [graph_data["num_frames"]], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Entropy")
             # plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
             fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
             plt.close(fig)
 
-            print('log_return', np.array(graph_data["return_with_broadcast_penalties_mean"]).T)
+            #print('log_return', np.array(graph_data["return_with_broadcast_penalties_mean"]).T)
 
             # Return
             fig, ax = create_fig((1, 1))
             plot_curve(ax, [graph_data["num_frames"]],
                        np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
                        stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
-                       colors=[envs[0].agents[j].color for j in range(config.num_agents)],
+                       colors=[np.clip(envs[0].agents[j].color, a_max = 1.0, a_min = 0.0) for j in range(config.num_agents)],
                        labels=[f"agent {i}" for i in range(config.num_agents)],
                        xlabel="frames", title="Average Return")
             fig.savefig(str(dir_manager.seed_dir / 'return.png'))
@@ -432,7 +451,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             plot_curve(ax, [graph_data["num_frames"]],
                        np.array(graph_data["episode_length_mean"]).T,
                        stds=np.array(graph_data["episode_length_std"]).T,
-                       colors=[envs[0].agents[j].color for j in range(config.num_agents)],
+                       colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in range(config.num_agents)],
                        labels=[f"agent {i}" for i in range(config.num_agents)],
                        xlabel="frames", title="Average Episode Length")
             fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))

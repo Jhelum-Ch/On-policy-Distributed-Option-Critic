@@ -40,8 +40,8 @@ class BaseAlgo(ABC):
 
     def __init__(self, num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward, broadcast_penalty=-0.01,
-                 termination_reg=0.01, termination_loss_coef=0.5, option_epsilon=0.05,
-                 use_teamgrid = False):
+                 termination_reg=0.01, termination_loss_coef=0.5, option_epsilon=0.05
+                 ):
         """
         Initializes a `BaseAlgo` instance.
         Parameters:
@@ -113,11 +113,9 @@ class BaseAlgo(ABC):
         self.termination_reg = termination_reg
         self.option_epsilon = option_epsilon
         self.num_broadcasts = 1 if self.acmodel.always_broadcast or not self.acmodel.recurrent else 2
+        #self.scenario = scenario
 
 
-
-
-        #print('always_broadcast', self.always_broadcast, 'self.num_broadcasts', self.num_broadcasts)
 
 
         # Dimension convention
@@ -135,7 +133,6 @@ class BaseAlgo(ABC):
         self.num_frames = self.num_frames_per_proc * self.num_procs
 
         # Control parameters
-
         # assert self.acmodel.recurrent or self.recurrence_agents == 1 and recurrence_coord == 1
         # assert self.num_frames_per_proc % self.recurrence_agents == 0 and self.num_frames_per_proc % self.recurrence_coord == 0
         assert self.acmodel.recurrent or self.recurrence == 1
@@ -156,23 +153,38 @@ class BaseAlgo(ABC):
 
         if self.acmodel.recurrent:
 
-            self.current_agent_memories = [torch.zeros(shape[1], self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
-            self.rollout_agent_memories = [torch.zeros(*shape, self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
-            self.rollout_agent_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size, device=self.device) for _ in range(self.num_agents)]
-
+            if self.acmodel.use_teamgrid:
+                self.current_agent_memories = [torch.zeros(shape[1], self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
+                self.rollout_agent_memories = [torch.zeros(*shape, self.acmodel.memory_size, device=self.device) for _ in range(self.num_agents)]
+                self.rollout_agent_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size, device=self.device) for _ in range(self.num_agents)]
+            else:
+                self.current_agent_memories = [torch.zeros(shape[1], self.acmodel.memory_size[j], device=self.device) for j
+                                               in range(self.num_agents)]
+                self.rollout_agent_memories = [torch.zeros(*shape, self.acmodel.memory_size[j], device=self.device) for j
+                                               in range(self.num_agents)]
+                self.rollout_agent_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size[j], device=self.device)
+                                                 for j in range(self.num_agents)]
 
 
             if self.acmodel.use_central_critic:
-
                 self.current_coord_memory = torch.zeros(shape[1], self.acmodel.coord_memory_size, device=self.device)
                 self.rollout_coord_memories = torch.zeros(*shape, self.acmodel.coord_memory_size, device=self.device)
                 #self.rollout_coord_advantages = torch.zeros(*shape, device=self.device)
 
+
         self.current_mask = torch.ones(shape[1], device=self.device)
         self.rollout_masks = torch.zeros(*shape, device=self.device)
-        self.rollout_masked_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size, device=self.device) for _ in range(self.num_agents)]
-        self.rollout_estimated_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size, device=self.device) for _
-                                          in range(self.num_agents)]
+
+        if self.acmodel.use_teamgrid:
+            self.rollout_masked_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size, device=self.device) for _ in range(self.num_agents)]
+            self.rollout_estimated_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size, device=self.device) for _
+                                              in range(self.num_agents)]
+        else:
+            self.rollout_masked_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size[j], device=self.device) for
+                                              j in range(self.num_agents)]
+            self.rollout_estimated_embeddings = [torch.zeros(*shape, self.acmodel.semi_memory_size[j], device=self.device)
+                                                 for j
+                                                 in range(self.num_agents)]
 
         self.rollout_actions = [torch.zeros(*shape, device=self.device, dtype=torch.int) for _ in range(self.num_agents)]
         self.rollout_rewards = [torch.zeros(*shape, device=self.device) for _ in range(self.num_agents)]
@@ -315,34 +327,68 @@ class BaseAlgo(ABC):
                 total_broadcast_list = np.zeros(self.num_procs)
 
                 for j, obs_j in enumerate(self.current_obss):
-
+                    #import ipdb; ipdb.set_trace()
                     # Do one agent's forward propagation
+                    #print('LEN', np.shape(self.current_obss[0]))
                     preprocessed_obs = self.preprocess_obss(obs_j, device=self.device)
-
+                    #if self.acmodel.use_teamgrid:
                     if self.num_options is not None:
                         if not self.acmodel.always_broadcast:
                             act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
-                                                                  * self.current_mask.unsqueeze(1))
+                                                                  * self.current_mask.unsqueeze(1), agent_index = j)
 
                             agents_values_b.append(values_b)
                             agents_broadcast_dist.append(broadcast_dist)
 
                         else:
+                            #print('obs', preprocessed_obs, 'memory', self.current_agent_memories[j].size())
                             act_dist, values, memory, term_dist, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
-                                                                  * self.current_mask.unsqueeze(1))
+                                                                  * self.current_mask.unsqueeze(1), agent_index = j)
+
+
+
                     else:
                         if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
                             act_dist, values, values_b, memory, broadcast_dist, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
-                                                                  * self.current_mask.unsqueeze(1))
+                                                                  * self.current_mask.unsqueeze(1), agent_index = j)
                             agents_values_b.append(values_b)
                             agents_broadcast_dist.append(broadcast_dist)
                         else:
                             act_dist, values, memory, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
-                                                                  * self.current_mask.unsqueeze(1))
+                                                                  * self.current_mask.unsqueeze(1), agent_index = j)
+                    # else:
+                    #     if self.num_options is not None:
+                    #         if not self.acmodel[j].always_broadcast:
+                    #             act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = \
+                    #                 self.acmodel[j].forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
+                    #                                                   * self.current_mask.unsqueeze(1), agent_index=j)
+                    #
+                    #             agents_values_b.append(values_b)
+                    #             agents_broadcast_dist.append(broadcast_dist)
+                    #
+                    #         else:
+                    #             # print('obs', preprocessed_obs, 'memory', self.current_agent_memories[j].size())
+                    #             act_dist, values, memory, term_dist, embedding = \
+                    #                 self.acmodel[j].forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
+                    #                                                   * self.current_mask.unsqueeze(1), agent_index=j)
+                    #
+                    #
+                    #
+                    #     else:
+                    #         if self.acmodel[j].use_broadcasting and not self.acmodel[j].always_broadcast:
+                    #             act_dist, values, values_b, memory, broadcast_dist, embedding = \
+                    #                 self.acmodel[j].forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
+                    #                                                   * self.current_mask.unsqueeze(1), agent_index=j)
+                    #             agents_values_b.append(values_b)
+                    #             agents_broadcast_dist.append(broadcast_dist)
+                    #         else:
+                    #             act_dist, values, memory, embedding = \
+                    #                 self.acmodel[j].forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
+                    #                                                   * self.current_mask.unsqueeze(1), agent_index=j)
 
 
 
@@ -361,7 +407,7 @@ class BaseAlgo(ABC):
 
                     action = agents_act_dist[j].sample()[range(self.num_procs), self.current_options[j].long()]
                     agents_action.append(action)
-                    print('j',j, 'agents_action_size', torch.stack(agents_action).size())
+                    #print('j',j, 'agents_action_size', torch.stack(agents_action).size())
 
                     # broadcast selection for each agent
                     if i == 0:
@@ -388,80 +434,131 @@ class BaseAlgo(ABC):
 
 #                assert agents_values.count(None) == len(agents_values)
 
+
                 if self.num_options is not None:
                     #coord_opt_act_values = torch.zeros((self.num_procs, self.num_options, self.num_actions, \
                                                         # self.num_agents), device=self.device)
-
-                    all_opt_act_values = torch.zeros((self.num_procs, self.num_options, self.num_actions, \
-                                                        self.num_broadcasts, self.num_agents), device=self.device) #
-                    all_opt_act_target_values = torch.zeros((self.num_procs, self.num_options, self.num_actions, \
+                    if self.acmodel.use_teamgrid:
+                        all_opt_act_values = torch.zeros((self.num_procs, self.num_options, self.num_actions, \
+                                                            self.num_broadcasts, self.num_agents), device=self.device) #
+                        all_opt_act_target_values = torch.zeros((self.num_procs, self.num_options, self.num_actions, \
                                                         self.num_broadcasts, self.num_agents), device=self.device)
-                    #all_opt_act_values_b = torch.zeros((self.num_procs, self.num_options, 2, \
-                                                      # self.num_agents), device=self.device)
-                    # new_coord_memories = torch.zeros((self.num_procs, self.num_options, self.num_actions, \
-                    #                                   self.acmodel.coord_memory_size), device=self.device)
+
+                        for j in range(self.num_agents):
+                            for o in range(self.num_options):
+
+                                for a in range(self.num_actions):
+                                    for b in range(self.num_broadcasts):
+
+                                        # TODO: big bottleneck here. these loops are extremely inefficient
+
+                                        option_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=o)
+                                        action_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=a)
+                                        broadcast_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=b)
+                                        #print('broadcast_idxs_agent_j', broadcast_idxs_agent_j)
+
+                                        option_idxs = [option_idxs_agent_j if k == j else self.current_options[k] for k in range(self.num_agents)]
+                                        #print('action_idxs_agent_j', action_idxs_agent_j, 'agents_action_size', torch.stack(agents_action).size())
+                                        action_idxs = [action_idxs_agent_j if k == j else agents_action[k] for k in range(self.num_agents)]
+
+                                        if self.acmodel.always_broadcast:
+                                            broadcast_idxs = [agents_broadcast[k] for k in range(self.num_agents)]
+                                        else:
+                                            broadcast_idxs = [broadcast_idxs_agent_j if k == j else agents_broadcast[k] for k in range(self.num_agents)]
+
+                                        # TODO: because we need action here, action selection now happen before option selection. Make sure all the rest makes sense with that
+
+
+                                        # mod_agent_value_b, _ = self.acmodel.forward_central_critic(
+                                        #     modified_agents_last_broadcast_embedding,
+                                        #     option_idxs,
+                                        #     broadcast_idxs,
+                                        #     self.current_coord_memory)
 
 
 
-                    for j in range(self.num_agents):
-                        # FOR CENTRALIZED+DECENTRALIZED POLICY AND BROADCAST
-                        # Replace broadcast embedding [j] with agents own embedding
-                        # modified_agents_broadcast_embedding = copy.deepcopy(agents_broadcast_embedding)
-                        # modified_agents_broadcast_embedding[j] = agents_embedding[j]
+                                        # mod_agent_values, _ = self.acmodel.forward_central_critic(modified_agents_last_broadcast_embedding,
+                                        #                                                             option_idxs,
+                                        #                                                             action_idxs,
+                                        #                                                             broadcast_idxs,
+                                        #                                                             self.current_coord_memory* self.current_mask.unsqueeze(1))
+                                        if self.acmodel.use_central_critic:
+                                            _, mod_agent_values, new_coord_memory = self.acmodel.forward_central_critic(
+                                                agents_broadcast_embedding,
+                                                option_idxs,
+                                                action_idxs,
+                                                broadcast_idxs,
+                                                self.current_coord_memory * self.current_mask.unsqueeze(1))
 
-                        # modified_agents_last_broadcast_embedding = copy.deepcopy(agents_last_broadcast_embedding)
-                        # modified_agents_last_broadcast_embedding[j] = agents_embedding[j]
-
-                        for o in range(self.num_options):
-
-                            for a in range(self.num_actions):
-                                for b in range(self.num_broadcasts):
-
-                                    # TODO: big bottleneck here. these loops are extremely inefficient
-
-                                    option_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=o)
-                                    action_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=a)
-                                    broadcast_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=b)
-                                    #print('broadcast_idxs_agent_j', broadcast_idxs_agent_j)
-
-                                    option_idxs = [option_idxs_agent_j if k == j else self.current_options[k] for k in range(self.num_agents)]
-                                    print('action_idxs_agent_j', action_idxs_agent_j, 'agents_action_size', torch.stack(agents_action).size())
-                                    action_idxs = [action_idxs_agent_j if k == j else agents_action[k] for k in range(self.num_agents)]
-
-                                    if self.acmodel.always_broadcast:
-                                        broadcast_idxs = [agents_broadcast[k] for k in range(self.num_agents)]
-                                    else:
-                                        broadcast_idxs = [broadcast_idxs_agent_j if k == j else agents_broadcast[k] for k in range(self.num_agents)]
-
-                                    # TODO: because we need action here, action selection now happen before option selection. Make sure all the rest makes sense with that
+                                            #print('coord_embedding', coord_embedding)
+                                            all_opt_act_values[:, o, a, b, j] = mod_agent_values #torch.tensor(np.array(mod_agent_values)[:,0])
 
 
-                                    # mod_agent_value_b, _ = self.acmodel.forward_central_critic(
-                                    #     modified_agents_last_broadcast_embedding,
-                                    #     option_idxs,
-                                    #     broadcast_idxs,
-                                    #     self.current_coord_memory)
+                            agents_values[j] = all_opt_act_values[:,:,:,:,j]
+                    else:
+                        all_opt_act_values = [torch.zeros(
+                            (self.num_procs, self.num_options, self.num_actions[j], \
+                                                                   self.num_broadcasts),
+                                                                  device=self.device) for j in range(self.num_agents)]  #
+                        all_opt_act_target_values = [torch.zeros(
+                             (self.num_procs, self.num_options, self.num_actions[j], \
+                              self.num_broadcasts),
+                             device=self.device) for j in range(self.num_agents)]
+
+                        for j in range(self.num_agents):
+                            #print('j',j,'range(self.num_actions[j]', range(self.num_actions[j]))
+                            for o in range(self.num_options):
+
+                                for a in range(self.num_actions[j]):
+                                    for b in range(self.num_broadcasts):
+
+                                        # TODO: big bottleneck here. these loops are extremely inefficient
+
+                                        option_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=o)
+                                        action_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=a)
+                                        broadcast_idxs_agent_j = torch.full(size=(self.num_procs,), fill_value=b)
+                                        # print('broadcast_idxs_agent_j', broadcast_idxs_agent_j)
+
+                                        option_idxs = [option_idxs_agent_j if k == j else self.current_options[k] for k
+                                                       in range(self.num_agents)]
+                                        # print('action_idxs_agent_j', action_idxs_agent_j, 'agents_action_size', torch.stack(agents_action).size())
+                                        action_idxs = [action_idxs_agent_j if k == j else agents_action[k] for k in
+                                                       range(self.num_agents)]
+
+                                        if self.acmodel.always_broadcast:
+                                            broadcast_idxs = [agents_broadcast[k] for k in range(self.num_agents)]
+                                        else:
+                                            broadcast_idxs = [broadcast_idxs_agent_j if k == j else agents_broadcast[k]
+                                                              for k in range(self.num_agents)]
+
+                                        # TODO: because we need action here, action selection now happen before option selection. Make sure all the rest makes sense with that
+
+                                        # mod_agent_value_b, _ = self.acmodel.forward_central_critic(
+                                        #     modified_agents_last_broadcast_embedding,
+                                        #     option_idxs,
+                                        #     broadcast_idxs,
+                                        #     self.current_coord_memory)
+
+                                        # mod_agent_values, _ = self.acmodel.forward_central_critic(modified_agents_last_broadcast_embedding,
+                                        #                                                             option_idxs,
+                                        #                                                             action_idxs,
+                                        #                                                             broadcast_idxs,
+                                        #                                                             self.current_coord_memory* self.current_mask.unsqueeze(1))
+                                        if self.acmodel.use_central_critic:
+                                            #print('base_ac_idx', action_idxs)
+                                            _, mod_agent_values, new_coord_memory = self.acmodel.forward_central_critic(
+                                                agents_broadcast_embedding,
+                                                option_idxs,
+                                                action_idxs,
+                                                broadcast_idxs,
+                                                self.current_coord_memory * self.current_mask.unsqueeze(1))
+
+                                            # print('coord_embedding', coord_embedding)
+                                            all_opt_act_values[j][:, o, a, b] = mod_agent_values  # torch.tensor(np.array(mod_agent_values)[:,0])
+
+                            agents_values[j] = all_opt_act_values[j]
 
 
-
-                                    # mod_agent_values, _ = self.acmodel.forward_central_critic(modified_agents_last_broadcast_embedding,
-                                    #                                                             option_idxs,
-                                    #                                                             action_idxs,
-                                    #                                                             broadcast_idxs,
-                                    #                                                             self.current_coord_memory* self.current_mask.unsqueeze(1))
-                                    if self.acmodel.use_central_critic:
-                                        _, mod_agent_values, new_coord_memory = self.acmodel.forward_central_critic(
-                                            agents_broadcast_embedding,
-                                            option_idxs,
-                                            action_idxs,
-                                            broadcast_idxs,
-                                            self.current_coord_memory * self.current_mask.unsqueeze(1))
-
-                                        #print('coord_embedding', coord_embedding)
-                                        all_opt_act_values[:, o, a, b, j] = mod_agent_values #torch.tensor(np.array(mod_agent_values)[:,0])
-
-
-                        agents_values[j] = all_opt_act_values[:,:,:,:,j]
                         #agents_estimated_embedding[j] = coord_embedding[j]
 
                         #agents_target_values[j] = all_opt_act_target_values[:,:,:,j]
@@ -491,48 +588,43 @@ class BaseAlgo(ABC):
                         # Qsw_coord= np.mean(torch.stack([Qsw_coord_all[range(self.num_procs), self.current_options[j].long()] for j in range(self.num_agents)]).tolist()) #coord_value
                         # #can we use np.mean([Qsw_coord_all[range(self.num_procs), self.current_options[j].long()] for j in range(self.num_agents)]) instead of coord_value
                         # Vs_coord = Qsw_coord_max
-
-                        if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
-                            Q_avgd_brd = torch.sum(agents_broadcast_dist[j].probs * agents_values[j], dim=self.brd_dim, keepdim=True)
-                            #print('dimQ', Q_avgd_brd.size())
-                            Qsw_all = torch.sum(agents_act_dist[j].probs * Q_avgd_brd.squeeze(), dim=self.act_dim, keepdim=True)
-                            # Qsw_all = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
-                            Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
-                            Qsw = Qsw_all[range(self.num_procs), self.current_options[j].long()]
-                            Vs = Qsw_max
+                        if self.acmodel.use_teamgrid:
+                            if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
+                                Q_avgd_brd = torch.sum(agents_broadcast_dist[j].probs * agents_values[j], dim=self.brd_dim, keepdim=True)
+                                #print('dimQ', Q_avgd_brd.size())
+                                Qsw_all = torch.sum(agents_act_dist[j].probs * Q_avgd_brd.squeeze(), dim=self.act_dim, keepdim=True)
+                                # Qsw_all = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
+                                Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
+                                Qsw = Qsw_all[range(self.num_procs), self.current_options[j].long()]
+                                Vs = Qsw_max
+                            else:
+                                Q_avgd_brd = torch.mean(agents_values[j], dim=self.brd_dim,
+                                                       keepdim=True)
+                                Qsw_all = torch.sum(agents_act_dist[j].probs * Q_avgd_brd.squeeze(), dim=self.act_dim,
+                                                    keepdim=True)
+                                # Qsw_all = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
+                                Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
+                                Qsw = Qsw_all[range(self.num_procs), self.current_options[j].long()]
+                                Vs = Qsw_max
                         else:
-                            Q_avgd_brd = torch.mean(agents_values[j], dim=self.brd_dim,
-                                                   keepdim=True)
-                            Qsw_all = torch.sum(agents_act_dist[j].probs * Q_avgd_brd.squeeze(), dim=self.act_dim,
-                                                keepdim=True)
-                            # Qsw_all = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
-                            Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
-                            Qsw = Qsw_all[range(self.num_procs), self.current_options[j].long()]
-                            Vs = Qsw_max
-
-
-
-                        # Qsw_b_all = torch.sum(agents_broadcast_dist[j].probs * agents_values_b[j], dim=self.act_dim,
-                        #                     keepdim=True)
-                        # Qsw_b_max, Qsw_b_argmax = torch.max(Qsw_b_all, dim=self.opt_dim, keepdim=True)
-                        # Qsw_b = Qsw_b_all[range(self.num_procs), self.current_options[j].long()]
-                        # Vs_b = Qsw_b_max
-
-
-                        # # Compute agents' critics
-                        # Qswa = agents_values[j][range(self.num_procs), self.current_options[j].long(), agents_action[j]]
-                        # Qswa_max, Qswa_argmax = torch.max(agents_values[j], dim=self.act_dim, keepdim=True)
-                        #
-                        # Vsw = Qswa_max[self.current_options[j].long()]
-
-
-                        #
-                        # self.rollout_coord_value_swa[i] = coord_value #torch.tensor(np.array(coord_values)[:,0])
-                        # self.rollout_coord_value_sw[i] = Qsw_coord.squeeze()
-                        # self.rollout_coord_value_s[i] = Vs_coord.squeeze()
-                        # self.rollout_coord_value_sw_max[i] = Qsw_coord_max.squeeze()
-
-
+                            if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
+                                Q_avgd_brd = torch.sum(agents_broadcast_dist[j].probs * agents_values[j], dim=self.brd_dim, keepdim=True)
+                                # print('dimQ', Q_avgd_brd.size())
+                                Qsw_all = torch.sum(agents_act_dist[j].probs * Q_avgd_brd.squeeze(), dim=self.act_dim, keepdim=True)
+                                # Qsw_all = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
+                                Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
+                                Qsw = Qsw_all[range(self.num_procs), self.current_options[j].long()]
+                                Vs = Qsw_max
+                            else:
+                                Q_avgd_brd = torch.mean(agents_values[j], dim=self.brd_dim,
+                                                       keepdim=True)
+                                #print('dimQ', Q_avgd_brd.size())
+                                Qsw_all = torch.sum(agents_act_dist[j].probs * Q_avgd_brd.squeeze(), dim=self.act_dim,
+                                                    keepdim=True)
+                                # Qsw_all = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
+                                Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
+                                Qsw = Qsw_all[range(self.num_procs), self.current_options[j].long()]
+                                Vs = Qsw_max
 
 
 

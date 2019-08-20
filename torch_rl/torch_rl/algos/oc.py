@@ -20,8 +20,16 @@ class OCAlgo(BaseAlgo):
                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
                  termination_reg, termination_loss_coef)
 
-        self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
-                                             alpha=rmsprop_alpha, eps=rmsprop_eps)
+        a = self.acmodel.parametersList
+        # print('a', a)
+        # self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
+        #                                      alpha=rmsprop_alpha, eps=rmsprop_eps)
+        # import ipdb; ipdb.set_trace()
+        self.optimizer = torch.optim.RMSprop(a, lr, alpha=rmsprop_alpha, eps=rmsprop_alpha)
+        # self.optimizer = []
+        # for j in range(self.num_agents):
+        #     self.optimizer.append(torch.optim.RMSprop(a[j], lr,
+        #                                      alpha=rmsprop_alpha, eps=rmsprop_eps))
 
     def update_parameters(self):
         # Collect experiences
@@ -57,16 +65,16 @@ class OCAlgo(BaseAlgo):
                 if self.acmodel.recurrent:
                     if not self.acmodel.always_broadcast:
                         act_dist, act_values, _, memory, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
-                            sb.obs, memory * sb.mask)
+                            sb.obs, memory * sb.mask, agent_index=j)
                     else:
-                        act_dist, act_values, memory, term_dist, embedding = self.acmodel.forward_agent_critic(sb.obs, memory * sb.mask)
+                        act_dist, act_values, memory, term_dist, embedding = self.acmodel.forward_agent_critic(sb.obs, memory * sb.mask, agent_index=j)
 
                 else:
                     if not self.acmodel.always_broadcast:
                         act_dist, act_values, _, _, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
-                            sb.obs, memory * sb.mask)
+                            sb.obs, memory * sb.mask, agent_index=j)
                     else:
-                        act_dist, act_values, _, term_dist, embedding = self.acmodel.forward_agent_critic(sb.obs)
+                        act_dist, act_values, _, term_dist, embedding = self.acmodel.forward_agent_critic(sb.obs,agent_index=j)
 
                 # Compute losses
 
@@ -115,6 +123,9 @@ class OCAlgo(BaseAlgo):
             update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
             torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
             self.optimizer.step()
+            # update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in a[j]) ** 0.5
+            # torch.nn.utils.clip_grad_norm_(a[j], self.max_grad_norm)
+            # self.optimizer[j].step()
 
             # Log some values
 
@@ -123,6 +134,8 @@ class OCAlgo(BaseAlgo):
             logs["policy_loss"].append(update_policy_loss)
             logs["value_loss"].append(update_value_loss)
             logs["grad_norm"].append(update_grad_norm)
+
+            #print('oc_log_retun', logs["return_per_episode_with_broadcast_penalties"])
 
         return logs
 
