@@ -20,12 +20,18 @@ class OCAlgo(BaseAlgo):
                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
                  termination_reg, termination_loss_coef)
 
-        a = self.acmodel.parametersList
+        if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
+            a = self.acmodel.parametersList
+            self.optimizer = torch.optim.RMSprop(a, lr, alpha=rmsprop_alpha, eps=rmsprop_alpha)
+        else:
+            self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
+                                                 alpha=rmsprop_alpha, eps=rmsprop_eps)
+        #a = self.acmodel.parametersList
         # print('a', a)
         # self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
         #                                      alpha=rmsprop_alpha, eps=rmsprop_eps)
         # import ipdb; ipdb.set_trace()
-        self.optimizer = torch.optim.RMSprop(a, lr, alpha=rmsprop_alpha, eps=rmsprop_alpha)
+        #self.optimizer = torch.optim.RMSprop(a, lr, alpha=rmsprop_alpha, eps=rmsprop_alpha)
         # self.optimizer = []
         # for j in range(self.num_agents):
         #     self.optimizer.append(torch.optim.RMSprop(a[j], lr,

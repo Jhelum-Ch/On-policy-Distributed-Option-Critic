@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-USE_TEAMGRID = False
+USE_TEAMGRID = True
 USE_CENTRAL_CRITIC = False #Always True for DOC, False for OC, PPO. For A2C it can be either True or False
 USE_ALWAYS_BROADCAST = True # Always TRUE if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
 

@@ -23,8 +23,13 @@ class PPOAlgo(BaseAlgo):
 
         assert self.batch_size % self.recurrence == 0
 
-        a = self.acmodel.parametersList
-        self.optimizer = torch.optim.Adam(a, lr, eps=adam_eps)
+        if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
+            a = self.acmodel.parametersList
+            self.optimizer = torch.optim.Adam(a, lr, eps=adam_eps)
+        else:
+            self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=adam_eps)
+        #a = self.acmodel.parametersList
+        #self.optimizer = torch.optim.Adam(a, lr, eps=adam_eps)
         # self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=adam_eps)
         self.batch_num = 0
 
