@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-USE_TEAMGRID = True
-USE_CENTRAL_CRITIC = False #Always True for DOC, False for OC, PPO. For A2C it can be either True or False
-USE_ALWAYS_BROADCAST = True # Always TRUE if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
+#USE_TEAMGRID = True
+#USE_CENTRAL_CRITIC = True #Always True for DOC, False for OC, PPO. For A2C it can be either True or False
+#USE_ALWAYS_BROADCAST = True # Always TRUE if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
 
+import pdb
 import argparse
 import gym
 import time
@@ -16,15 +17,19 @@ from tqdm import tqdm
 from utils.plots import *
 import numpy as np
 from utils.general import round_to_two
+import teamgrid
+import multiagent
+from make_env import make_env
 
-if USE_TEAMGRID:
-    import teamgrid
-else:
-    #import gym_minigrid
-    import multiagent
-    from make_env import make_env
-    from multiagent.environment import MultiAgentEnv
-    import multiagent.scenarios as scenarios
+# if USE_TEAMGRID:
+#     import teamgrid
+#
+# else:
+#     #import gym_minigrid
+#     import multiagent
+#     from make_env import make_env
+#from multiagent.environment import MultiAgentEnv
+#   import multiagent.scenarios as scenarios
 
 
 import utils
@@ -35,7 +40,7 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='ppo', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
+    parser.add_argument("--algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
     parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
@@ -56,6 +61,8 @@ def get_training_args(overwritten_args=None):
                         help="number of updates between two saves (default: 0, 0 means no saving)")
     parser.add_argument("--tb", type=parse_bool, default=True,
                         help="log into Tensorboard")
+
+
     parser.add_argument("--frames_per_proc", type=int, default=None,
                         help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
     parser.add_argument("--discount", type=float, default=0.99,
@@ -106,6 +113,11 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--num_goals", type=int, default=3,
                         help="number of goals the agents need to discover")
 
+    # arguments to replace flag
+    parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
+    parser.add_argument("--use_central_critic", type=parse_bool, default=True)
+    parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
+
     # Multiagent Particle Env
     parser.add_argument("--scenario", type=str, default="simple_speaker_listener", help="name of the scenario script")
     parser.add_argument("--benchmark", action="store_true", default=False)
@@ -118,6 +130,12 @@ def get_training_args(overwritten_args=None):
 
 
 def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
+
+    USE_TEAMGRID = config.use_teamgrid
+    USE_CENTRAL_CRITIC = config.use_central_critic
+    USE_ALWAYS_BROADCAST = config.use_always_broadcast
+
+
     config.mem_agents = config.recurrence > 1
     config.mem_coord = config.recurrence > 1
     # In the multi-agent setup, for DOC, different agents really are empty slots in which options are executed
@@ -168,7 +186,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     utils.seed(config.seed)
 
     # Generate environments
-
     envs = []
     for i in range(config.procs):
         if USE_TEAMGRID:
@@ -193,14 +210,12 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                                                  dir_manager.seed_dir)
 
     # Load training status
-
     try:
         status = utils.load_status(save_dir=dir_manager.seed_dir)
     except OSError:
         status = {"num_frames": 0, "update": 0}
 
     # Define actor-critic model
-
     if Path(utils.get_model_path(save_dir=dir_manager.seed_dir)).exists():
         if config.auto_resume or \
                 input(f'Model in "{dir_manager.seed_dir}" already exists. Resume training? [y or n]').lower() in ['y', 'yes']:
@@ -252,7 +267,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         utils.save_config_to_json(config, filename=Path(dir_manager.seed_dir) / "config.json")
 
     # Print info on model
-
     logger.debug("{}\n".format(acmodel))
     logger.debug(f"Numer of params: {acmodel.get_number_of_params()}")
 
@@ -267,9 +281,9 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                 config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
                                 config.optim_alpha, config.optim_eps, preprocess_obss, config.num_options)
     elif config.algo == "ppo":
-        algo = torch_rl.PPOAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
-                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
-                                config.optim_eps, config.clip_eps, config.epochs, config.batch_size, preprocess_obss, config.num_options)
+        algo = torch_rl.PPOAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, gae_lambda=config.gae_lambda,
+                                entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, max_grad_norm=config.max_grad_norm, recurrence=config.recurrence,
+                                adam_eps=config.optim_eps, clip_eps=config.clip_eps, epochs=config.epochs, batch_size=config.batch_size, preprocess_obss=preprocess_obss, num_options=config.num_options)
     elif config.algo == "oc":
         algo = torch_rl.OCAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
@@ -281,16 +295,13 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
                                config.optim_alpha, config.optim_eps, preprocess_obss,
                                config.num_options, config.termination_loss_coef, config.termination_reg)
-
     elif config.algo == "maddpg":
         algo = torch_rl.MADDPGAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
                  config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
                  config.adam_eps, config.clip_eps, config.epochs, config.batch_size, config.preprocess_obss, config.num_options,
                  config.reshape_reward, config.local_q_func)
-
     else:
         raise ValueError("Incorrect algorithm name: {}".format(config.algo))
-
     #print('config_num_op', config.num_options)
 
     # Creates a progress-bar
@@ -311,7 +322,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     update = status["update"]
 
     # Initialize some containers
-
     graph_data = {
         "num_frames": [],
         "return_mean": [],
@@ -331,6 +341,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     }
    # graph_data["agent_colors"] = [envs[0].agents[j].color for j in range(config.num_agents)]
 
+    # training loop
     while num_frames < config.frames:
         # Update model parameters
 
@@ -349,6 +360,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         if update == 1 or (num_frames != config.frames and update % (n_updates // 3) == 0):
             logger.info(f"Frames {num_frames}/{config.frames}, speed={round_to_two(logs['num_frames'][0]/(update_end_time - update_start_time))}fps")
 
+        # log everything at a fixed interval
         if update % config.log_interval == 0:
             fps = logs["num_frames"][0]/(update_end_time - update_start_time)
 
@@ -386,7 +398,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             utils.save_graph_data(graph_data, save_dir=dir_manager.seed_dir)
 
         # Save vocabulary and model
-
         if config.save_interval > 0 and update % config.save_interval == 0:
             if hasattr(preprocess_obss, "vocab"):
                 preprocess_obss.vocab.save()
@@ -406,25 +417,99 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             value_losses = np.array(graph_data["value_loss"])
             value_losses = value_losses.T if len(value_losses.shape) > 1 else value_losses[np.newaxis, :]
             fig, axes = create_fig((2,2))
-            plot_curve(axes[0,0], [graph_data["num_frames"]], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
-            plot_curve(axes[0,1], [graph_data["num_frames"]], value_losses, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
-            plot_curve(axes[1,0], [graph_data["num_frames"]], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Entropy")
-            # plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
-            fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
-            plt.close(fig)
+
+            if not(USE_TEAMGRID):
+                plot_curve(axes[0,0], [graph_data["num_frames"]], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
+                plot_curve(axes[0,1], [graph_data["num_frames"]], value_losses, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
+                plot_curve(axes[1,0], [graph_data["num_frames"]], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Entropy")
+                # plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
+                fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
+                plt.close(fig)
+
+            else:
+                plot_curve(axes[0, 0], [graph_data["num_frames"]], np.array(graph_data["policy_loss"]).T,
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           colors=[envs[0].agents[j].color for j in
+                                   range(config.num_agents)], xlabel="frames", title="Policy Loss")
+                plot_curve(axes[0, 1], [graph_data["num_frames"]], value_losses,
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           colors=[envs[0].agents[j].color for j in
+                                   range(config.num_agents)], xlabel="frames", title="Value Loss")
+                plot_curve(axes[1, 0], [graph_data["num_frames"]], np.array(graph_data["entropy"]).T,
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           colors=[envs[0].agents[j].color for j in
+                                   range(config.num_agents)], xlabel="frames", title="Entropy")
+                # plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
+                fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
+                plt.close(fig)
 
             #print('log_return', np.array(graph_data["return_with_broadcast_penalties_mean"]).T)
 
             # Return
-            fig, ax = create_fig((1, 1))
-            plot_curve(ax, [graph_data["num_frames"]],
-                       np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
-                       stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
-                       colors=[np.clip(envs[0].agents[j].color, a_max = 1.0, a_min = 0.0) for j in range(config.num_agents)],
-                       labels=[f"agent {i}" for i in range(config.num_agents)],
-                       xlabel="frames", title="Average Return")
-            fig.savefig(str(dir_manager.seed_dir / 'return.png'))
-            plt.close(fig)
+            if not(USE_TEAMGRID):
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
+                           stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
+                           colors=[np.clip(envs[0].agents[j].color, a_max = 1.0, a_min = 0.0) for j in range(config.num_agents)],
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           xlabel="frames", title="Average Return")
+                fig.savefig(str(dir_manager.seed_dir / 'return.png'))
+                plt.close(fig)
+
+                # mean Return from agents
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["mean_agent_return_with_broadcast_penalties_mean"]).T,
+                           stds=np.array(graph_data["mean_agent_return_with_broadcast_penalties_std"]).T,
+                           xlabel="frames", title="Average Return")
+                fig.savefig(str(dir_manager.seed_dir / 'mean_return_from_agents.png'))
+                plt.close(fig)
+
+                # Episode length
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["episode_length_mean"]).T,
+                           stds=np.array(graph_data["episode_length_std"]).T,
+                           colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in
+                                   range(config.num_agents)],
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           xlabel="frames", title="Average Episode Length")
+                fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
+                plt.close(fig)
+
+            else:
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
+                           stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
+                           colors=[envs[0].agents[j].color for j in
+                                   range(config.num_agents)],
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           xlabel="frames", title="Average Return")
+                fig.savefig(str(dir_manager.seed_dir / 'return.png'))
+                plt.close(fig)
+
+                # mean Return from agents
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["mean_agent_return_with_broadcast_penalties_mean"]).T,
+                           stds=np.array(graph_data["mean_agent_return_with_broadcast_penalties_std"]).T,
+                           xlabel="frames", title="Average Return")
+                fig.savefig(str(dir_manager.seed_dir / 'mean_return_from_agents.png'))
+                plt.close(fig)
+
+                # Episode length
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["episode_length_mean"]).T,
+                           stds=np.array(graph_data["episode_length_std"]).T,
+                           colors=[envs[0].agents[j].color for j in
+                                   range(config.num_agents)],
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           xlabel="frames", title="Average Episode Length")
+                fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
+                plt.close(fig)
 
             # # Return
             # fig, ax = create_fig((1, 1))
@@ -437,26 +522,28 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             # fig.savefig(str(dir_manager.seed_dir / 'return.png'))
             # plt.close(fig)
 
+            ###############################
             # mean Return from agents
-            fig, ax = create_fig((1, 1))
-            plot_curve(ax, [graph_data["num_frames"]],
-                       np.array(graph_data["mean_agent_return_with_broadcast_penalties_mean"]).T,
-                       stds=np.array(graph_data["mean_agent_return_with_broadcast_penalties_std"]).T,
-                       xlabel="frames", title="Average Return")
-            fig.savefig(str(dir_manager.seed_dir / 'mean_return_from_agents.png'))
-            plt.close(fig)
-
-            # Episode length
-            fig, ax = create_fig((1, 1))
-            plot_curve(ax, [graph_data["num_frames"]],
-                       np.array(graph_data["episode_length_mean"]).T,
-                       stds=np.array(graph_data["episode_length_std"]).T,
-                       colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in range(config.num_agents)],
-                       labels=[f"agent {i}" for i in range(config.num_agents)],
-                       xlabel="frames", title="Average Episode Length")
-            fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
-            plt.close(fig)
+            # fig, ax = create_fig((1, 1))
+            # plot_curve(ax, [graph_data["num_frames"]],
+            #            np.array(graph_data["mean_agent_return_with_broadcast_penalties_mean"]).T,
+            #            stds=np.array(graph_data["mean_agent_return_with_broadcast_penalties_std"]).T,
+            #            xlabel="frames", title="Average Return")
+            # fig.savefig(str(dir_manager.seed_dir / 'mean_return_from_agents.png'))
+            # plt.close(fig)
+            #
+            # # Episode length
+            # fig, ax = create_fig((1, 1))
+            # plot_curve(ax, [graph_data["num_frames"]],
+            #            np.array(graph_data["episode_length_mean"]).T,
+            #            stds=np.array(graph_data["episode_length_std"]).T,
+            #            colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in range(config.num_agents)],
+            #            labels=[f"agent {i}" for i in range(config.num_agents)],
+            #            xlabel="frames", title="Average Episode Length")
+            # fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
+            # plt.close(fig)
 
 if __name__ == "__main__":
+
     config = get_training_args()
     train(config)

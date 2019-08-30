@@ -392,7 +392,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                 return  int(np.sum((self.embedding_size))) + self.num_agents * self.num_broadcasts + int(np.sum(self.num_actions))
                 #return int(np.sum((self.embedding_size))) + self.num_agents * (self.num_broadcasts + max(self.num_actions))
 
-    # Forward path for agent_critics to learn intra-option policies and broadcasts   
+    # Forward path for agent_critics to learn intra-option policies and broadcasts
     def forward_agent_critic(self, obs, agent_memory, agent_index):
         #print('obs', obs)
         embedding, new_agent_memory = self._embed_observation(obs, agent_memory, agent_index)

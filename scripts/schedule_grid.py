@@ -4,8 +4,8 @@ import logging
 VARIATIONS = [
     ('seed', [1, 123]),
     # Algorithmic params
-    ('algo', ['a2c', 'ppo', 'oc']),
-    ('broadcast_penalty', [-0.01, -0.05, -0.1]),
+    ('algo', ['doc','oc']),#['a2c', 'ppo', 'oc']),
+    ('broadcast_penalty', [-0.01, -0.1]),
     #('lr', [7e-4]),
     #('entropy_coef', [0., 0.01]),
     ('value_loss_coef', [2.]),
