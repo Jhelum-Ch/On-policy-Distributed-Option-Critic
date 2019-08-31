@@ -53,8 +53,8 @@ def get_training_args(overwritten_args=None):
                         help="random seed (default: 1)")
     parser.add_argument("--procs", type=int, default=16,
                         help="number of processes (default: 16)")
-    parser.add_argument("--frames", type=int, default=10**7,
-                        help="number of frames of training (default: 10e7)")
+    parser.add_argument("--frames", type=int, default=10**6,
+                        help="number of frames of training (default: 10e6)")
     parser.add_argument("--log_interval", type=int, default=1,
                         help="number of updates between two logs (default: 1)")
     parser.add_argument("--save_interval", type=int, default=100,

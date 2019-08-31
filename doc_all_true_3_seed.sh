@@ -12,5 +12,5 @@
 module load python/3.6
 source $HOME/option-critic/bin/activate
 
-python scripts/train.py --seed=25 --use_critic=True --use_always_broadcast=True --use_teamgrid=True --desc='doc_all_true3' --algo='doc' --env='TEAMGrid-FourRooms-v0' --tb=False --num_options=3
+python scripts/train.py --seed=25 --use_central_critic=True --use_always_broadcast=True --use_teamgrid=True --desc='doc_all_true' --algo='doc' --env='TEAMGrid-FourRooms-v0' --tb=False --num_options=3 --experiment_dir=1
 
