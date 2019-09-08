@@ -176,7 +176,7 @@ class A2CAlgo(BaseAlgo):
                             estimated_embeddings[j] = embedding
                         else:
                             masked_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding
-                            estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].embedding
+                            estimated_embeddings[j] = sbs[j].estimated_embedding
 
 
             if self.acmodel.use_central_critic:
