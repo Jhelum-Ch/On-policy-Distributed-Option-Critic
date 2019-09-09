@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 USE_TEAMGRID = True
-USE_CENTRAL_CRITIC = False #Always True for DOC, False for OC, PPO. For A2C it can be either True or False
-USE_ALWAYS_BROADCAST = True # Always TRUE if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
+USE_CENTRAL_CRITIC = True #Always True for DOC, False for OC, PPO. For A2C, MADDPG it can be either True or False
+USE_ALWAYS_BROADCAST = False # Always True for MADDPG and if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
 
 import argparse
 import gym
@@ -35,9 +35,9 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='ppo', choices=['doc', 'oc', 'a2c', 'ppo'],#required=True,
+    parser.add_argument("--algo", default='maddpg', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'], #required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
+    parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -112,6 +112,9 @@ def get_training_args(overwritten_args=None):
 
     #MADDPG
     parser.add_argument("--local_q_func", default=False)
+    parser.add_argument("--replay_buffer", type=parse_bool, default=False)
+    parser.add_argument("--er_batch_size", type=int, default=4,
+                        help="experience replay sampling batch size for MADDPG (default: 1)")
 
     return parser.parse_args(overwritten_args)
 
@@ -127,13 +130,18 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     # In the multi-agent setup, for baseline algorithms, each agent has its own policy
     # However, for implementation uniformity, we will consider them as if they were different options
     # (but each agent will always keep the same "option")
-    elif config.algo in ['a2c', 'ppo']:
+    elif config.algo in ['a2c', 'ppo', 'maddpg']:
         #config.num_options = config.num_agents
         config.num_options = 1
 
     # In the multi-agent setup, for selfish OC, each agent has its own policy and option.
     elif config.algo == 'oc':
         assert config.num_options >= config.num_agents # same set of options available to each agent
+
+    if config.algo == 'maddpg':
+        config.replay_buffer = True
+    else:
+        config.replay_buffer = False
 
     if dir_manager is None:
 
@@ -227,7 +235,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 use_broadcasting=True if config.algo == "doc" else False,
                 termination_reg=config.termination_reg,
                 use_teamgrid=USE_TEAMGRID,
-                always_broadcast=USE_ALWAYS_BROADCAST)
+                always_broadcast=USE_ALWAYS_BROADCAST
+                          )
         # else:
         #     acmodel = [ACModel(obs_space=obs_space,
         #                       action_space=envs[0].action_space,
@@ -263,30 +272,49 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     # Define actor-critic algo
 
     if config.algo == "a2c":
-        algo = torch_rl.A2CAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
-                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
-                                config.optim_alpha, config.optim_eps, preprocess_obss, config.num_options)
+        algo = torch_rl.A2CAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
+                                num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
+                                gae_lambda=config.gae_lambda,
+                                entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, \
+                                max_grad_norm=config.max_grad_norm, recurrence=config.recurrence,
+                                rmsprop_alpha=config.optim_alpha, rmsprop_eps=config.optim_eps, \
+                                preprocess_obss=preprocess_obss, num_options=config.num_options)
     elif config.algo == "ppo":
-        algo = torch_rl.PPOAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
-                                config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
-                                config.optim_eps, config.clip_eps, config.epochs, config.batch_size, preprocess_obss, config.num_options)
+        algo = torch_rl.PPOAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
+                                num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
+                                gae_lambda=config.gae_lambda,
+                                entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, max_grad_norm=config.max_grad_norm, \
+                                recurrence=config.recurrence,
+                                adam_eps=config.optim_eps, clip_eps=config.clip_eps, epochs=config.epochs, batch_size=config.batch_size, \
+                                preprocess_obss=preprocess_obss)
     elif config.algo == "oc":
-        algo = torch_rl.OCAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
-                               config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
-                               config.optim_alpha, config.optim_eps, preprocess_obss,
-                               config.num_options, config.termination_loss_coef, config.termination_reg)
+        algo = torch_rl.OCAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
+                               num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
+                               gae_lambda=config.gae_lambda,
+                               entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, \
+                               max_grad_norm=config.max_grad_norm, recurrence=config.recurrence,
+                               rmsprop_alpha=config.optim_alpha, rmsprop_eps=config.optim_eps, preprocess_obss=preprocess_obss,
+                               num_options=config.num_options, termination_loss_coef=config.termination_loss_coef, \
+                               termination_reg=config.termination_reg)
     elif config.algo == "doc":
         #config.recurrence = 2
-        algo = torch_rl.DOCAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
-                               config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
-                               config.optim_alpha, config.optim_eps, preprocess_obss,
-                               config.num_options, config.termination_loss_coef, config.termination_reg)
+        algo = torch_rl.DOCAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
+                                num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
+                                gae_lambda=config.gae_lambda,
+                               entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, max_grad_norm=config.max_grad_norm, \
+                                recurrence=config.recurrence,
+                               rmsprop_alpha=config.optim_alpha, rmsprop_eps=config.optim_eps, preprocess_obss=preprocess_obss,
+                               num_options=config.num_options, termination_loss_coef=config.termination_loss_coef, \
+                                termination_reg=config.termination_reg)
 
     elif config.algo == "maddpg":
-        algo = torch_rl.MADDPGAlgo(config.num_agents, envs, acmodel, config.frames_per_proc, config.discount, config.lr, config.gae_lambda,
-                 config.entropy_coef, config.value_loss_coef, config.max_grad_norm, config.recurrence,
-                 config.adam_eps, config.clip_eps, config.epochs, config.batch_size, config.preprocess_obss, config.num_options,
-                 config.reshape_reward, config.local_q_func)
+        algo = torch_rl.MADDPGAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
+                                   num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
+                                   gae_lambda=config.gae_lambda,
+                 entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, max_grad_norm=config.max_grad_norm, \
+                                   recurrence=config.recurrence,
+                 adam_eps=config.optim_eps, clip_eps=config.clip_eps, epochs=config.epochs, er_batch_size=config.er_batch_size, \
+                                   preprocess_obss=preprocess_obss)
 
     else:
         raise ValueError("Incorrect algorithm name: {}".format(config.algo))

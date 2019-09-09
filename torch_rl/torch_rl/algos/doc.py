@@ -18,7 +18,7 @@ class DOCAlgo(BaseAlgo):
     #                      value_loss_coef, max_grad_norm, recurrence_agents, recurrence_coord, preprocess_obss, reshape_reward, broadcast_penalty, always_broadcast,
     #                      num_options, termination_loss_coef, termination_reg)
 
-    def __init__(self, num_agents, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
+    def __init__(self, num_agents=None, envs=None, acmodel=None, replay_buffer=None, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence = 4,
                  rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=3,
                  termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None, always_broadcast = False, broadcast_penalty=-0.01):
@@ -28,9 +28,12 @@ class DOCAlgo(BaseAlgo):
         # super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
         #                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward, broadcast_penalty, always_broadcast,
         #                  termination_loss_coef, termination_reg)
-        super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
-         value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward, broadcast_penalty,
-         termination_reg, termination_loss_coef)
+        super().__init__(num_agents=num_agents, envs=envs, acmodel=acmodel, replay_buffer=replay_buffer,\
+                         num_frames_per_proc=num_frames_per_proc, discount=discount, lr=lr, gae_lambda=gae_lambda, \
+                         entropy_coef=entropy_coef,
+         value_loss_coef=value_loss_coef, max_grad_norm=max_grad_norm, recurrence=recurrence, preprocess_obss=preprocess_obss, \
+                         reshape_reward=reshape_reward, broadcast_penalty=broadcast_penalty,
+         termination_reg=termination_reg, termination_loss_coef=termination_loss_coef)
 
         # a = self.acmodel.named_parameters()
         # print('a', a)

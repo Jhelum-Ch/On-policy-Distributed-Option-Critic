@@ -3,3 +3,4 @@ from torch_rl.algos.ppo import PPOAlgo
 #from torch_rl.algos.ppo_2 import PPOAlgo
 from torch_rl.algos.oc import OCAlgo
 from torch_rl.algos.doc import DOCAlgo
+from torch_rl.algos.maddpg import MADDPGAlgo

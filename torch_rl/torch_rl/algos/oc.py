@@ -7,7 +7,7 @@ from torch_rl.algos.base import BaseAlgo
 class OCAlgo(BaseAlgo):
     """The class for the Selfish Option-Critic algorithm."""
 
-    def __init__(self, num_agents, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
+    def __init__(self, num_agents=None, envs=None, acmodel=None, replay_buffer=None, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
                  rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=3,
                  termination_loss_coef=0.5, termination_reg= 0.01, reshape_reward=None):
@@ -16,9 +16,12 @@ class OCAlgo(BaseAlgo):
         # super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
         #                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
         #                  num_options, termination_loss_coef, termination_reg)
-        super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
-                 value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward,
-                 termination_reg, termination_loss_coef)
+        super().__init__(num_agents=num_agents, envs=envs, acmodel=acmodel, replay_buffer=replay_buffer, \
+                         num_frames_per_proc=num_frames_per_proc, discount=discount, lr=lr, gae_lambda=gae_lambda, \
+                         entropy_coef=entropy_coef,
+                 value_loss_coef=value_loss_coef, max_grad_norm=max_grad_norm, recurrence=recurrence, preprocess_obss=preprocess_obss, \
+                         reshape_reward=reshape_reward,
+                 termination_reg=termination_reg, termination_loss_coef=termination_loss_coef)
 
         if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
             a = self.acmodel.parametersList

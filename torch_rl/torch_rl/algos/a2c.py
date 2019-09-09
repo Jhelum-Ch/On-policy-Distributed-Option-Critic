@@ -7,15 +7,21 @@ from torch_rl.algos.base import BaseAlgo
 class A2CAlgo(BaseAlgo):
     """The class for the Advantage Actor-Critic algorithm."""
 
-    def __init__(self, num_agents, envs, acmodel, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
+    def __init__(self, num_agents=None, envs=None, acmodel=None, replay_buffer=None, \
+                 num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
-                 rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=2, reshape_reward=None):
+                 rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=2, reshape_reward=None, \
+                 always_broadcast=False, broadcast_penalty=-0.01):
         num_frames_per_proc = num_frames_per_proc or 8
 
         # super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
         #                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward, broadcast_penalty)
-        super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
-                 value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward)
+        super().__init__(num_agents=num_agents, envs=envs, acmodel=acmodel, replay_buffer=replay_buffer, \
+                         num_frames_per_proc=num_frames_per_proc, discount=discount, lr=lr, gae_lambda=gae_lambda, \
+                         entropy_coef=entropy_coef,
+                 value_loss_coef=value_loss_coef, max_grad_norm=max_grad_norm, recurrence=recurrence, \
+                         preprocess_obss=preprocess_obss, reshape_reward=reshape_reward, broadcast_penalty=broadcast_penalty
+                 )
 
         if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
             a = self.acmodel.parametersList
@@ -134,7 +140,7 @@ class A2CAlgo(BaseAlgo):
                                + broadcast_loss \
                                - self.entropy_coef * broadcast_entropy
                     else:
-                        loss = policy_loss - self.entropy_coef * entropy \
+                        loss = policy_loss - self.entropy_coef * entropy
 
 
 
@@ -176,8 +182,8 @@ class A2CAlgo(BaseAlgo):
                             estimated_embeddings[j] = embedding
                         else:
                             masked_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding
-                            estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].embedding
-
+                            # estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].embedding
+                            estimated_embeddings[j] = sbs[j].estimated_embedding
 
             if self.acmodel.use_central_critic:
                # Central-critic forward propagation
