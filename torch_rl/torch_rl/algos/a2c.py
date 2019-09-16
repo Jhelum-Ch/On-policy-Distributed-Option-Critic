@@ -125,9 +125,14 @@ class A2CAlgo(BaseAlgo):
 
                     if not self.acmodel.always_broadcast:
                         broadcast_entropy = broadcast_dist.entropy().mean()
-                        broadcast_log_probs = broadcast_dist.log_prob(
-                            sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions))[
-                            range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
+                        if self.acmodel.use_teamgrid:
+                            broadcast_log_probs = broadcast_dist.log_prob(
+                                sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions))[
+                                range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
+                        else:
+                            broadcast_log_probs = broadcast_dist.log_prob(
+                                sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions[j]))[
+                                range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
                         broadcast_loss = -(broadcast_log_probs * sbs[j].advantage).mean()
 
                         loss = policy_loss - self.entropy_coef * entropy \
