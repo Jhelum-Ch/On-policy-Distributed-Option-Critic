@@ -403,7 +403,7 @@ class MADDPGAlgo(BaseAlgo):
 
                 update_critic_loss.backward()
                 for name, param in self.acmodel.critic.named_parameters():
-                    param.data * 1. - self.tau
+                    param.data *= 1. - self.tau
                     param.data += old_update_critic_loss[name]
 
             else:
