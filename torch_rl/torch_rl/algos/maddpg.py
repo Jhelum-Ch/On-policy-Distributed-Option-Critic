@@ -1,15 +1,19 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
+import copy
 
 from torch_rl.algos.base import BaseAlgo
 from torch_rl.algos.replayBuffer import ReplayBuffer
+
+# def convexComb_params(tau, old_param, new_param):
+#     return tau*old_param + (1.-tau)*new_param
 
 class MADDPGAlgo(BaseAlgo):
     """The class for the Multi-Agent Deep Deterministic Policy Gradient algorithm
        (cite)."""
 
-    def __init__(self, num_agents=None, envs=None, acmodel=None, replay_buffer=None, num_frames_per_proc=None, discount=0.99, lr=7e-4,
+    def __init__(self, num_agents=None, envs=None, acmodel=None, replay_buffer=None, tau = None, num_frames_per_proc=None, discount=0.99, lr=7e-4,
                  gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
                  adam_eps=1e-5, clip_eps=0.2, epochs=4, er_batch_size=256, preprocess_obss=None, num_options=3,
@@ -37,6 +41,7 @@ class MADDPGAlgo(BaseAlgo):
             self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=adam_eps)
 
         self.num_agents = num_agents
+        self.tau = tau
         self.clip_eps = clip_eps
         self.epochs = epochs
         self.er_batch_size = er_batch_size # how many samples from replay buffer
@@ -85,6 +90,7 @@ class MADDPGAlgo(BaseAlgo):
             #print('all_embeddings_er_size', np.shape(all_embeddings_er[0][]))
             all_est_embeddings_er = [torch.zeros(self.er_batch_size, self.acmodel.semi_memory_size, device=self.device) \
                                  for _ in range(self.num_agents)]
+
             all_actions_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
             all_next_actions_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
             all_broadcasts_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
@@ -246,9 +252,14 @@ class MADDPGAlgo(BaseAlgo):
                                 all_next_broadcasts_er[j][ind] = next_agent_brd
 
                                 broadcast_entropy += broadcast_dist.entropy().mean()
-                                broadcast_log_probs = broadcast_dist.log_prob(
-                                    sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions))[
-                                    range(len(agent_brd)), option_in_use, agent_act.long()]
+                                if self.acmodel.use_teamgrid:
+                                    broadcast_log_probs = broadcast_dist.log_prob(
+                                        sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions))[
+                                        range(len(agent_brd)), option_in_use, agent_act.long()]
+                                else:
+                                    broadcast_log_probs = broadcast_dist.log_prob(
+                                        sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions[j]))[
+                                        range(len(agent_brd)), option_in_use, agent_act.long()]
                                 broadcast_loss = -(broadcast_log_probs * agent_advantage).mean()
 
                                 loss += policy_loss - self.entropy_coef * entropy \
@@ -363,21 +374,52 @@ class MADDPGAlgo(BaseAlgo):
                     update_broadcast_loss[j] /= self.recurrence
 
                 update_actor_loss[j] /= self.recurrence
+                old_update_actor_loss = {}
+
+                for name, param in self.acmodel.actor[j].named_parameters():
+                    #print('name', name, 'param', param.data)
+                    old_update_actor_loss[name] = copy.deepcopy(param.data)
+                    old_update_actor_loss[name] *= self.tau
+
 
                 # update_values_b[j] /= self.recurrence
 
                 update_actor_loss[j].backward(retain_graph=True)
+                for name, param in self.acmodel.actor[j].named_parameters():
+                    param.data *= 1.- self.tau
+                    param.data += old_update_actor_loss[name]
+
 
             # Critic back propagation
             if self.acmodel.use_central_critic:
                 update_value /= self.recurrence  # recurrence_coord
                 update_value_loss /= self.recurrence
+                update_critic_loss /= self.recurrence
+
+                old_update_critic_loss = {}
+                for name, param in self.acmodel.critic.named_parameters():
+                    old_update_critic_loss[name] = copy.deepcopy(param.data)
+                    old_update_critic_loss[name] *= self.tau
+
                 update_critic_loss.backward()
+                for name, param in self.acmodel.critic.named_parameters():
+                    param.data * 1. - self.tau
+                    param.data += old_update_critic_loss[name]
+
             else:
                 for j in range(self.num_agents):
                     update_value[j] /= self.recurrence  # recurrence_coord
                     update_value_loss[j] /= self.recurrence
+
+                    old_update_critic_loss = {}
+                    for name, param in self.acmodel.critic[j].named_parameters():
+                        old_update_critic_loss[name] = copy.deepcopy(param.data)
+                        old_update_critic_loss[name] *= self.tau
+
                     update_critic_loss[j].backward(retain_graph=True)
+                    for name, param in self.acmodel.critic[j].named_parameters():
+                        param.data * 1. - self.tau
+                        param.data += old_update_critic_loss[name]
 
             for name, param in self.acmodel.named_parameters():
                 # print('name', name, 'param.data', param.data, 'param_grad', param.grad)
@@ -661,20 +703,56 @@ class MADDPGAlgo(BaseAlgo):
 
                 update_actor_loss[j] /= self.recurrence
 
+                old_update_actor_loss = {}
+                for name, param in self.acmodel.actor[j].named_parameters():
+                    #print('name', name, 'param', param.data)
+                    old_update_actor_loss[name] = copy.deepcopy(param.data)
+                    old_update_actor_loss[name] *= self.tau
+
+
                 # update_values_b[j] /= self.recurrence
 
                 update_actor_loss[j].backward(retain_graph=True)
+                for name, param in self.acmodel.actor[j].named_parameters():
+                    param.data *= 1.- self.tau
+                    param.data += old_update_actor_loss[name]
+
+
+                # update_values_b[j] /= self.recurrence
+
+                #update_actor_loss[j].backward(retain_graph=True)
 
             # Critic back propagation
             if self.acmodel.use_central_critic:
                 update_value /= self.recurrence  # recurrence_coord
                 update_value_loss /= self.recurrence
+
+                old_update_critic_loss = {}
+                for name, param in self.acmodel.critic.named_parameters():
+                    old_update_critic_loss[name] = copy.deepcopy(param.data)
+                    old_update_critic_loss[name] *= self.tau
+
                 update_critic_loss.backward()
+                for name, param in self.acmodel.critic.named_parameters():
+                    param.data * 1. - self.tau
+                    param.data += old_update_critic_loss[name]
+                #update_critic_loss.backward()
             else:
                 for j in range(self.num_agents):
                     update_value[j] /= self.recurrence  # recurrence_coord
                     update_value_loss[j] /= self.recurrence
+                    update_critic_loss[j] /= self.recurrence
+
+                    old_update_critic_loss = {}
+                    for name, param in self.acmodel.critic[j].named_parameters():
+                        old_update_critic_loss[name] = copy.deepcopy(param.data)
+                        old_update_critic_loss[name] *= self.tau
+
                     update_critic_loss[j].backward(retain_graph=True)
+                    for name, param in self.acmodel.critic[j].named_parameters():
+                        param.data * 1. - self.tau
+                        param.data += old_update_critic_loss[name]
+                    #update_critic_loss[j].backward(retain_graph=True)
 
             for name, param in self.acmodel.named_parameters():
                 # print('name', name, 'param.data', param.data, 'param_grad', param.grad)

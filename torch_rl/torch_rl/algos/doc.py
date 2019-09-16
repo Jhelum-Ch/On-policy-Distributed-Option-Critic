@@ -363,6 +363,7 @@ class DOCAlgo(BaseAlgo):
 
 
         # update_critic_loss.backward(retain_graph=True)
+        update_critic_loss /= self.recurrence
         update_critic_loss.backward()
 
 

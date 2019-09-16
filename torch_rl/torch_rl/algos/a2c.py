@@ -249,11 +249,13 @@ class A2CAlgo(BaseAlgo):
         if self.acmodel.use_central_critic:
             update_value /= self.recurrence  # recurrence_coord
             update_value_loss /= self.recurrence
+            update_critic_loss /= self.recurrence
             update_critic_loss.backward()
         else:
             for j in range(self.num_agents):
                 update_value[j] /= self.recurrence  # recurrence_coord
                 update_value_loss[j] /= self.recurrence
+                update_critic_loss[j] /= self.recurrence
                 update_critic_loss[j].backward(retain_graph=True)
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-USE_TEAMGRID = False
+USE_TEAMGRID = True
 USE_CENTRAL_CRITIC = True #Always True for DOC, False for OC, PPO. For A2C, MADDPG it can be either True or False
 USE_ALWAYS_BROADCAST = False # Always True for MADDPG and if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
 
@@ -35,9 +35,9 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='a2c', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'], #required=True,
+    parser.add_argument("--algo", default='maddpg', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'], #required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
+    parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -115,6 +115,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--replay_buffer", type=parse_bool, default=False)
     parser.add_argument("--er_batch_size", type=int, default=4,
                         help="experience replay sampling batch size for MADDPG (default: 1)")
+    parser.add_argument("--tau", type=float, default=0.01)
 
     return parser.parse_args(overwritten_args)
 
@@ -309,7 +310,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
     elif config.algo == "maddpg":
         algo = torch_rl.MADDPGAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
-                                   num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
+                                   tau = config.tau, num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
                                    gae_lambda=config.gae_lambda,
                  entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, max_grad_norm=config.max_grad_norm, \
                                    recurrence=config.recurrence,
