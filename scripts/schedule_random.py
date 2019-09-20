@@ -21,7 +21,7 @@ def sample_experiment():
         # Algorithmic params
         ('algo', 'oc'),
         ('lr', round_to_two(10**np.random.uniform(low=-6., high=-2))),
-        ('broadcast_penalty', np.random.choice([-0.01,-0.05,-0.1])),
+        ('broadcast_penalty', np.random.choice([0.0, -0.01,-0.05,-0.1])),
         #('entropy_coef', 0.01),
         ('value_loss_coef', np.random.uniform(low=0.1, high=10.)),
         #('max_grad_norm', 0.5),
