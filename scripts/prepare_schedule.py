@@ -23,7 +23,7 @@ else:
 
 def get_prepare_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--desc', type=str, default='Test') #required=True
+    parser.add_argument('--desc', type=str, required=True)
     parser.add_argument('--search_type', type=str, default='grid', choices=['grid', 'random'])
     parser.add_argument('--n_experiments', type=int, default=15)
     return parser.parse_args()
