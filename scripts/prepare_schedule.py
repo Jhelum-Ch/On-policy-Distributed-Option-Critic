@@ -13,6 +13,7 @@ from utils.save import get_git_hash
 import matplotlib.pyplot as plt
 import os
 import sys
+import pdb
 
 USE_TEAMGRID = True
 if USE_TEAMGRID:
@@ -30,6 +31,7 @@ def get_prepare_args():
 
 
 if __name__ == '__main__':
+
     serial_args = get_prepare_args()
 
     # Adds code versions git-hash for current project and environment package as prefixes to storage_name
@@ -118,7 +120,7 @@ if __name__ == '__main__':
             if param_name not in config_dict.keys():
                 raise ValueError(f"{param_name} from schedule.VARIATIONS is not a valid training hyperparameter")
             else:
-                config_dict[param_name] = param_value
+                config_dict[param_name] = param_value # replacing default param with the parameter of interest
 
         experiment_num = int(DirectoryManager(storage_name=storage_dir, seed=1).experiment_dir.stem.strip('experiment'))
 
