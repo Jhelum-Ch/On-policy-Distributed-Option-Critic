@@ -1,0 +1,1 @@
+{"experiment_folders":["e70be9a_9165a18_a2c_switch/experiment1","e70be9a_9165a18_centralA2C_switch/experiment1","e70be9a_9165a18_doc_all_true_switch/experiment1","e70be9a_9165a18_doc_no_broad_switch/experiment1","e70be9a_9165a18_oc_switch/experiment1","e70be9a_9165a18_ppo_switch/experiment1"],"names":["A2C","CentralA2C","DOC_all_true", "DOC_no_broadcasting","OC","PPO"]}

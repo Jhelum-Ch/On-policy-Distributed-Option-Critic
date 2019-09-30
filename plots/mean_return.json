@@ -1,0 +1,1 @@
+{"experiment_folders":["3f95117_9165a18_doc_all_true/experiment1", "3f95117_9165a18_doc_no_broad/experiment1","8e72265_9165a18_a2c_4rooms/experiment1","8e72265_9165a18_oc_4rooms/experiment1","3f95117_9165a18_ppo_4rooms/experiment1","80f4034_9165a18_centralA2C_4rooms/experiment1"],"names":["DOC_all_true", "DOC_no_broadcasting", "A2C", "OC","PPO", "A2C Central Critic"]}
