@@ -224,6 +224,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             if self.use_teamgrid:
                 critic_input_size = self.num_agents * (
                         self.embedding_size + self.num_options + self.num_actions + self.num_broadcasts)
+                #print('critic_input_size', critic_input_size)
                 critic_output_size = 1
 
                 # central_critic needs its own memory
@@ -394,7 +395,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
     # Forward path for agent_critics to learn intra-option policies and broadcasts
     def forward_agent_critic(self, obs, agent_memory, agent_index):
-        #print('obs', obs)
+        #print('modl-obs', obs.image.size())
         embedding, new_agent_memory = self._embed_observation(obs, agent_memory, agent_index)
         #print('agent_index', agent_index)
         if self.use_teamgrid:
@@ -478,6 +479,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
     # def forward_central_critic(self, masked_embeddings, option_idxs, action_idxs, broadcast_idxs, coordinator_memory):
     def forward_central_critic(self, masked_embeddings, option_idxs, action_idxs, broadcast_idxs,
                                    coordinator_memory):
+        #print('option_idxs', option_idxs, 'action_idxs', action_idxs, 'broadcast_idxs', broadcast_idxs)
         if self.num_options is not None:
             option_onehots = []
             for option_idxs_j in option_idxs:
@@ -509,7 +511,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             for broadcast_idxs_j in broadcast_idxs:
                 broadcast_onehots.append(utils.idx_to_onehot(broadcast_idxs_j.long(), self.num_broadcasts))
 
-       # print('star', *broadcast_onehots)
+        #print('star', masked_embeddings[0].size(), 'star0', *option_onehots, 'star1', *action_onehots, 'star2', *broadcast_onehots)
         if self.num_options is not None:
             # coordinator_embedding = torch.cat([*masked_embeddings, *option_onehots, *action_onehots, *broadcast_onehots], dim=1)
             coordinator_embedding = torch.cat(
@@ -542,6 +544,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
     def _embed_observation(self, obs, agent_memory, agent_index):
         if self.use_teamgrid:
+            #print('obs_size', obs.image.size())
             x = torch.transpose(torch.transpose(obs.image, 1, 3), 2, 3)
             x = self.image_conv(x)
             x = x.reshape(x.shape[0], -1)
