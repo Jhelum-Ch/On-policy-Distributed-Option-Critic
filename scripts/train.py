@@ -144,9 +144,9 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
+    parser.add_argument("--algo", default='maddpg', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
+    parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -155,6 +155,8 @@ def get_training_args(overwritten_args=None):
                              "if that experiment already exists, you will be offered to resume training")
     parser.add_argument("--seed", type=int, default=1,
                         help="random seed (default: 1)")
+    # parser.add_argument("--max_len_ep", type=int, default=5,
+    #                     help="Maximum length of each poisode")
     parser.add_argument("--procs", type=int, default=16,
                         help="number of processes (default: 16)")
     parser.add_argument("--frames", type=int, default=3000000,
@@ -167,7 +169,7 @@ def get_training_args(overwritten_args=None):
                         help="log into Tensorboard")
 
 
-    parser.add_argument("--frames_per_proc", type=int, default=None,
+    parser.add_argument("--frames_per_proc", type=int, default=30,
                         help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
     parser.add_argument("--discount", type=float, default=0.99,
                         help="discount factor (default: 0.99)")
@@ -218,7 +220,7 @@ def get_training_args(overwritten_args=None):
                         help="number of goals the agents need to discover")
 
     # arguments to replace flag
-    parser.add_argument("--use_teamgrid", type=parse_bool, default=False)
+    parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
     parser.add_argument("--use_central_critic", type=parse_bool, default=True)
     parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
 
@@ -242,7 +244,7 @@ def get_training_args(overwritten_args=None):
 def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     USE_TEAMGRID = config.use_teamgrid
     USE_CENTRAL_CRITIC = config.use_central_critic
-    print('cc', USE_CENTRAL_CRITIC)
+    #print('cc', USE_CENTRAL_CRITIC)
     USE_ALWAYS_BROADCAST = config.use_always_broadcast
 
 
@@ -326,7 +328,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
     obs_space, preprocess_obss = utils.get_obss_preprocessor(config.env, envs[0].observation_space,
                                                                  dir_manager.seed_dir)
-    print('obs_apce', obs_space)
 
     # Load training status
 
@@ -357,6 +358,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 use_text=config.text,
                 num_agents=config.num_agents,
                 num_options=config.num_options,
+                frames_per_proc=config.frames_per_proc,
                 use_act_values=True if config.algo in ["oc", "doc"] else False,
                 use_term_fn=True if config.algo in ["oc", "doc"] else False,
                 # use_central_critic=True if config.algo == "doc" else False,

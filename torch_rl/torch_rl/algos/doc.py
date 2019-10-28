@@ -18,12 +18,15 @@ class DOCAlgo(BaseAlgo):
     #                      value_loss_coef, max_grad_norm, recurrence_agents, recurrence_coord, preprocess_obss, reshape_reward, broadcast_penalty, always_broadcast,
     #                      num_options, termination_loss_coef, termination_reg)
 
+
+
     def __init__(self, num_agents=None, envs=None, acmodel=None, replay_buffer=None, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence = 4,
                  rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=3,
                  termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None, always_broadcast = False, broadcast_penalty=-0.01):
 
         num_frames_per_proc = num_frames_per_proc or 8
+        #num_frames_per_proc = 50
 
         # super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
         #                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward, broadcast_penalty, always_broadcast,
@@ -95,6 +98,7 @@ class DOCAlgo(BaseAlgo):
         # Feed experience to model with gradient-tracking on a single process
 
         for i in range(self.recurrence): #recurrence_agents
+            #print('i',i,'self.recurrence', self.recurrence)
             if self.acmodel.use_central_critic:
                 sbs_coord = coord_exps[inds + i]
 
@@ -113,11 +117,11 @@ class DOCAlgo(BaseAlgo):
                # print('i', i, 'inds + i', len(inds + i), 'sbs_em', sbs[j].embeddings.size())
 
                 if not self.acmodel.always_broadcast:
-                    act_dist, _, _, memory, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, \
+                    act_mlp, act_dist, _, _, memory, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, \
                                                                                                         memories[j] * \
                                                                                                         sbs[j].mask, agent_index=j)
                 else:
-                    act_dist, _, memory, term_dist, embedding = self.acmodel.forward_agent_critic(
+                    act_mlp, act_dist, _, memory, term_dist, embedding = self.acmodel.forward_agent_critic(
                         sbs[j].obs, \
                         memories[j] * \
                         sbs[j].mask, agent_index=j)
@@ -173,7 +177,9 @@ class DOCAlgo(BaseAlgo):
 
                 act_log_probs = act_dist.log_prob(sbs[j].action.view(-1, 1).repeat(1, self.num_options))[range(sbs[j].action.shape[0]), sbs[j].current_options]
                 policy_loss = -(act_log_probs * (sbs[j].value_swa - sbs[j].value_sw)).mean() #the second term should be coordinator value
-                #policy_loss = -(act_log_probs * (sbs_coord.value_swa - sbs_coord.value_sw)).mean()
+
+                #policy_loss = (act_mlp.view(-1,1,1)[sbs[j].action.long()].squeeze() * (sbs[j].value_swa - sbs[j].value_sw)).mean() #doc-ml
+
 
 
                 term_prob = term_dist.probs[range(sbs[j].action.shape[0]), sbs[j].current_options]

@@ -22,11 +22,13 @@ def initialize_parameters(m):
 
 class ACModel(nn.Module, torch_rl.RecurrentACModel):
     def __init__(self,
+                 num_procs,
                  obs_space,
                  action_space,
                  termination_reg,
                  use_teamgrid,
                  always_broadcast,
+                 frames_per_proc,
                  use_memory_agents = True,
                  use_memory_coord = True,
                  use_text=False,
@@ -41,6 +43,8 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         super().__init__()
 
         # Decide which components are enabled
+        self.num_procs = num_procs
+        self.frames_per_proc = frames_per_proc
         self.use_act_values = use_act_values
         self.use_text = use_text
         self.use_memory_agents = use_memory_agents
@@ -66,6 +70,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         elif isinstance(action_space, MultiDiscrete):
             pass
         elif isinstance(action_space, list):
+            #print('Hi1', action_space)
             list_actions = [action_space[i].n for i in range(len(action_space))]
             if len(set(list_actions)) < len(list_actions): #repeated num_actions
                 for i in range(len(action_space)):
@@ -138,9 +143,17 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         if self.use_teamgrid:
             actor_output_size = self.num_options * self.num_actions
             #print('self_num_op', self.num_options, 'self.num_ac', self.num_actions,'actor_out', actor_output_size)
+            # self.actor = nn.Sequential(
+            #     nn.Linear(self.embedding_size, 64),
+            #     nn.Tanh(),
+            #     nn.Linear(64, actor_output_size)
+            # )
+            #use the following model for particle
             self.actor = nn.Sequential(
                 nn.Linear(self.embedding_size, 64),
-                nn.Tanh(),
+                nn.ReLU(),
+                nn.Linear(64, 64),
+                nn.ReLU(),
                 nn.Linear(64, actor_output_size)
             )
         else:
@@ -148,11 +161,19 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             self.actor = []
             for j in range(self.num_agents):
                 actor_output_size.append(self.num_options*self.num_actions[j])
+            #     self.actor.append(nn.Sequential(
+            #     nn.Linear(self.embedding_size[j], 64),
+            #     nn.Tanh(),
+            #     nn.Linear(64, actor_output_size[j])
+            # ))
+                #use the following model for particle
                 self.actor.append(nn.Sequential(
-                nn.Linear(self.embedding_size[j], 64),
-                nn.Tanh(),
-                nn.Linear(64, actor_output_size[j])
-            ))
+                    nn.Linear(self.embedding_size[j], 64),
+                    nn.ReLU(),
+                    nn.Linear(64, 64),
+                    nn.ReLU(),
+                    nn.Linear(64, actor_output_size[j])
+                ))
             actor_params = []
             for j in range(self.num_agents):
                 actor_params.extend(list(self.actor[j].parameters()))
@@ -164,6 +185,44 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             #     nn.Tanh(),
             #     nn.Linear(64, actor_output_size)
             # )
+        if not self.use_teamgrid:
+            if self.use_act_values:
+                particle_agent_input_size = []
+                particle_agent_output_size = []
+                for j in range(self.num_agents):
+                    particle_agent_input_size.append(self.embedding_size[j] + self.num_agents * \
+                                                     (self.num_options + self.num_broadcasts) + int(np.sum(self.num_actions)))
+                    particle_agent_output_size.append(self.num_options * self.num_actions[j] * self.num_broadcasts)
+
+                self.particle_agent_critic = []
+                for j in range(self.num_agents):
+                    self.particle_agent_critic.append((nn.Sequential(
+                        nn.Linear(particle_agent_input_size[j], 64),
+                        nn.ReLU(),
+                        nn.Linear(64, 64),
+                        nn.ReLU(),
+                        nn.Linear(64, particle_agent_output_size[j]))))
+            else:
+                particle_agent_input_size = []
+                for j in range(self.num_agents):
+                    particle_agent_input_size.append(self.embedding_size[j] + self.num_agents * \
+                                                     (self.num_options + self.num_broadcasts) + int(np.sum(self.num_actions)))
+                particle_agent_output_size = self.num_options
+
+                self.particle_agent_critic = []
+                for j in range(self.num_agents):
+                    self.particle_agent_critic.append((nn.Sequential(
+                        nn.Linear(particle_agent_input_size[j], 64),
+                        nn.ReLU(), #alternatively use Tanh
+                        nn.Linear(64, 64),
+                        nn.ReLU(),
+                        nn.Linear(64, particle_agent_output_size))))
+
+            if self.use_memory_coord:
+                self.particle_agent_rnn = []
+                for j in range(self.num_agents):
+                    self.particle_agent_rnn.append(nn.LSTMCell(particle_agent_input_size[j], particle_agent_input_size[j]))
+
 
 
         # Define broadcast_net
@@ -175,14 +234,30 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                     nn.Tanh(),
                     nn.Linear(64, self.num_options * self.num_actions * self.num_broadcasts)
                 )
+                #use the following model fr particle
+                # self.broadcast_net = nn.Sequential(
+                #     nn.Linear(self.embedding_size, 64),
+                #     nn.ReLU(),
+                #     nn.Linear(64, 64),
+                #     nn.ReLU(),
+                #     nn.Linear(64, self.num_options * self.num_actions * self.num_broadcasts)
+                # )
             else:
                 self.broadcast_net = []
                 for j in range(self.num_agents):
+                #     self.broadcast_net.append(nn.Sequential(
+                #     nn.Linear(self.embedding_size[j], 64),
+                #     nn.Tanh(),
+                #     nn.Linear(64, self.num_options * self.num_actions[j] * self.num_broadcasts)
+                # ))
+                    #use the following model for particle
                     self.broadcast_net.append(nn.Sequential(
-                    nn.Linear(self.embedding_size[j], 64),
-                    nn.Tanh(),
-                    nn.Linear(64, self.num_options * self.num_actions[j] * self.num_broadcasts)
-                ))
+                        nn.Linear(self.embedding_size[j], 64),
+                        nn.ReLU(),
+                        nn.Linear(64, 64),
+                        nn.ReLU(),
+                        nn.Linear(64, self.num_options * self.num_actions[j] * self.num_broadcasts)
+                    ))
                 # self.broadcast_net = nn.Sequential(
                 #     nn.Linear(self.embedding_size[agent_index], 64),
                 #     nn.Tanh(),
@@ -201,14 +276,29 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                     nn.Tanh(),
                     nn.Linear(64, self.num_options)
                 )
+                #use the following model for particle
+                # self.term_fn = nn.Sequential(
+                #     nn.Linear(self.embedding_size, 64),
+                #     nn.ReLU(),
+                #     nn.Linear(64, 64),
+                #     nn.ReLU(),
+                #     nn.Linear(64, self.num_options)
+                # )
             else:
                 self.term_fn = []
                 for j in range(self.num_agents):
+                #     self.term_fn.append(nn.Sequential(
+                #     nn.Linear(self.embedding_size[j], 64),
+                #     nn.Tanh(),
+                #     nn.Linear(64, self.num_options)
+                # ))
                     self.term_fn.append(nn.Sequential(
-                    nn.Linear(self.embedding_size[j], 64),
-                    nn.Tanh(),
-                    nn.Linear(64, self.num_options)
-                ))
+                        nn.Linear(self.embedding_size[j], 64),
+                        nn.ReLU(),
+                        nn.Linear(64, 64),
+                        nn.ReLU(),
+                        nn.Linear(64, self.num_options)
+                    ))
                 term_params = []
                 for j in range(self.num_agents):
                     term_params.extend(list(self.term_fn[j].parameters()))
@@ -237,6 +327,9 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                 #print('critic_input_size', critic_input_size)
                 critic_output_size = 1
 
+
+
+
                 # central_critic needs its own memory
                 if self.use_memory_coord:
                     self.coordinator_rnn = nn.LSTMCell(critic_input_size, critic_input_size)
@@ -254,6 +347,9 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                 else:
                     critic_input_size = self.embedding_size
                     critic_output_size = self.num_options
+
+                # if self.use_memory_coord:
+                #     self.coordinator_rnn = nn.LSTMCell(critic_input_size, critic_input_size)
             else:
                 if self.use_act_values:
                     critic_input_size = []
@@ -267,6 +363,9 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                     for j in range(self.num_agents):
                         critic_input_size.append(self.embedding_size[j])
                     critic_output_size = self.num_options
+
+                # if self.use_memory_coord:
+                #     self.coordinator_rnn = nn.LSTMCell(critic_input_size, critic_input_size)
                 # if self.use_act_values:
                 #     critic_input_size = self.embedding_size[agent_index]
                 #     critic_output_size = self.num_options * self.num_actions[agent_index] * self.num_broadcasts
@@ -285,47 +384,98 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         # )
         # import ipdb;
         # ipdb.set_trace()
-        if isinstance(critic_input_size, int) and isinstance(critic_output_size, int):
-            self.critic = nn.Sequential(
-                nn.Linear(critic_input_size, 64),
-                nn.Tanh(),
-                nn.Linear(64, critic_output_size)
-            )
-        elif isinstance(critic_input_size, int) and isinstance(critic_output_size, list):
-            self.critic = []
-            for j in range(self.num_agents):
-                self.critic.append(nn.Sequential(
+        if self.use_teamgrid:
+            if isinstance(critic_input_size, int) and isinstance(critic_output_size, int):
+                self.critic = nn.Sequential(
                     nn.Linear(critic_input_size, 64),
                     nn.Tanh(),
-                    nn.Linear(64, critic_output_size[j])
-                ))
-            critic_params = []
-            for j in range(self.num_agents):
-                critic_params.extend(list(self.critic[j].parameters()))
-
-        elif isinstance(critic_input_size, list) and isinstance(critic_output_size, int): #list
-            self.critic = []
-            for j in range(self.num_agents):
-                self.critic.append(nn.Sequential(
-                    nn.Linear(critic_input_size[j], 64),
-                    nn.Tanh(),
                     nn.Linear(64, critic_output_size)
-                ))
-            critic_params = []
-            for j in range(self.num_agents):
-                critic_params.extend(list(self.critic[j].parameters()))
+                )
+            elif isinstance(critic_input_size, int) and isinstance(critic_output_size, list):
+                self.critic = []
+                for j in range(self.num_agents):
+                    self.critic.append(nn.Sequential(
+                        nn.Linear(critic_input_size, 64),
+                        nn.Tanh(),
+                        nn.Linear(64, critic_output_size[j])
+                    ))
+                critic_params = []
+                for j in range(self.num_agents):
+                    critic_params.extend(list(self.critic[j].parameters()))
+
+            elif isinstance(critic_input_size, list) and isinstance(critic_output_size, int): #list
+                self.critic = []
+                for j in range(self.num_agents):
+                    self.critic.append(nn.Sequential(
+                        nn.Linear(critic_input_size[j], 64),
+                        nn.Tanh(),
+                        nn.Linear(64, critic_output_size)
+                    ))
+                critic_params = []
+                for j in range(self.num_agents):
+                    critic_params.extend(list(self.critic[j].parameters()))
+            else:
+                self.critic = []
+                for j in range(self.num_agents):
+                    self.critic.append(nn.Sequential(
+                        nn.Linear(critic_input_size[j], 64),
+                        nn.Tanh(),
+                        nn.Linear(64, critic_output_size[j])
+                    ))
+                critic_params = []
+                for j in range(self.num_agents):
+                    critic_params.extend(list(self.critic[j].parameters()))
+                # critic_params = [list(self.critic[j].parameters()) for j in range(self.num_agents)]
         else:
-            self.critic = []
-            for j in range(self.num_agents):
-                self.critic.append(nn.Sequential(
-                    nn.Linear(critic_input_size[j], 64),
-                    nn.Tanh(),
-                    nn.Linear(64, critic_output_size[j])
-                ))
-            critic_params = []
-            for j in range(self.num_agents):
-                critic_params.extend(list(self.critic[j].parameters()))
-            # critic_params = [list(self.critic[j].parameters()) for j in range(self.num_agents)]
+            if isinstance(critic_input_size, int) and isinstance(critic_output_size, int):
+                self.critic = nn.Sequential(
+                    nn.Linear(critic_input_size, 64),
+                    nn.ReLU(),
+                    nn.Linear(64, 64),
+                    nn.ReLU(),
+                    nn.Linear(64, critic_output_size)
+                )
+            elif isinstance(critic_input_size, int) and isinstance(critic_output_size, list):
+                self.critic = []
+                for j in range(self.num_agents):
+                    self.critic.append(nn.Sequential(
+                        nn.Linear(critic_input_size, 64),
+                        nn.ReLU(),
+                        nn.Linear(64, 64),
+                        nn.ReLU(),
+                        nn.Linear(64, critic_output_size[j])
+                    ))
+                critic_params = []
+                for j in range(self.num_agents):
+                    critic_params.extend(list(self.critic[j].parameters()))
+
+            elif isinstance(critic_input_size, list) and isinstance(critic_output_size, int):  # list
+                self.critic = []
+                for j in range(self.num_agents):
+                    self.critic.append(nn.Sequential(
+                        nn.Linear(critic_input_size[j], 64),
+                        nn.ReLU(),
+                        nn.Linear(64, 64),
+                        nn.ReLU(),
+                        nn.Linear(64, critic_output_size)
+                    ))
+                critic_params = []
+                for j in range(self.num_agents):
+                    critic_params.extend(list(self.critic[j].parameters()))
+            else:
+                self.critic = []
+                for j in range(self.num_agents):
+                    self.critic.append(nn.Sequential(
+                        nn.Linear(critic_input_size[j], 64),
+                        nn.ReLU(),
+                        nn.Linear(64, 64),
+                        nn.ReLU(),
+                        nn.Linear(64, critic_output_size[j])
+                    ))
+                critic_params = []
+                for j in range(self.num_agents):
+                    critic_params.extend(list(self.critic[j].parameters()))
+                # critic_params = [list(self.critic[j].parameters()) for j in range(self.num_agents)]
 
         # self.parametersList = nn.ParameterList(actor_params + term_params + critic_params)
         #import ipdb; ipdb.set_trace()
@@ -362,6 +512,18 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         # Initialize parameters correctly
         self.apply(initialize_parameters)
 
+
+    # @property
+    # def others_action_size(self):
+    #     # res = []
+    #     # for j in range(self.num_agents):
+    #     #     total = 0
+    #     #     for k in range(self.num_agents):
+    #     #         if k != j:
+    #     #             total += self.num_actions[k]
+    #     #     res.append(total)
+    #     # return res
+    #     return (self.num_agents-1)
     @property
     def memory_size(self):
         if isinstance(self.semi_memory_size, int):
@@ -393,16 +555,44 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
                 return  int(np.sum((self.embedding_size))) + self.num_agents * self.num_broadcasts + int(np.sum(self.num_actions))
                 #return int(np.sum((self.embedding_size))) + self.num_agents * (self.num_broadcasts + max(self.num_actions))
 
+    @property
+    def memory_size_for_particle(self):
+        return [2*self.semi_memory_size_for_particle[j] for j in range(self.num_agents)]
+
+    @property
+    def semi_memory_size_for_particle(self):
+        if self.num_options is not None:
+            return [self.embedding_size[j] + self.num_agents * (
+                        self.num_options + self.num_broadcasts) + int(np.sum(self.num_actions)) \
+                    for j in range(self.num_agents)]
+            # return int(np.sum(self.embedding_size)) + self.num_agents * (
+            #             self.num_options + self.num_broadcasts + max(self.num_actions))
+        else:
+            return [self.embedding_size[j] + self.num_agents * self.num_broadcasts + int(
+                np.sum(self.num_actions)) for j in range(self.num_agents)]
+
+    # def mlp_model(obs, num_outputs, scope, reuse=False, num_units=64, rnn_cell=None):
+    #     # This model takes as input an observation and returns values of all actions
+    #     with tf.variable_scope(scope, reuse=reuse):
+    #         out = obs
+    #         out = layers.fully_connected(out, num_outputs=num_units, activation_fn=tf.nn.relu)
+    #         out = layers.fully_connected(out, num_outputs=num_units, activation_fn=tf.nn.relu)
+    #         out = layers.fully_connected(out, num_outputs=num_outputs, activation_fn=None)
+    #         return out
+
     # Forward path for agent_critics to learn intra-option policies and broadcasts   
-    def forward_agent_critic(self, obs, agent_memory, agent_index):
+    def forward_agent_critic(self, obs, agent_memory, agent_index): # other_agents_actions = list, for particle_env
         #print('modl-obs', obs.image.size())
         embedding, new_agent_memory = self._embed_observation(obs, agent_memory, agent_index)
         #print('agent_index', agent_index)
         if self.use_teamgrid:
             x = self.actor(embedding).view((-1, self.num_options, self.num_actions))
+            act_mlp = x
         else:
             #print('Hi_j',agent_index)
             x = self.actor[agent_index](embedding).view((-1, self.num_options, self.num_actions[agent_index]))
+            act_mlp = x
+            #print('x',x[0].squeeze())
         act_dist = Categorical(logits=F.log_softmax(x, dim=-1))
 
         if self.use_central_critic:
@@ -462,16 +652,16 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             if self.num_options is not None:
             # return act_dist, agent_values, agent_target_values, agent_values_b, agent_target_values_b, new_agent_memory, term_dist, broadcast_dist, embedding
             # if self.use_broadcasting and not self.always_broadcast:
-                return act_dist, agent_values, agent_values_b, new_agent_memory, term_dist, broadcast_dist, embedding
+                return act_mlp, act_dist, agent_values, agent_values_b, new_agent_memory, term_dist, broadcast_dist, embedding
             else:
-                return act_dist, agent_values, agent_values_b, new_agent_memory, broadcast_dist, embedding
+                return act_mlp, act_dist, agent_values, agent_values_b, new_agent_memory, broadcast_dist, embedding
 
                 #return act_dist, agent_values, new_agent_memory, term_dist, embedding
         else:
             if self.num_options is not None:
-                return act_dist, agent_values, new_agent_memory, term_dist, embedding
+                return act_mlp, act_dist, agent_values, new_agent_memory, term_dist, embedding
             else:
-                return act_dist, agent_values, new_agent_memory, embedding
+                return act_mlp, act_dist, agent_values, new_agent_memory, embedding
 
 
 
@@ -537,6 +727,70 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         # value_b = torch.tensor(np.array(values)[:,1])
 
         return coordinator_embedding, value.squeeze(), coordinator_memory.squeeze()
+
+
+    # For particle, use agent's own embedding for actor but use all actions, options, broadcasts for critic (for actors)
+
+    def forward_central_critic_others(self, agent_embedding, option_idxs, action_idxs, broadcast_idxs,
+                                   particle_agent_memory, agent_index):
+        #print('option_idxs', option_idxs, 'action_idxs', action_idxs, 'broadcast_idxs', broadcast_idxs)
+        if self.num_options is not None:
+            option_onehots = []
+            for option_idxs_j in option_idxs:
+                option_onehots.append(utils.idx_to_onehot(option_idxs_j.long(), self.num_options))
+        else:
+            option_onehots = None
+
+        if not self.use_teamgrid:
+            #print('action_idx', action_idxs)
+            action_onehots = []
+            for i, action_idxs_j in enumerate(action_idxs):
+                action_onehots.append(utils.idx_to_onehot(action_idxs_j.long(), self.num_actions[i])) # max(self.num_actions)
+        else:
+            action_onehots = []
+            for action_idxs_j in action_idxs:
+                action_onehots.append(utils.idx_to_onehot(action_idxs_j.long(), self.num_actions))
+
+
+        if self.num_broadcasts == 1:
+            broadcast_onehots = copy.deepcopy(broadcast_idxs)
+            broadcast_onehots = [item.unsqueeze(1) for item in broadcast_onehots]
+            # for i in range(len(broadcast_onehots)):
+            #     broadcast_onehots[i] = broadcast_onehots[i].long()
+
+            #print('broadcast_onehots',broadcast_onehots)
+        else:
+            broadcast_onehots = []
+            #print('self.num_broadcasts', self.num_broadcasts)
+            for broadcast_idxs_j in broadcast_idxs:
+                broadcast_onehots.append(utils.idx_to_onehot(broadcast_idxs_j.long(), self.num_broadcasts))
+
+        #print('star', masked_embeddings[0].size(), 'star0', *option_onehots, 'star1', *action_onehots, 'star2', *broadcast_onehots)
+        if self.num_options is not None:
+            # coordinator_embedding = torch.cat([*masked_embeddings, *option_onehots, *action_onehots, *broadcast_onehots], dim=1)
+            particle_agent_embedding = torch.cat(
+                [agent_embedding, *option_onehots, *action_onehots, *broadcast_onehots], dim=1)
+        else:
+            # coordinator_embedding = torch.cat(
+            #     [*masked_embeddings, *action_onehots, *broadcast_onehots], dim=1)
+            particle_agent_embedding = torch.cat(
+                [agent_embedding, *action_onehots, *broadcast_onehots], dim=1)
+        #print('coordinator_embedding', coordinator_embedding.size())
+
+        if self.use_memory_coord:
+            # hidden = (coordinator_memory[:, :self.semi_memory_size], coordinator_memory[:, self.semi_memory_size:])
+            hidden = (particle_agent_memory[:, :self.semi_memory_size_for_particle[agent_index]], particle_agent_memory[:, self.semi_memory_size_for_particle[agent_index]:])
+            hidden = self.particle_agent_rnn[agent_index](particle_agent_embedding, hidden)
+            particle_agent_embedding = hidden[0]
+            particle_agent_memory = torch.cat(hidden, dim=1)
+
+        #assert self.use_central_critic
+        value = self.particle_agent_critic[agent_index](particle_agent_embedding)
+        #target_value = self.target_critic(coordinator_embedding)
+        # value_a = torch.tensor(np.array(values)[:,0])
+        # value_b = torch.tensor(np.array(values)[:,1])
+
+        return particle_agent_embedding, value.squeeze(), particle_agent_memory.squeeze()
 
     def _get_embed_text(self, text):
         _, hidden = self.text_rnn(self.word_embedding(text))

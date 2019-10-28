@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import copy
+# import utils
+# from torch_rl.format import function
 
 from torch_rl.algos.base import BaseAlgo
 from torch_rl.algos.replayBuffer import ReplayBuffer
@@ -26,6 +28,7 @@ class MADDPGAlgo(BaseAlgo):
                          value_loss_coef=value_loss_coef, max_grad_norm=max_grad_norm, recurrence=recurrence, \
                          preprocess_obss=preprocess_obss, reshape_reward=reshape_reward, broadcast_penalty=broadcast_penalty,
                          termination_reg=termination_reg, termination_loss_coef=termination_loss_coef)
+
 
         # if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
         #     a = self.acmodel.parametersList
@@ -92,7 +95,11 @@ class MADDPGAlgo(BaseAlgo):
                                  for _ in range(self.num_agents)]
 
             all_actions_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
+            # all_actions_er_mlp = [torch.zeros((self.er_batch_size, self.num_actions[j]), device=self.device) \
+            #                       for j in range(self.num_agents)]
             all_next_actions_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
+            # all_next_actions_er_mlp = [torch.zeros((self.er_batch_size, self.num_actions[j]), device=self.device) \
+            #                       for j in range(self.num_agents)]
             all_broadcasts_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
             all_next_broadcasts_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
             all_rewards_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
@@ -155,7 +162,7 @@ class MADDPGAlgo(BaseAlgo):
                         #     return
                         # if not t % 100 == 0:  # only update every 100 steps
                         #     return
-
+                        #self.num_samples = 1
                         self.replay_sample_index = self.replayBuffer.make_index(sbs[j], self.er_batch_size)
 
 
@@ -171,6 +178,7 @@ class MADDPGAlgo(BaseAlgo):
                             agent_obs = sbs[j].obs[k]
                             agent_obs.image = agent_obs.image.unsqueeze(0)
                             agent_act = sbs[j].action[k].unsqueeze(0)
+                            agent_act_mlp = sbs[j].action_mlp[k].unsqueeze(0)
                             action_idxs[j][ind] = agent_act
                             agent_brd = sbs[j].broadcast[k].unsqueeze(0)
                             broadcast_idxs[j][ind] = agent_brd
@@ -187,32 +195,33 @@ class MADDPGAlgo(BaseAlgo):
 
                             if self.acmodel.recurrent:
                                 if not self.acmodel.always_broadcast:
-                                    act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                    act_mlp, act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
                                         agent_obs, agent_memory * (1. * agent_done), agent_index=j)
-                                    next_act_dist, next_act_values, next_act_values_b, next_memory, _, next_broadcast_dist, next_embedding = self.acmodel.forward_agent_critic(
+                                    next_act_mlp, next_act_dist, next_act_values, next_act_values_b, next_memory, _, next_broadcast_dist, next_embedding = self.acmodel.forward_agent_critic(
                                         agent_next_obs, agent_memory * (1. * agent_done), agent_index=j)
                                 else:
-                                    act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(agent_obs,
+                                    act_mlp, act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(agent_obs,
                                                                                                                    agent_memory * (1. * agent_done),
                                                                                                                    agent_index=j)
-                                    next_act_dist, next_act_values, next_memory, _, next_embedding = self.acmodel.forward_agent_critic(
+                                    next_act_mlp, next_act_dist, next_act_values, next_memory, _, next_embedding = self.acmodel.forward_agent_critic(
                                         agent_next_obs,
                                         agent_memory * (1. * agent_done),
                                         agent_index=j)
                             else:
                                 if not self.acmodel.always_broadcast:
-                                    act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                    act_mlp, act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
                                         agent_obs, agent_memory * (1. * agent_done), agent_index=j)
-                                    next_act_dist, next_act_values, next_act_values_b, _, _, next_broadcast_dist, next_embedding = self.acmodel.forward_agent_critic(
+                                    next_act_mlp, next_act_dist, next_act_values, next_act_values_b, _, _, next_broadcast_dist, next_embedding = self.acmodel.forward_agent_critic(
                                         agent_next_obs, agent_memory * (1. * agent_done), agent_index=j)
                                 else:
-                                    act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(agent_obs,
+                                    act_mlp, act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(agent_obs,
                                                                                                               agent_index=j)
-                                    next_act_dist, next_act_values, _, _, next_embedding = self.acmodel.forward_agent_critic(agent_next_obs,
+                                    next_act_mlp, next_act_dist, next_act_values, _, _, next_embedding = self.acmodel.forward_agent_critic(agent_next_obs,
                                                                                                               agent_index=j)
 
                             #print('option_in_use', torch.tensor(option_in_use.item()), 'option_idxs[j][ind].long()', option_idxs[j][ind].long())
                             next_agent_act = next_act_dist.sample()[option_in_use].squeeze(1)
+
                             #print('next_agent_act', next_agent_act.size(), 'next_action_idxs[j][ind]', next_action_idxs[j][ind])
                             next_action_idxs[j][ind] = next_agent_act
                             entropy += act_dist.entropy().mean()
@@ -221,7 +230,8 @@ class MADDPGAlgo(BaseAlgo):
                                 range(len(agent_act)), option_in_use]
 
 
-                            policy_loss += -(agent_act_log_probs * agent_advantage).mean()
+                            # policy_loss += -(agent_act_log_probs * agent_advantage).mean()
+                            policy_loss += (act_mlp * agent_advantage).mean()
 
 
                             agent_values = act_values[range(len(agent_act)), option_in_use]
@@ -231,7 +241,9 @@ class MADDPGAlgo(BaseAlgo):
                             all_next_embeddings_er[j][ind] = next_embedding
                             all_est_embeddings_er[j][ind] = agent_est_embedding
                             all_actions_er[j][ind] = agent_act
+                            # all_actions_er_mlp[j][ind] = agent_act_mlp
                             all_next_actions_er[j][ind] = next_agent_act
+                            # all_next_actions_er_mlp[j][ind] = next_act_mlp
                             all_broadcasts_er[j][ind] = agent_brd
                             all_rewards_er[j][ind] = agent_reward
                             all_agents_values_er[j][ind] = agent_values
@@ -386,7 +398,7 @@ class MADDPGAlgo(BaseAlgo):
 
                 update_actor_loss[j].backward(retain_graph=True)
                 for name, param in self.acmodel.actor[j].named_parameters():
-                    param.data *= 1.- self.tau
+                    param.data *= 1.-self.tau
                     param.data += old_update_actor_loss[name]
 
 
@@ -418,7 +430,7 @@ class MADDPGAlgo(BaseAlgo):
 
                     update_critic_loss[j].backward(retain_graph=True)
                     for name, param in self.acmodel.critic[j].named_parameters():
-                        param.data * 1. - self.tau
+                        param.data *= 1. - self.tau
                         param.data += old_update_critic_loss[name]
 
             for name, param in self.acmodel.named_parameters():
@@ -440,7 +452,11 @@ class MADDPGAlgo(BaseAlgo):
                                      for j in range(self.num_agents)]
 
             all_actions_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
+            all_actions_er_mlp = [torch.zeros((self.er_batch_size, self.num_actions[j]), device=self.device) \
+                                  for j in range(self.num_agents)]
             all_next_actions_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
+            all_next_actions_er_mlp = [torch.zeros((self.er_batch_size, self.num_actions[j]), device=self.device) \
+                                       for j in range(self.num_agents)]
             all_broadcasts_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
             all_next_broadcasts_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
             all_rewards_er = torch.zeros((self.num_agents, self.er_batch_size), device=self.device)
@@ -513,7 +529,9 @@ class MADDPGAlgo(BaseAlgo):
                             agent_obs = sbs[j].obs[k]
                             agent_obs.image = agent_obs.image.unsqueeze(0)
                             agent_act = sbs[j].action[k].unsqueeze(0)
+                            agent_act_mlp = sbs[j].action_mlp[k].unsqueeze(0)
                             action_idxs[j][ind] = agent_act
+                            all_actions_er_mlp[j][ind] = agent_act_mlp
                             agent_brd = sbs[j].broadcast[k].unsqueeze(0)
                             broadcast_idxs[j][ind] = agent_brd
                             agent_reward = sbs[j].reward_plus_broadcast_penalties[k].unsqueeze(0)
@@ -529,29 +547,29 @@ class MADDPGAlgo(BaseAlgo):
 
                             if self.acmodel.recurrent:
                                 if not self.acmodel.always_broadcast:
-                                    act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                    act_mlp, act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
                                         agent_obs, agent_memory * (1. * agent_done), agent_index=j)
-                                    next_act_dist, next_act_values, next_act_values_b, next_memory, _, next_broadcast_dist, next_embedding = self.acmodel.forward_agent_critic(
+                                    next_act_mlp, next_act_dist, next_act_values, next_act_values_b, next_memory, _, next_broadcast_dist, next_embedding = self.acmodel.forward_agent_critic(
                                         agent_next_obs, agent_memory * (1. * agent_done), agent_index=j)
                                 else:
-                                    act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(
+                                    act_mlp, act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(
                                         agent_obs,
                                         agent_memory * (1. * agent_done),
                                         agent_index=j)
-                                    next_act_dist, next_act_values, next_memory, _, next_embedding = self.acmodel.forward_agent_critic(
+                                    next_act_mlp, next_act_dist, next_act_values, next_memory, _, next_embedding = self.acmodel.forward_agent_critic(
                                         agent_next_obs,
                                         agent_memory * (1. * agent_done),
                                         agent_index=j)
                             else:
                                 if not self.acmodel.always_broadcast:
-                                    act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                    act_mlp, act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
                                         agent_obs, agent_memory * (1. * agent_done), agent_index=j)
-                                    next_act_dist, next_act_values, next_act_values_b, _, _, next_broadcast_dist, next_embedding = self.acmodel.forward_agent_critic(
+                                    next_act_mlp, next_act_dist, next_act_values, next_act_values_b, _, _, next_broadcast_dist, next_embedding = self.acmodel.forward_agent_critic(
                                         agent_next_obs, agent_memory * (1. * agent_done), agent_index=j)
                                 else:
-                                    act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(agent_obs,
+                                    act_mlp, act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(agent_obs,
                                                                                                               agent_index=j)
-                                    next_act_dist, next_act_values, _, _, next_embedding = self.acmodel.forward_agent_critic(
+                                    next_act_mlp, next_act_dist, next_act_values, _, _, next_embedding = self.acmodel.forward_agent_critic(
                                         agent_next_obs,
                                         agent_index=j)
 
@@ -564,7 +582,8 @@ class MADDPGAlgo(BaseAlgo):
                                 act_dist.log_prob(agent_act.view(-1, 1).repeat(1, self.num_options))[
                                     range(len(agent_act)), option_in_use]
 
-                            policy_loss += -(agent_act_log_probs * agent_advantage).mean()
+                            # policy_loss += -(agent_act_log_probs * agent_advantage).mean()
+                            policy_loss += (act_mlp * agent_advantage).mean()
 
                             agent_values = act_values[range(len(agent_act)), option_in_use]
                             agent_next_values = next_act_values[range(len(agent_act)), option_in_use]
@@ -574,6 +593,7 @@ class MADDPGAlgo(BaseAlgo):
                             all_est_embeddings_er[j][ind] = agent_est_embedding
                             all_actions_er[j][ind] = agent_act
                             all_next_actions_er[j][ind] = next_agent_act
+                            all_next_actions_er_mlp[j][ind] = next_act_mlp
                             all_broadcasts_er[j][ind] = agent_brd
                             all_rewards_er[j][ind] = agent_reward
                             all_agents_values_er[j][ind] = agent_values
