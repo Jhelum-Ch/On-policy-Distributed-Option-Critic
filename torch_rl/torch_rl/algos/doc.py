@@ -396,7 +396,9 @@ class DOCAlgo(BaseAlgo):
         logs["options"] = option_idxs
         logs["actions"] = action_idxs
 
-        #print('doc_log_retun', logs["return_per_episode_with_broadcast_penalties"])
+        #print('doc_ep_len', np.mean(logs["num_frames_per_episode"]), 'return', np.mean(logs["return_per_episode_with_broadcast_penalties"]))
+        # print("steps: {}, episodes: {}, mean episode reward: {}".format(
+        #     train_step, len(logs["return_per_episode_with_broadcast_penalties"]), np.mean(episode_rewards[-arglist.save_rate:])))
 
         return logs
 

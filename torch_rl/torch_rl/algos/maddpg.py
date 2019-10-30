@@ -796,6 +796,10 @@ class MADDPGAlgo(BaseAlgo):
             logs["actions"] = action_idxs
 
         #print('maddpg_log_retun', logs["return_per_episode_with_broadcast_penalties"])
+        # print('maddpg_ep_len', np.mean(logs["num_frames_per_episode"]), 'return',
+        #       np.mean(logs["return_per_episode_with_broadcast_penalties"]))
+        # print('maddpg_ep_len', np.mean(logs["num_frames_per_episode"]), 'return',
+        #       np.mean(logs["return_per_episode_with_broadcast_penalties"]))
 
         return logs
 

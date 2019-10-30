@@ -5,15 +5,15 @@ VARIATIONS = [
     ('seed', [1, 22, 124]),
     # TEAMGRID
     # Algorithmic params
-    ('algo', ['maddpg']),#['doc', 'a2c', 'ppo', 'oc', 'maddpg']),
+    ('algo', ['doc']),#['doc', 'a2c', 'ppo', 'oc', 'maddpg']),
     #('batch_size', [1, 16, 32, 64, 128, 256, 1024]),
-    #('broadcast_penalty', [-0.01, -0.05, -0.1, 0.0]),
-    ('lr', [7e-5, 7e-4, 7e-3, 1e-2]),
+    ('broadcast_penalty', [-0.01, 0.0]),
+    ('lr', [5e-2]),
     ('entropy_coef', [0., 0.005, 0.01]),
-    ('num_options', [1]),
-    ('use_teamgrid',[True]),
+    ('num_options', [3]),
+    ('use_teamgrid',[False]),
     ('use_central_critic',[True]),
-    ('use_always_broadcast',[True]),
+    ('use_always_broadcast',[False]),
     #('value_loss_coef', [2.]),
     ('max_grad_norm', [0.5,0.1,0.05]),
     #('gae_lambda', [0.95]),
@@ -28,8 +28,8 @@ VARIATIONS = [
     #('log_interval', [1]),
     #('save_interval', [10]),
     # World params and Env params
-    ('env', ['TEAMGrid-FourRooms-v0']),
-    #('scenario', ['simple_speaker_listener'])
+    #('env', ['TEAMGrid-Switch-v0']),
+    ('scenario', ['simple_speaker_listener'])
 ]
 
 # Simple security check to make sure every specified parameter is defined only once

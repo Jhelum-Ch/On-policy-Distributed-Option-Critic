@@ -810,7 +810,9 @@ class BaseAlgo(ABC):
                 if not self.acmodel.use_teamgrid:
                     done = [all(item) for item in done]
                     #print('done', done, 'terminal', terminal)
-                    done = not done or terminal
+                # done = not done or terminal
+                done = [item1 or item2 for (item1, item2) in zip(done, terminal)]
+                #print('done1', done, )
                     #print('i',i,'done_t', done)
 
                 self.rollout_obss[i] = self.current_obss
@@ -839,9 +841,9 @@ class BaseAlgo(ABC):
                         b = torch.tensor(agents_broadcast[j].unsqueeze(1).float()*self.broadcast_penalty, device=self.device)
 
                         if self.acmodel.use_teamgrid:
-                            self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a,b.squeeze().long()) # TODO: uncomment this when use_teamgrid is True
+                            self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a,b.squeeze().long())
                         else:
-                            self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a, b.squeeze()) # TODO: uncomment this when use_teamgrid is False
+                            self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a, b.squeeze())
 
 
                     if self.acmodel.use_term_fn:

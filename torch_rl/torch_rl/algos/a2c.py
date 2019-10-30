@@ -2,6 +2,7 @@ import numpy
 import torch
 import torch.nn.functional as F
 
+
 from torch_rl.algos.base import BaseAlgo
 
 class A2CAlgo(BaseAlgo):
@@ -283,6 +284,8 @@ class A2CAlgo(BaseAlgo):
             logs["actions"] = action_idxs
 
         #print('a2c_log_retun', logs["return_per_episode_with_broadcast_penalties"])
+        # print('a2c_ep_len', numpy.mean(logs["num_frames_per_episode"]), 'return',
+        #       numpy.mean(logs["return_per_episode_with_broadcast_penalties"]))
 
         return logs
 

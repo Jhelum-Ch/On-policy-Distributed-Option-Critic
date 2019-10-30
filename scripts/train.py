@@ -144,9 +144,9 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='maddpg', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
+    parser.add_argument("--algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
+    parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -220,9 +220,9 @@ def get_training_args(overwritten_args=None):
                         help="number of goals the agents need to discover")
 
     # arguments to replace flag
-    parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
+    parser.add_argument("--use_teamgrid", type=parse_bool, default=False)
     parser.add_argument("--use_central_critic", type=parse_bool, default=True)
-    parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
+    parser.add_argument("--use_always_broadcast", type=parse_bool, default=False)
 
     # Multiagent Particle Env
     parser.add_argument("--scenario", type=str, default="simple_speaker_listener", help="name of the scenario script")
@@ -230,7 +230,7 @@ def get_training_args(overwritten_args=None):
 
     #MADDPG
     parser.add_argument("--local_q_func", default=False)
-    parser.add_argument("--tau", type=float, default=0.01)
+    parser.add_argument("--tau", type=float, default=0.05)
     parser.add_argument("--er_batch_size", type=int, default=1024,
                         help="experience replay sampling batch size for MADDPG (default: 1)")
     parser.add_argument("--replay_buffer", type=parse_bool, default=True)
