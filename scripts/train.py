@@ -173,7 +173,7 @@ def get_training_args(overwritten_args=None):
                         help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
     parser.add_argument("--discount", type=float, default=0.99,
                         help="discount factor (default: 0.99)")
-    parser.add_argument("--lr", type=float, default=7e-5,
+    parser.add_argument("--lr", type=float, default=1e-2,
                         help="learning rate for optimizers (default: 7e-4)")
     parser.add_argument("--gae_lambda", type=float, default=0.95,
                         help="lambda coefficient in GAE formula (default: 0.95, 1 means no gae)")
@@ -222,7 +222,7 @@ def get_training_args(overwritten_args=None):
     # arguments to replace flag
     parser.add_argument("--use_teamgrid", type=parse_bool, default=False)
     parser.add_argument("--use_central_critic", type=parse_bool, default=True)
-    parser.add_argument("--use_always_broadcast", type=parse_bool, default=False)
+    parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
 
     # Multiagent Particle Env
     parser.add_argument("--scenario", type=str, default="simple_speaker_listener", help="name of the scenario script")
@@ -565,60 +565,107 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
             # Saving graphs
 
-            # Losses
-            value_losses = np.array(graph_data["value_loss"])
-            value_losses = value_losses.T if len(value_losses.shape) > 1 else value_losses[np.newaxis, :]
-            fig, axes = create_fig((2,2))
-            plot_curve(axes[0,0], [graph_data["num_frames"]], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
-            plot_curve(axes[0,1], [graph_data["num_frames"]], value_losses, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
-            plot_curve(axes[1,0], [graph_data["num_frames"]], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min = 0.0) for j in range(config.num_agents)], xlabel="frames", title="Entropy")
-            # plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
-            fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
-            plt.close(fig)
+            if USE_TEAMGRID:
+                # Losses
+                value_losses = np.array(graph_data["value_loss"])
+                value_losses = value_losses.T if len(value_losses.shape) > 1 else value_losses[np.newaxis, :]
+                fig, axes = create_fig((2,2))
+                plot_curve(axes[0,0], [graph_data["num_frames"]], np.array(graph_data["policy_loss"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Policy Loss")
+                plot_curve(axes[0,1], [graph_data["num_frames"]], value_losses, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Value Loss")
+                plot_curve(axes[1,0], [graph_data["num_frames"]], np.array(graph_data["entropy"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Entropy")
+                # plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
+                fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
+                plt.close(fig)
 
-            #print('log_return', np.array(graph_data["return_with_broadcast_penalties_mean"]).T)
+                #print('log_return', np.array(graph_data["return_with_broadcast_penalties_mean"]).T)
 
-            # Return
-            fig, ax = create_fig((1, 1))
-            plot_curve(ax, [graph_data["num_frames"]],
-                       np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
-                       stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
-                       colors=[np.clip(envs[0].agents[j].color, a_max = 1.0, a_min = 0.0) for j in range(config.num_agents)],
-                       labels=[f"agent {i}" for i in range(config.num_agents)],
-                       xlabel="frames", title="Average Return")
-            fig.savefig(str(dir_manager.seed_dir / 'return.png'))
-            plt.close(fig)
+                # Return
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
+                           stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
+                           colors=[envs[0].agents[j].color for j in range(config.num_agents)],
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           xlabel="frames", title="Average Return")
+                fig.savefig(str(dir_manager.seed_dir / 'return.png'))
+                plt.close(fig)
 
-            # # Return
-            # fig, ax = create_fig((1, 1))
-            # plot_curve(ax, [graph_data["num_frames"]],
-            #            np.array(graph_data["return_mean"]).T,
-            #            stds=np.array(graph_data["return_std"]).T,
-            #            colors=[envs[0].agents[j].color for j in range(config.num_agents)],
-            #            labels=[f"agent {i}" for i in range(config.num_agents)],
-            #            xlabel="frames", title="Average Return")
-            # fig.savefig(str(dir_manager.seed_dir / 'return.png'))
-            # plt.close(fig)
 
-            # mean Return from agents
-            fig, ax = create_fig((1, 1))
-            plot_curve(ax, [graph_data["num_frames"]],
-                       np.array(graph_data["mean_agent_return_with_broadcast_penalties_mean"]).T,
-                       stds=np.array(graph_data["mean_agent_return_with_broadcast_penalties_std"]).T,
-                       xlabel="frames", title="Average Return")
-            fig.savefig(str(dir_manager.seed_dir / 'mean_return_from_agents.png'))
-            plt.close(fig)
+                # mean Return from agents
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["mean_agent_return_with_broadcast_penalties_mean"]).T,
+                           stds=np.array(graph_data["mean_agent_return_with_broadcast_penalties_std"]).T,
+                           xlabel="frames", title="Average Return")
+                fig.savefig(str(dir_manager.seed_dir / 'mean_return_from_agents.png'))
+                plt.close(fig)
 
-            # Episode length
-            fig, ax = create_fig((1, 1))
-            plot_curve(ax, [graph_data["num_frames"]],
-                       np.array(graph_data["episode_length_mean"]).T,
-                       stds=np.array(graph_data["episode_length_std"]).T,
-                       colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in range(config.num_agents)],
-                       labels=[f"agent {i}" for i in range(config.num_agents)],
-                       xlabel="frames", title="Average Episode Length")
-            fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
-            plt.close(fig)
+                # Episode length
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["episode_length_mean"]).T,
+                           stds=np.array(graph_data["episode_length_std"]).T,
+                           colors=[envs[0].agents[j].color for j in range(config.num_agents)],
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           xlabel="frames", title="Average Episode Length")
+                fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
+                plt.close(fig)
+            else:
+                # Losses
+                value_losses = np.array(graph_data["value_loss"])
+                value_losses = value_losses.T if len(value_losses.shape) > 1 else value_losses[np.newaxis, :]
+                fig, axes = create_fig((2, 2))
+                plot_curve(axes[0, 0], [graph_data["num_frames"]], np.array(graph_data["policy_loss"]).T,
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in
+                                   range(config.num_agents)], xlabel="frames", title="Policy Loss")
+                plot_curve(axes[0, 1], [graph_data["num_frames"]], value_losses,
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in
+                                   range(config.num_agents)], xlabel="frames", title="Value Loss")
+                plot_curve(axes[1, 0], [graph_data["num_frames"]], np.array(graph_data["entropy"]).T,
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in
+                                   range(config.num_agents)], xlabel="frames", title="Entropy")
+                # plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
+                fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
+                plt.close(fig)
+
+                # print('log_return', np.array(graph_data["return_with_broadcast_penalties_mean"]).T)
+
+                # Return
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
+                           stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
+                           colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in
+                                   range(config.num_agents)],
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           xlabel="frames", title="Average Return")
+                fig.savefig(str(dir_manager.seed_dir / 'return.png'))
+                plt.close(fig)
+
+                # mean Return from agents
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["mean_agent_return_with_broadcast_penalties_mean"]).T,
+                           stds=np.array(graph_data["mean_agent_return_with_broadcast_penalties_std"]).T,
+                           xlabel="frames", title="Average Return")
+                fig.savefig(str(dir_manager.seed_dir / 'mean_return_from_agents.png'))
+                plt.close(fig)
+
+                # Episode length
+                fig, ax = create_fig((1, 1))
+                plot_curve(ax, [graph_data["num_frames"]],
+                           np.array(graph_data["episode_length_mean"]).T,
+                           stds=np.array(graph_data["episode_length_std"]).T,
+                           colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in
+                                   range(config.num_agents)],
+                           labels=[f"agent {i}" for i in range(config.num_agents)],
+                           xlabel="frames", title="Average Episode Length")
+                fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
+                plt.close(fig)
+
 
 if __name__ == "__main__":
     config = get_training_args()
