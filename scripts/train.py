@@ -53,6 +53,7 @@ import utils
 from utils import parse_bool
 from model import ACModel
 
+
 # Parse arguments
 
 # def get_training_args(overwritten_args=None):
@@ -144,9 +145,9 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
+    parser.add_argument("--algo", default='ppo', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
+    parser.add_argument("--env", default='TEAMGrid-SwitchRSwitch-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -169,7 +170,7 @@ def get_training_args(overwritten_args=None):
                         help="log into Tensorboard")
 
 
-    parser.add_argument("--frames_per_proc", type=int, default=30,
+    parser.add_argument("--frames_per_proc", type=int, default=50,
                         help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
     parser.add_argument("--discount", type=float, default=0.99,
                         help="discount factor (default: 0.99)")
@@ -177,7 +178,7 @@ def get_training_args(overwritten_args=None):
                         help="learning rate for optimizers (default: 7e-4)")
     parser.add_argument("--gae_lambda", type=float, default=0.95,
                         help="lambda coefficient in GAE formula (default: 0.95, 1 means no gae)")
-    parser.add_argument("--entropy_coef", type=float, default=0.02,
+    parser.add_argument("--entropy_coef", type=float, default=0.01,
                         help="entropy term coefficient (default: 0.01)")
     parser.add_argument("--value_loss_coef", type=float, default=0.5,
                         help="value loss term coefficient (default: 0.5)")
@@ -205,7 +206,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--broadcast_penalty", type=float, default=-0.01,
                         help="broadcast penalty (default: -0.01, 0. implies no penalty)")
     # Option-Critic configs
-    parser.add_argument("--num_options", type=int, default=3,
+    parser.add_argument("--num_options", type=int, default=4,
                         help="number of options (default: 1, 1 means no options)")
     parser.add_argument("--termination_loss_coef", type=float, default=0.5,
                         help="termination loss term coefficient (default: 0.5)")
@@ -215,13 +216,18 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--num_agents", type=int, default=2,
                         help="number of trainable agents interacting with the teamgrid environment")
     parser.add_argument("--shared_rewards", type=parse_bool, default=True,
-                        help="whether the reward is individual or shared as the sum of all rewards among agents")
+                         help="whether the reward is individual or shared as the sum of all rewards among agents")
+    # parser.add_argument("--reward_switch", type=parse_bool, default=True,
+    #                     help="whether there is reward for turning on light switch in switch env")
+    # parser.add_argument("--reward_all", type=parse_bool, default=False,
+    #                     help="whether there is reward for turning on light switch in switch env")
+
     parser.add_argument("--num_goals", type=int, default=3,
                         help="number of goals the agents need to discover")
-
     # arguments to replace flag
-    parser.add_argument("--use_teamgrid", type=parse_bool, default=False)
-    parser.add_argument("--use_central_critic", type=parse_bool, default=True)
+    parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
+    parser.add_argument("--use_switch", type=parse_bool, default=True) # True/False if --use_teamgrid is True
+    parser.add_argument("--use_central_critic", type=parse_bool, default=False)
     parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
 
     # Multiagent Particle Env
@@ -246,8 +252,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     USE_CENTRAL_CRITIC = config.use_central_critic
     #print('cc', USE_CENTRAL_CRITIC)
     USE_ALWAYS_BROADCAST = config.use_always_broadcast
-
-
 
     config.mem_agents = config.recurrence > 1
     config.mem_coord = config.recurrence > 1
@@ -308,7 +312,13 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     envs = []
     for i in range(config.procs):
         if USE_TEAMGRID:
-            env = gym.make(config.env, num_agents=config.num_agents, shared_rewards=config.shared_rewards)
+            if config.use_switch:
+                #print('config.env', config.env, 'num_agents', config.num_agents)
+                #env = gym.make(config.env, num_agents=config.num_agents, num_goals=config.num_goals, shared_rewards=config.shared_rewards)
+                env = gym.make(config.env)
+            else: #4rooms
+                env = gym.make(config.env, num_agents=config.num_agents, num_goals=config.num_goals,
+                               shared_rewards=config.shared_rewards)
         else:
             #print('scenario', config.scenario)
             env = make_env(scenario_name=config.scenario, benchmark=config.benchmark)
