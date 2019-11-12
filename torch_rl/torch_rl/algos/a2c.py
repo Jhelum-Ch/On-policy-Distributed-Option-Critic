@@ -128,8 +128,8 @@ class A2CAlgo(BaseAlgo):
                     agent_act_log_probs = act_dist.log_prob(sbs[j].action.view(-1, 1).repeat(1, self.num_options))[range(sbs[j].action.shape[0]), sbs[j].current_options]
                     agent_values = act_values[range(sbs[j].action.shape[0]), sbs[j].current_options]
 
-                    policy_loss = -(agent_act_log_probs * sbs[j].advantage).mean()
-                    #policy_loss = (act_mlp.view(-1, 1, 1)[sbs[j].action.long()].squeeze() * sbs[j].advantage).mean() #a2c-mlp
+                    #policy_loss = -(agent_act_log_probs * sbs[j].advantage).mean()
+                    policy_loss = (act_mlp.view(-1, 1, 1)[sbs[j].action.long()].squeeze() * sbs[j].advantage).mean() #a2c-mlp
 
                     if not self.acmodel.always_broadcast:
                         broadcast_entropy = broadcast_dist.entropy().mean()

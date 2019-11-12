@@ -26,6 +26,7 @@ class DOCAlgo(BaseAlgo):
                  termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None, always_broadcast = False, broadcast_penalty=-0.01):
 
         num_frames_per_proc = num_frames_per_proc or 8
+        #print('num', num_frames_per_proc)
         #num_frames_per_proc = 50
 
         # super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
@@ -42,8 +43,14 @@ class DOCAlgo(BaseAlgo):
         # print('a', a)
         #print('Len_a', len(a))
 
-        self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
+        self.rmsprop_alpha = rmsprop_alpha
+        self.rmsprop_eps = rmsprop_eps
+        self.lr = lr
+
+        self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), self.lr,
                                              alpha=rmsprop_alpha, eps=rmsprop_eps)
+        # self.optimizer_critic = torch.optim.RMSprop(self.acmodel.parameters(), self.lr,
+        #                                      alpha=rmsprop_alpha, eps=rmsprop_eps)
 
     def update_parameters(self):
 
@@ -337,11 +344,20 @@ class DOCAlgo(BaseAlgo):
         # Re-initialize gradient buffers
 
         self.optimizer.zero_grad()
+        #self.optimizer_critic.zero_grad()
 
         # Actors back propagation
 
         for j in range(self.num_agents):
-
+            if not self.acmodel.use_teamgrid:
+                # reduce lr for agent 1 (movable)
+                #print('j', j, 'self.lr', self.lr)
+                if j != 0:
+                    lr = 0.1*self.lr
+                    self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
+                                                         alpha=self.rmsprop_alpha, eps=self.rmsprop_eps)
+                    self.optimizer.zero_grad()
+                    #print('j', j, 'self.lr', self.lr, 'lr', lr)
             update_entropy[j] /= self.recurrence #recurrence_agents
 
             update_policy_loss[j] /= self.recurrence
@@ -395,6 +411,7 @@ class DOCAlgo(BaseAlgo):
         logs["grad_norm"] = update_grad_norm
         logs["options"] = option_idxs
         logs["actions"] = action_idxs
+
 
         #print('doc_ep_len', np.mean(logs["num_frames_per_episode"]), 'return', np.mean(logs["return_per_episode_with_broadcast_penalties"]))
         # print("steps: {}, episodes: {}, mean episode reward: {}".format(

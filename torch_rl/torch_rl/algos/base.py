@@ -803,16 +803,17 @@ class BaseAlgo(ABC):
 
                 #self.env_step += 1
                 #print('i', i, 'self.env_step', self.env_step)
+                #print('num_frames',self.acmodel.frames_per_proc)
                 terminal = [(i >= self.acmodel.frames_per_proc) for _ in range(self.shape[1])]
 
 
 
                 if not self.acmodel.use_teamgrid:
                     done = [all(item) for item in done]
-                    #print('done', done, 'terminal', terminal)
+                #print('done', done, 'terminal', terminal)
                 # done = not done or terminal
-                done = [item1 or item2 for (item1, item2) in zip(done, terminal)]
-                #print('done1', done, )
+                #done = [item1 or item2 for (item1, item2) in zip(done, terminal)]
+               # print('done1', done, )
                     #print('i',i,'done_t', done)
 
                 self.rollout_obss[i] = self.current_obss
