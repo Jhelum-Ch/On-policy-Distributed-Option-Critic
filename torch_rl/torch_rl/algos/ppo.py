@@ -7,7 +7,6 @@ from torch_rl.algos.base import BaseAlgo
 class PPOAlgo(BaseAlgo):
     """The class for the Proximal Policy Optimization algorithm
     ([Schulman et al., 2015](https://arxiv.org/abs/1707.06347))."""
-    print('test')
 
 
     def __init__(self, num_agents=None, envs=None, acmodel=None, replay_buffer=None, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,

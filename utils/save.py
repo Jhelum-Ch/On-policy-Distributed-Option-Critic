@@ -30,6 +30,7 @@ def save_graph_data(graph_data, save_dir):
 
 def load_graph_data(save_dir):
     path = get_graph_data_path(save_dir)
+    #print('path', path)
     with open(path, 'rb') as f:
         graph_data = pickle.load(f)
     return graph_data

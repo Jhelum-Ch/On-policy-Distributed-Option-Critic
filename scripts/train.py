@@ -147,7 +147,7 @@ def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='TEAMGrid-SwitchAllAll-v0', #required=True,
+    parser.add_argument("--env", default='TEAMGrid-SwitchOneOne-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -321,14 +321,13 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 #env.render()
         else:
             #print('scenario', config.scenario)
-            env = make_env(scenario_name=config.scenario, benchmark=config.benchmark)
+            env = make_env(scenario_name=config.scenario, benchmark=config.benchmark, shared_rewards=config.shared_rewards)
             #config.env = make_env('simple_speaker_listener')  # choose any scenario
             #env = config.env #gym.make(config.env)
         env.seed(config.seed + 10000 * i)
         envs.append(env)
 
 
-    print('shared', config.shared_rewards)
     # Define obss preprocessor
 
     # if USE_TEAMGRID:

@@ -25,7 +25,7 @@ def get_prepare_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--desc', type=str, required=True)
     parser.add_argument('--search_type', type=str, default='grid', choices=['grid', 'random'])
-    parser.add_argument('--n_experiments', type=int, default=15)
+    parser.add_argument('--n_experiments', type=int, default=1)
     return parser.parse_args()
 
 

@@ -1,26 +1,48 @@
-#!/usr/bin/env python3
-USE_TEAMGRID = True
+# #!/usr/bin/env python3
+# USE_TEAMGRID = True
+#
+# import argparse
+# import gym
+# import time
+# from utils.config import parse_bool
+# import imageio
+#
+# import matplotlib.pyplot as plt
+#
+# if USE_TEAMGRID:
+#     import teamgrid
+# else:
+#     # import gym_minigrid
+#     import multiagent
+#     from make_env import make_env
+#     from multiagent.environment import MultiAgentEnv
+#     import multiagent.scenarios as scenarios
+#
+#
+# import utils
+#
 
+import pdb
 import argparse
 import gym
 import time
-from utils.config import parse_bool
-import imageio
-
-import matplotlib.pyplot as plt
-
-if USE_TEAMGRID:
-    import teamgrid
-else:
-    # import gym_minigrid
-    import multiagent
-    from make_env import make_env
-    from multiagent.environment import MultiAgentEnv
-    import multiagent.scenarios as scenarios
-
+import logging
+import torch
+import torch_rl
+import sys
+import os
+from pathlib import Path
+from tqdm import tqdm
+from utils.plots import *
+import numpy as np
+from utils.general import round_to_two
+import teamgrid
+import multiagent
+from make_env import make_env
 
 import utils
-
+from utils import parse_bool
+from model import ACModel
 # Parse arguments
 
 parser = argparse.ArgumentParser()
@@ -36,16 +58,21 @@ parser.add_argument("--env", default=None,
                     help="name of the environment to be run"
                          "if None, env will be taken from saved config.json"
                          "which is the env on which the model was trained")
-parser.add_argument("--num_episodes", type=int, default=5,
+parser.add_argument("--num_episodes", type=int, default=30,
                     help="number of episodes to show")
 parser.add_argument("--shift", type=int, default=0,
                     help="number of times the environment is reset at the beginning (default: 0)")
 parser.add_argument("--argmax", action="store_true", default=False,
                     help="select the action with highest probability")
-parser.add_argument("--fps", default=10, type=int,
+parser.add_argument("--fps", default=1, type=int,
                     help="speed at which frames are displayed")
 parser.add_argument("--save_gifs", type=parse_bool, default=False,
                         help="Saves gif of each episode into model directory")
+
+# arguments to replace flag
+parser.add_argument("--use_teamgrid", type=parse_bool, default=False)
+parser.add_argument("--use_central_critic", type=parse_bool, default=True)
+parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
 args = parser.parse_args()
 
 # Set seed for all randomness sources
@@ -65,10 +92,10 @@ if args.env is None:
 
 
 #envs =[]
-if USE_TEAMGRID:
+if args.use_teamgrid:
     env = gym.make(args.env, num_agents=train_config.num_agents)
 else:
-    env = make_env(train_config.scenario, train_config, train_config.benchmark)
+    env = make_env(train_config.scenario, train_config.benchmark)
 env.seed(args.seed)
 #envs.append(env)
 
