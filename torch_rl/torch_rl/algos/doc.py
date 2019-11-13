@@ -411,6 +411,7 @@ class DOCAlgo(BaseAlgo):
         logs["grad_norm"] = update_grad_norm
         logs["options"] = option_idxs
         logs["actions"] = action_idxs
+        logs["broadcasts"] = broadcast_idxs
 
 
         #print('doc_ep_len', np.mean(logs["num_frames_per_episode"]), 'return', np.mean(logs["return_per_episode_with_broadcast_penalties"]))

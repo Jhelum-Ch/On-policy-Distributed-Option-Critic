@@ -147,7 +147,7 @@ def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='TEAMGrid-SwitchOneOne-v0', #required=True,
+    parser.add_argument("--env", default='TEAMGrid-DualSwitch-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -227,7 +227,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
     parser.add_argument("--use_switch", type=parse_bool, default=True) # True/False if --use_teamgrid is True
     parser.add_argument("--use_central_critic", type=parse_bool, default=True)
-    parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
+    parser.add_argument("--use_always_broadcast", type=parse_bool, default=False)
 
     # Multiagent Particle Env
     parser.add_argument("--scenario", type=str, default="simple_speaker_listener", help="name of the scenario script")
@@ -497,7 +497,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         "value_loss": [],
         "grad_norm": [],
         "options": [],
-        "actions": []
+        "actions": [],
+        "broadcasts": []
     }
    # graph_data["agent_colors"] = [envs[0].agents[j].color for j in range(config.num_agents)]
 
@@ -530,6 +531,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             num_frames_per_episode = utils.synthesize(logs["num_frames_per_episode"])
             options = logs["options"]
             actions = logs["actions"]
+            broadcasts = logs["broadcasts"]
 
             status = {"num_frames": num_frames, "update": update}
 
@@ -554,6 +556,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             graph_data["grad_norm"].append(logs["grad_norm"])
             graph_data["options"].append(options)
             graph_data["actions"].append(actions)
+            graph_data["broadcasts"].append(broadcasts)
+            #print('graph_data', graph_data["broadcasts"])
 
             utils.save_graph_data(graph_data, save_dir=dir_manager.seed_dir)
 
