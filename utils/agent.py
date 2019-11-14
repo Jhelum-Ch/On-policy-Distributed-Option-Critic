@@ -22,11 +22,15 @@ class Agent:
 
         if self.acmodel.recurrent:
             #print(self.acmodel.memory_size)
-            if isinstance(self.acmodel.memory_size, int):
-                self.memories = torch.zeros(self.num_envs, self.acmodel.memory_size)
-            elif isinstance(self.acmodel.memory_size, list):
-                self.memories = [torch.zeros(self.num_envs, self.acmodel.memory_size[j]) for j in range(self.num_agents)]
+            # if isinstance(self.acmodel.memory_size, int):
+            #     self.memories = torch.zeros(self.num_envs, self.acmodel.memory_size)
+            #     self.memories = self.memories.unsqueeze(0)
+            # elif isinstance(self.acmodel.memory_size, list):
+            #     self.memories = [torch.zeros(self.num_envs, self.acmodel.memory_size[j]) for j in range(self.num_agents)]
+            #     self.memories = self.memories.unsqueeze(0)
 
+            self.memories = [torch.zeros(self.num_envs, self.acmodel.memory_size) for _ in range(self.num_agents)]
+            #self.memories = self.memories.unsqueeze(0)
     def get_actions(self, obss):
 
         actions = []
@@ -41,10 +45,11 @@ class Agent:
 
             with torch.no_grad():
                 #act_dist, values, memory, term_dist, _ = self.acmodel(preprocessed_obss, self.memories)
+                #if self.acmodel.use_teamgrid:
                 if self.num_options is not None:
                     if not self.acmodel.always_broadcast:
                         act_mlp, act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = \
-                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories)
+                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories[j],j)
 
                         #agents_values_b.append(values_b)
                         #agents_broadcast_dist.append(broadcast_dist)
@@ -53,7 +58,7 @@ class Agent:
                         act_mlp, act_dist, values, memory, term_dist, embedding = \
                             self.acmodel.forward_agent_critic(preprocessed_obss, self.memories[j],j)
                 else:
-                    if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
+                    if not self.acmodel.always_broadcast:
                         act_mlp, act_dist, values, values_b, memory, broadcast_dist, embedding = \
                             self.acmodel.forward_agent_critic(preprocessed_obss, self.memories[j],j)
                         #agents_values_b.append(values_b)
@@ -72,17 +77,13 @@ class Agent:
 
                 if terminate:
                     self.current_options = int(torch.argmax(torch.sum(act_dist.probs * values, dim=-1), dim=-1))
-                #print('co', self.current_options)
 
             # action selection
 
             if self.argmax:
                 action = act_dist.probs.argmax(dim=-1, keepdim=True)
             else:
-                #action = act_dist.sample()
-                #print('act', act_mlp, 'self.current_options', self.current_options)
-                action = act_mlp[:, self.current_options].squeeze()
-                #print('action', action)
+                action = act_dist.sample().squeeze()[self.current_options]
 
             #action = action[:, self.current_options].squeeze() #use self.current_options[j] if using DOC/OC
 

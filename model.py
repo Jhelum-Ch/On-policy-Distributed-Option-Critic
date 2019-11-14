@@ -809,6 +809,7 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
         if self.use_memory_agents:
             if self.use_teamgrid:
+                #agent_memory
                 hidden = (agent_memory[:, :self.semi_memory_size], agent_memory[:, self.semi_memory_size:])
                 hidden = self.agent_memory_rnn(x, hidden)
                 embedding = hidden[0]

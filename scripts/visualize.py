@@ -70,9 +70,11 @@ parser.add_argument("--save_gifs", type=parse_bool, default=False,
                         help="Saves gif of each episode into model directory")
 
 # arguments to replace flag
-parser.add_argument("--use_teamgrid", type=parse_bool, default=False)
+parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
+parser.add_argument("--use_switch", type=parse_bool, default=True)
 parser.add_argument("--use_central_critic", type=parse_bool, default=True)
 parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
+parser.add_argument("--shared_rewards", type=parse_bool, default=True)
 args = parser.parse_args()
 
 # Set seed for all randomness sources
@@ -93,7 +95,7 @@ if args.env is None:
 
 #envs =[]
 if args.use_teamgrid:
-    env = gym.make(args.env, num_agents=train_config.num_agents)
+    env = gym.make(args.env, shared_rewards=args.shared_rewards)
 else:
     env = make_env(train_config.scenario, train_config.benchmark)
 env.seed(args.seed)
@@ -144,6 +146,7 @@ while True:
     # action selection
 
     actions = agent.get_action(obss)
+    print('actions', actions)
 
     # environment step
 
