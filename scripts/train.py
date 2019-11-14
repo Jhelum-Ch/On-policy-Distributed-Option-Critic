@@ -201,7 +201,10 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     envs = []
     for i in range(config.procs):
         if USE_TEAMGRID:
-            env = gym.make(config.env, num_agents=config.num_agents, shared_rewards=config.shared_rewards)
+            if config.env == "TEAMGrid-DualSwitch-v0":
+                env = gym.make(config.env, shared_rewards=config.shared_rewards)
+            else:
+                env = gym.make(config.env, num_agents=config.num_agents, shared_rewards=config.shared_rewards)
         else:
             env = make_env(config.scenario, config, config.benchmark)
             #config.env = make_env('simple_speaker_listener')  # choose any scenario
@@ -417,6 +420,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             fps = logs["num_frames"][0]/(update_end_time - update_start_time)
 
             duration = int(time.time() - total_start_time)
+
             return_per_episode = utils.synthesize(logs["return_per_episode"])
             return_per_episode_with_broadcast_penalties = utils.synthesize(logs["return_per_episode_with_broadcast_penalties"])
             mean_agent_return_per_episode_with_broadcast_penalties = utils.synthesize(logs["mean_agent_return_with_broadcast_penalties"])

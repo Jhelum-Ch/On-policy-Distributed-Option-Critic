@@ -6,6 +6,7 @@ import gym
 import time
 import torch
 from torch_rl.utils.penv import ParallelEnv
+import pdb
 
 if USE_TEAMGRID:
     import teamgrid
@@ -54,6 +55,7 @@ train_config = utils.load_config_from_json(filename=dir_manager.seed_dir / "conf
 if args.env is None:
     args.env = train_config.env
 
+pdb.set_trace()
 envs = []
 for i in range(args.procs):
     env = gym.make(args.env, num_agents=train_config.num_agents)

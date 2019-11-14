@@ -39,23 +39,23 @@ class Agent:
                 if self.num_options is not None:
                     if not self.acmodel.always_broadcast:
                         act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = \
-                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories)
+                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories, j)
 
                         #agents_values_b.append(values_b)
                         #agents_broadcast_dist.append(broadcast_dist)
 
                     else:
                         act_dist, values, memory, term_dist, embedding = \
-                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories)
+                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories, j)
                 else:
                     if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
                         act_dist, values, values_b, memory, broadcast_dist, embedding = \
-                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories)
+                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories, j)
                         #agents_values_b.append(values_b)
                         #agents_broadcast_dist.append(broadcast_dist)
                     else:
                         act_dist, values, memory, embedding = \
-                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories)
+                            self.acmodel.forward_agent_critic(preprocessed_obss, self.memories, j)
 
 
 

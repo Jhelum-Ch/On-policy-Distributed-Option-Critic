@@ -7,6 +7,7 @@ import os
 import sys
 import utils
 from utils.plots import *
+import pdb
 
 
 def get_plotting_args(overwritten_args=None):
@@ -24,7 +25,7 @@ def get_plotting_args(overwritten_args=None):
 
 def check_experiment_length(xs):
     '''
-    Function to check if the x-axis of all of the experiments are of the same length
+    Function to check if the x-axis of all of the simulation wrt seeds within an experiment are of the same length
 
     :param xs: list of list, where each sublist is the x-axis of that experiment
     :return: False if they don't match. If they do match just return the common x-axis for all of the experiments (assuming same length means they have same elements)
@@ -56,6 +57,11 @@ def match_length(ys, std_results, xs):
         if min_length > len(xs[i]):
             min_length = len(xs[i])
             min_index = i
+
+    several_min=[min_index]
+    for i in range(len(xs)):
+        if min_length == len(xs[i]) and i != min_index:
+            several_min.append(i)
 
     # Loop through all others, and remove extra elements
     for indx, x in enumerate(xs):
@@ -89,21 +95,56 @@ def match_length(ys, std_results, xs):
             std_results[indx] = np.delete(std_results[indx], y_indx_to_remove)
             std_results[indx] = np.reshape(std_results[indx], (std_results[indx].shape[0], 1))
 
-    # at the end make sure x[min] isn't too big, delete all the ones that were never met.
-    if counter < len(xs[min_index]):
-        # pdb.set_trace()
-        extras = []
-        y_extras = []
-        for i in range(counter, len(xs[min_index])):
-            extras.append(xs[min_index][i])
-            y_extras.append(i)
+    # We now need to fix the length of the smallest originonally (i.e. min_index)
 
-        xs[min_index] = [w for w in xs[min_index] if w not in extras]
-        ys[min_index] = np.delete(ys[min_index], y_extras)
-        ys[min_index] = np.reshape(ys[min_index], (ys[min_index].shape[0], 1))
+    # Check if there are different length
+    lengths = [len(x) for x in xs]
+    if not (lengths.count(lengths[0]) == len(lengths) ):
+        # get the unique values of the difference in length.
+        unique_lengths = np.unique(lengths)
 
-        std_results[min_index] = np.delete(std_results[min_index], y_extras)
-        std_results[min_index] = np.reshape(std_results[min_index], (std_results[min_index].shape[0], 1))
+        if unique_lengths.size != 2:
+            print("Something is wrong with the lengths of the strings, there should be only two unique lengths")
+            sys.exit(0)
+
+        diff = np.abs(unique_lengths[1] - unique_lengths[0])
+
+        # within all the mins
+        for index in several_min:
+
+            extras = []
+            y_extras = []
+            end = len(xs[index]) - 1
+            for i in range(diff):
+
+                extras.append(xs[index][end - i])
+                y_extras.append(end - i)
+
+            xs[index] = [w for w in xs[index] if w not in extras]
+            ys[index] = np.delete(ys[index], y_extras)
+            ys[index] = np.reshape(ys[index], (ys[index].shape[0], 1))
+
+            std_results[index] = np.delete(std_results[index], y_extras)
+            std_results[index] = np.reshape(std_results[index], (std_results[index].shape[0], 1))
+
+    ### TOP works better #############
+    # # at the end make sure x[min] isn't too big, delete all the ones that were never met.
+    # if counter <= len(xs[min_index]):
+    #     for index in several_min:
+    #
+    #         extras = []
+    #         y_extras = []
+    #         for i in range(counter - 1, len(xs[index])):
+    #             extras.append(xs[index][i])
+    #             y_extras.append(i)
+    #
+    #         xs[index] = [w for w in xs[index] if w not in extras]
+    #         ys[index] = np.delete(ys[index], y_extras)
+    #         ys[index] = np.reshape(ys[index], (ys[index].shape[0], 1))
+    #
+    #         std_results[index] = np.delete(std_results[index], y_extras)
+    #         std_results[index] = np.reshape(std_results[index], (std_results[index].shape[0], 1))
+
 
     return ys, std_results, xs
 
@@ -148,8 +189,10 @@ def plot(config, metric = "mean_agent_return_with_broadcast_penalties_mean"):
         exp_xs = []
 
         seeds_dir = os.listdir(dir/exp)
+        print(seeds_dir)
         for seed in seeds_dir:
             path = os.path.join(dir/exp, seed)
+            print(path)
             data = utils.load_graph_data(path)[metric]
             frames = utils.load_graph_data(path)['num_frames']
             exp_xs.append(frames)
@@ -187,7 +230,7 @@ if __name__=="__main__":
 
     #home_directory = "."
     #json_file = "plots/mean_returns_switch_ppo.json"
-
+    #pdb.set_trace()
     config = get_plotting_args()
 
     plot(config)
