@@ -14,7 +14,6 @@ torch_rl/algos/doc.py
 torch_rl/algos/maddpg.py
 torch_rl/algos/oc.py
 torch_rl/algos/ppo.py
-torch_rl/algos/ppo_2.py
 torch_rl/algos/replayBuffer.py
 torch_rl/utils/__init__.py
 torch_rl/utils/dictlist.py

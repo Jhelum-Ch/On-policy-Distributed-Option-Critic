@@ -15,6 +15,7 @@ class ReplayBuffer(object):
         self._maxsize = int(size)
         self._next_idx = 0
 
+
     # def __len__(self):
     #     return len(self._storage)
 
@@ -35,13 +36,14 @@ class ReplayBuffer(object):
     def _encode_sample(self, experience, idxes):
         #self.experience = experience
         #print('experience_obs',type(experience.obs))
-        obses_t, actions, broadcasts, rewards, obses_tp1, advantages, est_embeddings, dones = [], [], [], [], [], [], [], []
+        obses_t, actions_mlp, actions, broadcasts, rewards, obses_tp1, advantages, est_embeddings, dones = [], [], [], [], [], [], [], [], []
         for i in idxes:
             #print('experience_obs[i]', type(experience.obs[i]))
-            obs_t, action, broadcast, reward, obs_tp1, advantage, est_embedding, done = \
+            obs_t, action_mlp, action, broadcast, reward, obs_tp1, advantage, est_embedding, done = \
                 experience.obs[i], experience.action[i], experience.broadcast[i], experience.reward_plus_broadcast_penalties[i], \
                 experience.next_obs[i], experience.advantage[i], experience.estimated_embedding[i], experience.mask[i]
             obses_t.append(np.array(obs_t, copy=False))
+            actions_mlp.append(np.array(action_mlp, copy=False))
             actions.append(np.array(action, copy=False))
             broadcasts.append(np.array(broadcast, copy=False))
             rewards.append(np.array(reward, copy=False))
@@ -49,11 +51,11 @@ class ReplayBuffer(object):
             advantages.append(np.array(advantage, copy=False))
             est_embeddings.append(np.array(est_embedding, copy=False))
             dones.append(np.array(done, copy=False))
-        return obses_t, np.array(actions), np.array(broadcasts), np.array(rewards), np.array(obses_tp1), np.array(advantages), np.array(est_embeddings), np.array(dones)
+        return obses_t, np.array(actions_mlp), np.array(actions), np.array(broadcasts), np.array(rewards), np.array(obses_tp1), np.array(advantages), np.array(est_embeddings), np.array(dones)
 
     def make_index(self, experience, batch_size):
-        #print('LEN_storage', len(self._storage))
-        assert batch_size <= len(experience.action) - 1 #the maximum length is P*T
+        #print('batch_size', len(experience.action))
+        #assert batch_size <= len(experience.action) - 1 #the maximum length is P*T
         return [random.randint(0, len(experience.action) - 1) for _ in range(batch_size)]
 
     def make_latest_index(self, batch_size):

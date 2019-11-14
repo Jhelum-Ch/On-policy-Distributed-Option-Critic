@@ -23,6 +23,7 @@ class OCAlgo(BaseAlgo):
                          reshape_reward=reshape_reward,
                  termination_reg=termination_reg, termination_loss_coef=termination_loss_coef)
 
+
         if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
             a = self.acmodel.parametersList
             self.optimizer = torch.optim.RMSprop(a, lr, alpha=rmsprop_alpha, eps=rmsprop_alpha)
@@ -68,22 +69,23 @@ class OCAlgo(BaseAlgo):
                 # Create a sub-batch of experience
 
                 sb = exps[j][inds + i]
+                #sbs_coord = coord_exps[inds + i]
 
                 # Forward propagation
 
                 if self.acmodel.recurrent:
                     if not self.acmodel.always_broadcast:
-                        act_dist, act_values, _, memory, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                        act_mlp, act_dist, act_values, _, memory, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
                             sb.obs, memory * sb.mask, agent_index=j)
                     else:
-                        act_dist, act_values, memory, term_dist, embedding = self.acmodel.forward_agent_critic(sb.obs, memory * sb.mask, agent_index=j)
+                        act_mlp, act_dist, act_values, memory, term_dist, embedding = self.acmodel.forward_agent_critic(sb.obs, memory * sb.mask, agent_index=j)
 
                 else:
                     if not self.acmodel.always_broadcast:
-                        act_dist, act_values, _, _, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                        act_mlp, act_dist, act_values, _, _, term_dist, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
                             sb.obs, memory * sb.mask, agent_index=j)
                     else:
-                        act_dist, act_values, _, term_dist, embedding = self.acmodel.forward_agent_critic(sb.obs,agent_index=j)
+                        act_mlp, act_dist, act_values, _, term_dist, embedding = self.acmodel.forward_agent_critic(sb.obs,agent_index=j)
 
                 # Compute losses
 

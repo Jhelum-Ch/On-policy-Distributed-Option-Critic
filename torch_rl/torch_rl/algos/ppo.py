@@ -8,9 +8,11 @@ class PPOAlgo(BaseAlgo):
     """The class for the Proximal Policy Optimization algorithm
     ([Schulman et al., 2015](https://arxiv.org/abs/1707.06347))."""
 
+
     def __init__(self, num_agents=None, envs=None, acmodel=None, replay_buffer=None, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
                  adam_eps=1e-5, clip_eps=0.2, epochs=4, batch_size=256, preprocess_obss=None, reshape_reward=None):
+
         num_frames_per_proc = num_frames_per_proc or 128
 
         # super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
@@ -27,7 +29,7 @@ class PPOAlgo(BaseAlgo):
         self.epochs = epochs
         self.batch_size = batch_size
 
-        assert self.batch_size % self.recurrence == 0
+        #assert self.batch_size % self.recurrence == 0
 
         if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
             a = self.acmodel.parametersList
@@ -87,18 +89,18 @@ class PPOAlgo(BaseAlgo):
                         if self.acmodel.recurrent:
                             if not self.acmodel.always_broadcast:
                                 # act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
-                                act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                act_mlp, act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
                                     sb.obs, memory * sb.mask, agent_index=j)
                             else:
-                                act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(
+                                act_mlp, act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(
                                     sb.obs, memory * sb.mask, agent_index=j)
                         else:
                             if not self.acmodel.always_broadcast:
                                 # act_dist, values = self.acmodel(sb.obs)
-                                act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                act_mlp, act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
                                     sb.obs, memory * sb.mask, agent_index=j)
                             else:
-                                act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(sb.obs, agent_index=j)
+                                act_mlp, act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(sb.obs, agent_index=j)
 
                         entropy = act_dist.entropy().mean()
 
@@ -163,7 +165,7 @@ class PPOAlgo(BaseAlgo):
             logs["value_loss"].append(numpy.mean(log_value_losses))
             logs["grad_norm"].append(numpy.mean(log_grad_norms))
 
-            #print('ppo_log_retun', logs["return_per_episode_with_broadcast_penalties"])
+        #print('ppo_log_return', logs["return_per_episode_with_broadcast_penalties"])
 
         return logs
 

@@ -15,6 +15,7 @@ VARIATIONS = [
     ('use_always_broadcast',[True]),
     #('value_loss_coef', [2.]),
     #('max_grad_norm', [0.5])
+
     #('gae_lambda', [0.95]),
     #('num_options', [1]),
     #('termination_loss_coef', [0.5]),
@@ -27,6 +28,7 @@ VARIATIONS = [
     #('save_interval', [10]),
     # World params and Env params
     ('env', ['TEAMGrid-Switch-v0']),
+
 ]
 
 # Simple security check to make sure every specified parameter is defined only once

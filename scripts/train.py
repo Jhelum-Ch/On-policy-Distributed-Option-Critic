@@ -5,6 +5,7 @@
 #USE_ALWAYS_BROADCAST = True # Always TRUE if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
                             # # Always True for MADDPG and if USE_CENTRAL_CRITIC = False, else it may be either TRUE or FALSE
 
+
 import pdb
 import argparse
 import gym
@@ -38,14 +39,103 @@ import utils
 from utils import parse_bool
 from model import ACModel
 
+
 # Parse arguments
+
+# def get_training_args(overwritten_args=None):
+#     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+#     parser.add_argument("--algo", default='ppo', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'], #required=True,
+#                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
+#     parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
+#                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
+#     parser.add_argument("--desc", default="",
+#                         help="string added as suffix to git_hash to explain the experiments in this folder")
+#     parser.add_argument("--experiment_dir", type=int, default=None,
+#                         help="the experiment number (inside storage_dir folder)"
+#                              "if that experiment already exists, you will be offered to resume training")
+#     parser.add_argument("--seed", type=int, default=1,
+#                         help="random seed (default: 1)")
+#     parser.add_argument("--procs", type=int, default=16,
+#                         help="number of processes (default: 16)")
+#     parser.add_argument("--frames", type=int, default=5000000,
+#                         help="number of frames of training (default: 10e7)")
+#     parser.add_argument("--log_interval", type=int, default=1,
+#                         help="number of updates between two logs (default: 1)")
+#     parser.add_argument("--save_interval", type=int, default=100,
+#                         help="number of updates between two saves (default: 0, 0 means no saving)")
+#     parser.add_argument("--tb", type=parse_bool, default=True,
+#                         help="log into Tensorboard")
+#     parser.add_argument("--frames_per_proc", type=int, default=None,
+#                         help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
+#     parser.add_argument("--discount", type=float, default=0.99,
+#                         help="discount factor (default: 0.99)")
+#     parser.add_argument("--lr", type=float, default=7e-4,
+#                         help="learning rate for optimizers (default: 7e-4)")
+#     parser.add_argument("--gae_lambda", type=float, default=0.95,
+#                         help="lambda coefficient in GAE formula (default: 0.95, 1 means no gae)")
+#     parser.add_argument("--entropy_coef", type=float, default=0.01,
+#                         help="entropy term coefficient (default: 0.01)")
+#     parser.add_argument("--value_loss_coef", type=float, default=0.5,
+#                         help="value loss term coefficient (default: 0.5)")
+#     parser.add_argument("--max_grad_norm", type=float, default=0.5,
+#                         help="maximum norm of gradient (default: 0.5)")
+#     parser.add_argument("--optim_eps", type=float, default=1e-5,
+#                         help="Adam and RMSprop optimizer epsilon (default: 1e-5)")
+#     parser.add_argument("--optim_alpha", type=float, default=0.99,
+#                         help="RMSprop optimizer alpha (default: 0.99)")
+#     parser.add_argument("--clip_eps", type=float, default=0.2,
+#                         help="clipping epsilon for PPO (default: 0.2)")
+#     parser.add_argument("--epochs", type=int, default=4,
+#                         help="number of epochs for PPO (default: 4)")
+#     parser.add_argument("--batch_size", type=int, default=256,
+#                         help="batch size for PPO (default: 256)")
+#     parser.add_argument("--recurrence", type=int, default=2,
+#                         help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
+#     # parser.add_argument("--recurrence_coord", type=int, default=1,
+#     #                     help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
+#     parser.add_argument("--text", action="store_true", default=False,
+#                         help="add a GRU to the model to handle text input")
+#     parser.add_argument("--auto_resume", action="store_true", default=False,
+#                         help="whether to automatically resume training when launching the script on existing model")
+#     # Broadcast configs
+#     parser.add_argument("--broadcast_penalty", type=float, default=-0.01,
+#                         help="broadcast penalty (default: -0.01, 0. implies no penalty)")
+#     # Option-Critic configs
+#     parser.add_argument("--num_options", type=int, default=3,
+#                         help="number of options (default: 1, 1 means no options)")
+#     parser.add_argument("--termination_loss_coef", type=float, default=0.5,
+#                         help="termination loss term coefficient (default: 0.5)")
+#     parser.add_argument("--termination_reg", type=float, default=0.01,
+#                         help="termination regularization constant (default: 0.01)")
+#     # Multi-Agent configs
+#     parser.add_argument("--num_agents", type=int, default=2,
+#                         help="number of trainable agents interacting with the teamgrid environment")
+#     parser.add_argument("--shared_rewards", type=parse_bool, default=True,
+#                         help="whether the reward is individual or shared as the sum of all rewards among agents")
+#     parser.add_argument("--num_goals", type=int, default=3,
+#                         help="number of goals the agents need to discover")
+#
+#     # Multiagent Particle Env
+#     parser.add_argument("--scenario", type=str, default="simple_speaker_listener", help="name of the scenario script")
+#     parser.add_argument("--benchmark", action="store_true", default=False)
+#
+#     #MADDPG
+#     parser.add_argument("--local_q_func", default=False)
+#     parser.add_argument("--replay_buffer", type=parse_bool, default=False)
+#     parser.add_argument("--er_batch_size", type=int, default=4,
+#                         help="experience replay sampling batch size for MADDPG (default: 1)")
+#     parser.add_argument("--tau", type=float, default=0.01)
+#
+#     return parser.parse_args(overwritten_args)
+
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument("--algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'], #required=True,
+
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='TEAMGrid-FourRooms-v0', #required=True,
+    parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -54,6 +144,8 @@ def get_training_args(overwritten_args=None):
                              "if that experiment already exists, you will be offered to resume training")
     parser.add_argument("--seed", type=int, default=1,
                         help="random seed (default: 1)")
+    # parser.add_argument("--max_len_ep", type=int, default=5,
+    #                     help="Maximum length of each poisode")
     parser.add_argument("--procs", type=int, default=16,
                         help="number of processes (default: 16)")
     parser.add_argument("--frames", type=int, default=10**6,
@@ -65,12 +157,12 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--tb", type=parse_bool, default=True,
                         help="log into Tensorboard")
 
+    parser.add_argument("--frames_per_proc", type=int, default=None, help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
 
-    parser.add_argument("--frames_per_proc", type=int, default=None,
-                        help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
+
     parser.add_argument("--discount", type=float, default=0.99,
                         help="discount factor (default: 0.99)")
-    parser.add_argument("--lr", type=float, default=7e-4,
+    parser.add_argument("--lr", type=float, default=5e-3,
                         help="learning rate for optimizers (default: 7e-4)")
     parser.add_argument("--gae_lambda", type=float, default=0.95,
                         help="lambda coefficient in GAE formula (default: 0.95, 1 means no gae)")
@@ -112,9 +204,18 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--num_agents", type=int, default=2,
                         help="number of trainable agents interacting with the teamgrid environment")
     parser.add_argument("--shared_rewards", type=parse_bool, default=True,
-                        help="whether the reward is individual or shared as the sum of all rewards among agents")
+                         help="whether the reward is individual or shared as the sum of all rewards among agents")
+    # parser.add_argument("--reward_switch", type=parse_bool, default=True,
+    #                     help="whether there is reward for turning on light switch in switch env")
+    # parser.add_argument("--reward_all", type=parse_bool, default=False,
+    #                     help="whether there is reward for turning on light switch in switch env")
     parser.add_argument("--num_goals", type=int, default=3,
                         help="number of goals the agents need to discover")
+    # arguments to replace flag
+    parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
+    parser.add_argument("--use_switch", type=parse_bool, default=True) # True/False if --use_teamgrid is True
+    parser.add_argument("--use_central_critic", type=parse_bool, default=True)
+    parser.add_argument("--use_always_broadcast", type=parse_bool, default=False)
 
     # arguments to replace flag
     parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
@@ -127,10 +228,12 @@ def get_training_args(overwritten_args=None):
 
     #MADDPG
     parser.add_argument("--local_q_func", default=False)
-    parser.add_argument("--replay_buffer", type=parse_bool, default=False)
-    parser.add_argument("--er_batch_size", type=int, default=4,
+    parser.add_argument("--tau", type=float, default=0.05)
+    parser.add_argument("--er_batch_size", type=int, default=1024,
                         help="experience replay sampling batch size for MADDPG (default: 1)")
-    parser.add_argument("--tau", type=float, default=0.01)
+    parser.add_argument("--replay_buffer", type=parse_bool, default=True)
+
+
 
     return parser.parse_args(overwritten_args)
 
@@ -141,7 +244,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     USE_TEAMGRID = config.use_teamgrid
     USE_CENTRAL_CRITIC = config.use_central_critic
     USE_ALWAYS_BROADCAST = config.use_always_broadcast
-
 
     config.mem_agents = config.recurrence > 1
     config.mem_coord = config.recurrence > 1
@@ -206,12 +308,12 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             else:
                 env = gym.make(config.env, num_agents=config.num_agents, shared_rewards=config.shared_rewards)
         else:
-            env = make_env(config.scenario, config, config.benchmark)
+            #print('scenario', config.scenario)
+            env = make_env(scenario_name=config.scenario, benchmark=config.benchmark, shared_rewards=config.shared_rewards)
             #config.env = make_env('simple_speaker_listener')  # choose any scenario
             #env = config.env #gym.make(config.env)
         env.seed(config.seed + 10000 * i)
         envs.append(env)
-
 
 
     # Define obss preprocessor
@@ -243,13 +345,15 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             sys.exit()
     else:
 
-        acmodel = ACModel(obs_space=obs_space,
+        acmodel = ACModel(num_procs=config.procs,
+                obs_space=obs_space,
                 action_space=envs[0].action_space,
                 use_memory_agents=config.mem_agents,
                 use_memory_coord=config.mem_coord,
                 use_text=config.text,
                 num_agents=config.num_agents,
                 num_options=config.num_options,
+                frames_per_proc=config.frames_per_proc,
                 use_act_values=True if config.algo in ["oc", "doc"] else False,
                 use_term_fn=True if config.algo in ["oc", "doc"] else False,
                 # use_central_critic=True if config.algo == "doc" else False,
@@ -284,7 +388,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
     # Print info on model
     logger.debug("{}\n".format(acmodel))
-    logger.debug(f"Numer of params: {acmodel.get_number_of_params()}")
+    logger.debug(f"Number of params: {acmodel.get_number_of_params()}")
 
     if torch.cuda.is_available():
         acmodel.cuda()
@@ -392,7 +496,10 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
         "policy_loss": [],
         "broadcast_loss": [],
         "value_loss": [],
-        "grad_norm": []
+        "grad_norm": [],
+        "options": [],
+        "actions": [],
+        "broadcasts": []
     }
    # graph_data["agent_colors"] = [envs[0].agents[j].color for j in range(config.num_agents)]
 
@@ -428,6 +535,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             num_frames_per_episode = utils.synthesize(logs["num_frames_per_episode"])
             options = logs["options"]
             actions = logs["actions"]
+            broadcasts = logs["broadcasts"]
 
             status = {"num_frames": num_frames, "update": update}
 
@@ -450,6 +558,10 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             graph_data["broadcast_loss"].append(logs["broadcast_loss"])
             graph_data["value_loss"].append(logs["value_loss"])
             graph_data["grad_norm"].append(logs["grad_norm"])
+            graph_data["options"].append(options)
+            graph_data["actions"].append(actions)
+            graph_data["broadcasts"].append(broadcasts)
+            #print('graph_data', graph_data["broadcasts"])
 
             utils.save_graph_data(graph_data, save_dir=dir_manager.seed_dir)
 
@@ -495,6 +607,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                            labels=[f"agent {i}" for i in range(config.num_agents)],
                            colors=[envs[0].agents[j].color for j in
                                    range(config.num_agents)], xlabel="frames", title="Entropy")
+
                 # plot_curve(axes[1,1], graph_data["num_frames"], np.array(graph_data["grad_norm"]).T, labels=[f"agent {i}" for i in range(config.num_agents)], colors=[envs[0].agents[j].color for j in range(config.num_agents)], xlabel="frames", title="Gradient Norm")
                 fig.savefig(str(dir_manager.seed_dir / 'curves.png'))
                 plt.close(fig)
@@ -503,11 +616,13 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
 
             # Return
             if not(USE_TEAMGRID):
+
                 fig, ax = create_fig((1, 1))
                 plot_curve(ax, [graph_data["num_frames"]],
                            np.array(graph_data["return_with_broadcast_penalties_mean"]).T,
                            stds=np.array(graph_data["return_with_broadcast_penalties_std"]).T,
                            colors=[np.clip(envs[0].agents[j].color, a_max = 1.0, a_min = 0.0) for j in range(config.num_agents)],
+
                            labels=[f"agent {i}" for i in range(config.num_agents)],
                            xlabel="frames", title="Average Return")
                 fig.savefig(str(dir_manager.seed_dir / 'return.png'))
@@ -529,6 +644,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                            stds=np.array(graph_data["episode_length_std"]).T,
                            colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in
                                    range(config.num_agents)],
+
                            labels=[f"agent {i}" for i in range(config.num_agents)],
                            xlabel="frames", title="Average Episode Length")
                 fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
@@ -560,6 +676,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 plot_curve(ax, [graph_data["num_frames"]],
                            np.array(graph_data["episode_length_mean"]).T,
                            stds=np.array(graph_data["episode_length_std"]).T,
+
                            colors=[envs[0].agents[j].color for j in
                                    range(config.num_agents)],
                            labels=[f"agent {i}" for i in range(config.num_agents)],
@@ -567,37 +684,6 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
                 plt.close(fig)
 
-            # # Return
-            # fig, ax = create_fig((1, 1))
-            # plot_curve(ax, [graph_data["num_frames"]],
-            #            np.array(graph_data["return_mean"]).T,
-            #            stds=np.array(graph_data["return_std"]).T,
-            #            colors=[envs[0].agents[j].color for j in range(config.num_agents)],
-            #            labels=[f"agent {i}" for i in range(config.num_agents)],
-            #            xlabel="frames", title="Average Return")
-            # fig.savefig(str(dir_manager.seed_dir / 'return.png'))
-            # plt.close(fig)
-
-            ###############################
-            # mean Return from agents
-            # fig, ax = create_fig((1, 1))
-            # plot_curve(ax, [graph_data["num_frames"]],
-            #            np.array(graph_data["mean_agent_return_with_broadcast_penalties_mean"]).T,
-            #            stds=np.array(graph_data["mean_agent_return_with_broadcast_penalties_std"]).T,
-            #            xlabel="frames", title="Average Return")
-            # fig.savefig(str(dir_manager.seed_dir / 'mean_return_from_agents.png'))
-            # plt.close(fig)
-            #
-            # # Episode length
-            # fig, ax = create_fig((1, 1))
-            # plot_curve(ax, [graph_data["num_frames"]],
-            #            np.array(graph_data["episode_length_mean"]).T,
-            #            stds=np.array(graph_data["episode_length_std"]).T,
-            #            colors=[np.clip(envs[0].agents[j].color, a_max=1.0, a_min=0.0) for j in range(config.num_agents)],
-            #            labels=[f"agent {i}" for i in range(config.num_agents)],
-            #            xlabel="frames", title="Average Episode Length")
-            # fig.savefig(str(dir_manager.seed_dir / 'episode_length.png'))
-            # plt.close(fig)
 
 if __name__ == "__main__":
 
