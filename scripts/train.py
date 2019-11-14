@@ -42,93 +42,6 @@ from model import ACModel
 
 # Parse arguments
 
-# def get_training_args(overwritten_args=None):
-#     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-#     parser.add_argument("--algo", default='ppo', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'], #required=True,
-#                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-#     parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
-#                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
-#     parser.add_argument("--desc", default="",
-#                         help="string added as suffix to git_hash to explain the experiments in this folder")
-#     parser.add_argument("--experiment_dir", type=int, default=None,
-#                         help="the experiment number (inside storage_dir folder)"
-#                              "if that experiment already exists, you will be offered to resume training")
-#     parser.add_argument("--seed", type=int, default=1,
-#                         help="random seed (default: 1)")
-#     parser.add_argument("--procs", type=int, default=16,
-#                         help="number of processes (default: 16)")
-#     parser.add_argument("--frames", type=int, default=5000000,
-#                         help="number of frames of training (default: 10e7)")
-#     parser.add_argument("--log_interval", type=int, default=1,
-#                         help="number of updates between two logs (default: 1)")
-#     parser.add_argument("--save_interval", type=int, default=100,
-#                         help="number of updates between two saves (default: 0, 0 means no saving)")
-#     parser.add_argument("--tb", type=parse_bool, default=True,
-#                         help="log into Tensorboard")
-#     parser.add_argument("--frames_per_proc", type=int, default=None,
-#                         help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
-#     parser.add_argument("--discount", type=float, default=0.99,
-#                         help="discount factor (default: 0.99)")
-#     parser.add_argument("--lr", type=float, default=7e-4,
-#                         help="learning rate for optimizers (default: 7e-4)")
-#     parser.add_argument("--gae_lambda", type=float, default=0.95,
-#                         help="lambda coefficient in GAE formula (default: 0.95, 1 means no gae)")
-#     parser.add_argument("--entropy_coef", type=float, default=0.01,
-#                         help="entropy term coefficient (default: 0.01)")
-#     parser.add_argument("--value_loss_coef", type=float, default=0.5,
-#                         help="value loss term coefficient (default: 0.5)")
-#     parser.add_argument("--max_grad_norm", type=float, default=0.5,
-#                         help="maximum norm of gradient (default: 0.5)")
-#     parser.add_argument("--optim_eps", type=float, default=1e-5,
-#                         help="Adam and RMSprop optimizer epsilon (default: 1e-5)")
-#     parser.add_argument("--optim_alpha", type=float, default=0.99,
-#                         help="RMSprop optimizer alpha (default: 0.99)")
-#     parser.add_argument("--clip_eps", type=float, default=0.2,
-#                         help="clipping epsilon for PPO (default: 0.2)")
-#     parser.add_argument("--epochs", type=int, default=4,
-#                         help="number of epochs for PPO (default: 4)")
-#     parser.add_argument("--batch_size", type=int, default=256,
-#                         help="batch size for PPO (default: 256)")
-#     parser.add_argument("--recurrence", type=int, default=2,
-#                         help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
-#     # parser.add_argument("--recurrence_coord", type=int, default=1,
-#     #                     help="number of timesteps gradient is backpropagated (default: 1)\nIf > 1, a LSTM is added to the model to have memory")
-#     parser.add_argument("--text", action="store_true", default=False,
-#                         help="add a GRU to the model to handle text input")
-#     parser.add_argument("--auto_resume", action="store_true", default=False,
-#                         help="whether to automatically resume training when launching the script on existing model")
-#     # Broadcast configs
-#     parser.add_argument("--broadcast_penalty", type=float, default=-0.01,
-#                         help="broadcast penalty (default: -0.01, 0. implies no penalty)")
-#     # Option-Critic configs
-#     parser.add_argument("--num_options", type=int, default=3,
-#                         help="number of options (default: 1, 1 means no options)")
-#     parser.add_argument("--termination_loss_coef", type=float, default=0.5,
-#                         help="termination loss term coefficient (default: 0.5)")
-#     parser.add_argument("--termination_reg", type=float, default=0.01,
-#                         help="termination regularization constant (default: 0.01)")
-#     # Multi-Agent configs
-#     parser.add_argument("--num_agents", type=int, default=2,
-#                         help="number of trainable agents interacting with the teamgrid environment")
-#     parser.add_argument("--shared_rewards", type=parse_bool, default=True,
-#                         help="whether the reward is individual or shared as the sum of all rewards among agents")
-#     parser.add_argument("--num_goals", type=int, default=3,
-#                         help="number of goals the agents need to discover")
-#
-#     # Multiagent Particle Env
-#     parser.add_argument("--scenario", type=str, default="simple_speaker_listener", help="name of the scenario script")
-#     parser.add_argument("--benchmark", action="store_true", default=False)
-#
-#     #MADDPG
-#     parser.add_argument("--local_q_func", default=False)
-#     parser.add_argument("--replay_buffer", type=parse_bool, default=False)
-#     parser.add_argument("--er_batch_size", type=int, default=4,
-#                         help="experience replay sampling batch size for MADDPG (default: 1)")
-#     parser.add_argument("--tau", type=float, default=0.01)
-#
-#     return parser.parse_args(overwritten_args)
-
-
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 
@@ -216,11 +129,6 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--use_switch", type=parse_bool, default=True) # True/False if --use_teamgrid is True
     parser.add_argument("--use_central_critic", type=parse_bool, default=True)
     parser.add_argument("--use_always_broadcast", type=parse_bool, default=False)
-
-    # arguments to replace flag
-    parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
-    parser.add_argument("--use_central_critic", type=parse_bool, default=True)
-    parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
 
     # Multiagent Particle Env
     parser.add_argument("--scenario", type=str, default="simple_speaker_listener", help="name of the scenario script")
