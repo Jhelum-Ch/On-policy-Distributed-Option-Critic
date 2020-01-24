@@ -54,6 +54,7 @@ from utils import parse_bool
 from model import ACModel
 
 
+
 # Parse arguments
 
 # def get_training_args(overwritten_args=None):
@@ -145,9 +146,9 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
+    parser.add_argument("--algo", default='ppo', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='TEAMGrid-Switch-v0', #required=True,
+    parser.add_argument("--env", default='TEAMGrid-DoorBall-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -170,7 +171,7 @@ def get_training_args(overwritten_args=None):
                         help="log into Tensorboard")
 
 
-    parser.add_argument("--frames_per_proc", type=int, default=8,
+    parser.add_argument("--frames_per_proc", type=int, default=50,
                         help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
     parser.add_argument("--discount", type=float, default=0.99,
                         help="discount factor (default: 0.99)")
@@ -208,6 +209,8 @@ def get_training_args(overwritten_args=None):
     # Option-Critic configs
     parser.add_argument("--num_options", type=int, default=3,
                         help="number of options (default: 1, 1 means no options)")
+    # parser.add_argument("--use_use_term_fn", type=parse_bool, default=True,
+    #                     help="number of options (default: 1, 1 means no options)")
     parser.add_argument("--termination_loss_coef", type=float, default=0.5,
                         help="termination loss term coefficient (default: 0.5)")
     parser.add_argument("--termination_reg", type=float, default=0.01,
@@ -224,10 +227,15 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--num_goals", type=int, default=3,
                         help="number of goals the agents need to discover")
     # arguments to replace flag
-    parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
-    parser.add_argument("--use_switch", type=parse_bool, default=True) # True/False if --use_teamgrid is True
-    parser.add_argument("--use_central_critic", type=parse_bool, default=True)
-    parser.add_argument("--use_always_broadcast", type=parse_bool, default=False)
+    parser.add_argument("--use_teamgrid", type=parse_bool, default=False)
+    parser.add_argument("--use_switch", type=parse_bool, default=False)
+    parser.add_argument("--use_fourrooms", type=parse_bool, default=False)
+    parser.add_argument("--use_dualdoors", type=parse_bool, default=False)
+    parser.add_argument("--use_dualswitch", type=parse_bool, default=False)
+    parser.add_argument("--use_doorball", type=parse_bool, default=False)
+
+    parser.add_argument("--use_central_critic", type=parse_bool, default=False)
+    parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
 
     # Multiagent Particle Env
     parser.add_argument("--scenario", type=str, default="simple_speaker_listener", help="name of the scenario script")
@@ -256,18 +264,20 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     config.mem_coord = config.recurrence > 1
     # In the multi-agent setup, for DOC, different agents really are empty slots in which options are executed
     # Therefore, the number of options (policies) needs to be greater or equal to the number of agents (slots)
-    if config.algo == 'doc':
+    if config.algo in ['doc', 'oc']:
         assert config.num_options >= config.num_agents
+        #config.use_use_term_fn = True
     # In the multi-agent setup, for baseline algorithms, each agent has its own policy
     # However, for implementation uniformity, we will consider them as if they were different options
     # (but each agent will always keep the same "option")
     elif config.algo in ['a2c', 'ppo', 'maddpg']:
         #config.num_options = config.num_agents
         config.num_options = 1
+        #config.use_use_term_fn = False
 
     # In the multi-agent setup, for selfish OC, each agent has its own policy and option.
-    elif config.algo == 'oc':
-        assert config.num_options >= config.num_agents # same set of options available to each agent
+    # elif config.algo == 'oc':
+    #     assert config.num_options >= config.num_agents # same set of options available to each agent
 
     if config.algo == 'maddpg':
         config.replay_buffer = True
@@ -281,7 +291,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
              git_hash = "{0}_{1}".format(utils.get_git_hash(path='.'), utils.get_git_hash(path=str(os.path.dirname(teamgrid.__file__))))
         else:
             git_hash = "{0}_{1}".format(utils.get_git_hash(path='.'),
-                                    utils.get_git_hash(path=str(os.path.dirname(multiagent.__file__))))
+                                    utils.get_git_hash(path=str(os.path.dirname(__file__))))
         storage_dir = f"{git_hash}_{config.desc}"
         dir_manager = utils.DirectoryManager(storage_dir, config.seed, config.experiment_dir)
         dir_manager.create_directories()
@@ -315,13 +325,20 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 #print('config.env', config.env, 'num_agents', config.num_agents)
                 #env = gym.make(config.env, num_agents=config.num_agents, num_goals=config.num_goals, shared_rewards=config.shared_rewards)
                 env = gym.make(config.env, shared_rewards=config.shared_rewards)
-            else: #4rooms
+            elif config.use_fourrooms: #4rooms
                 env = gym.make(config.env, num_agents=config.num_agents, num_goals=config.num_goals,
                                shared_rewards=config.shared_rewards)
+            elif config.use_dualdoors:
+                env = gym.make(config.env)
+            elif config.use_dualswitch:
+                env = gym.make(config.env, shared_rewards=config.shared_rewards)
+            else: # doorball
+                env = gym.make(config.env)
                 #env.render()
         else:
-            #print('scenario', config.scenario)
-            env = make_env(scenario_name=config.scenario, benchmark=config.benchmark, shared_rewards=config.shared_rewards)
+            #print('num_agents', config.num_agents, 'num_goals', config.num_goals)
+            env = make_env(scenario_name=config.scenario, \
+                           benchmark=config.benchmark) #num_agents=config.num_agents, num_goals=config.num_goals, , shared_rewards=config.shared_rewards
             #config.env = make_env('simple_speaker_listener')  # choose any scenario
             #env = config.env #gym.make(config.env)
         env.seed(config.seed + 10000 * i)
@@ -368,14 +385,14 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 num_agents=config.num_agents,
                 num_options=config.num_options,
                 frames_per_proc=config.frames_per_proc,
-                use_act_values=True if config.algo in ["oc", "doc"] else False,
+                use_act_values=True if config.algo in ["oc", "doc"] or config.algo == "a2c" and config.use_central_critic else False,
                 use_term_fn=True if config.algo in ["oc", "doc"] else False,
                 # use_central_critic=True if config.algo == "doc" else False,
-                use_central_critic=USE_CENTRAL_CRITIC,
+                use_central_critic=config.use_central_critic,
                 use_broadcasting=True if config.algo == "doc" else False,
                 termination_reg=config.termination_reg,
-                use_teamgrid=USE_TEAMGRID,
-                always_broadcast=USE_ALWAYS_BROADCAST
+                use_teamgrid=config.use_teamgrid,
+                always_broadcast=config.use_always_broadcast
                           )
         # else:
         #     acmodel = [ACModel(obs_space=obs_space,
@@ -531,7 +548,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             num_frames_per_episode = utils.synthesize(logs["num_frames_per_episode"])
             options = logs["options"]
             actions = logs["actions"]
-            broadcasts = logs["broadcasts"]
+            #broadcasts = logs["broadcasts"]
 
             status = {"num_frames": num_frames, "update": update}
 
@@ -556,7 +573,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
             graph_data["grad_norm"].append(logs["grad_norm"])
             graph_data["options"].append(options)
             graph_data["actions"].append(actions)
-            graph_data["broadcasts"].append(broadcasts)
+            #graph_data["broadcasts"].append(broadcasts)
             #print('graph_data', graph_data["broadcasts"])
 
             utils.save_graph_data(graph_data, save_dir=dir_manager.seed_dir)

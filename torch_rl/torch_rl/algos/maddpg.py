@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import copy
+
 # import utils
 # from torch_rl.format import function
 
@@ -173,7 +174,7 @@ class MADDPGAlgo(BaseAlgo):
                         broadcast_entropy = 0.0
 
 
-                        for ind, k in enumerate(self.replay_sample_index): # batch_size is the number os samples drawn from agent's buffer
+                        for ind, k in enumerate(self.replay_sample_index): # 'k' is the number of samples drawn from agent's buffer
 
                             agent_obs = sbs[j].obs[k]
                             agent_obs.image = agent_obs.image.unsqueeze(0)

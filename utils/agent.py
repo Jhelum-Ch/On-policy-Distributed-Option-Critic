@@ -8,7 +8,7 @@ class Agent:
     - to choose an action given an observation,
     - to analyze the feedback (i.e. reward and done state) of its action."""
 
-    def __init__(self, env_id, obs_space, save_dir, num_agents, current_options, argmax=False, num_envs=1):
+    def __init__(self, env_id, obs_space, save_dir, num_agents, option_epsilon, argmax=False, num_envs=1):
         _, self.preprocess_obss = utils.get_obss_preprocessor(env_id, obs_space, save_dir)
         self.acmodel = utils.load_model(save_dir)
         self.num_agents = num_agents
@@ -16,7 +16,8 @@ class Agent:
         self.argmax = argmax
         self.num_envs = num_envs
         self.num_options = self.acmodel.num_options
-        self.current_options = current_options
+        self.option_epsilon = option_epsilon
+        #self.current_options = current_options
         #self.current_options = torch.arange(self.num_agents)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -33,7 +34,9 @@ class Agent:
             #self.memories = self.memories.unsqueeze(0)
     def get_actions(self, obss):
 
+        options = []
         actions = []
+        broadcasts = []
 
         for j, obs in enumerate(obss):
 
@@ -73,26 +76,49 @@ class Agent:
 
                 # option selection
 
-                terminate = 1 #term_dist.sample()[:, self.current_options] #use self.current_options[j] if using DOC/OC
+                self.current_options = [
+                    torch.randint(low=0, high=self.num_options, size=(1,), device=self.device,
+                                  dtype=torch.float) for _ in range(self.num_agents)]
 
-                if terminate:
-                    self.current_options = int(torch.argmax(torch.sum(act_dist.probs * values, dim=-1), dim=-1))
+
+                terminate = term_dist.sample()[:, self.current_options[j].long()] #use self.current_options[j] if using DOC/OC
+
+                # if terminate:
+                #     self.current_options = int(torch.argmax(torch.sum(act_dist.probs * values, dim=-1), dim=-1))
+                # changes option (for those that terminate)
+
+                random_mask = terminate * (torch.rand(1) < self.option_epsilon).float()
+                chosen_mask = terminate * (1. - random_mask)
+                #assert all(torch.ones(self.num_procs) == random_mask + chosen_mask + (1. - terminate))
+
+                random_options = random_mask * torch.randint(self.num_options, size=(1,)).float()
+                self.current_options[j] = random_options
+                #print('self.current_options', self.current_options)
+                # chosen_options = chosen_mask * Qsw_coord_argmax.squeeze().float()
+                # chosen_options = chosen_mask * Qsw_argmax.squeeze().float()
+                # self.current_options[j] = random_options + chosen_options + (1. - terminate) * self.current_options[j]
 
             # action selection
 
             if self.argmax:
                 action = act_dist.probs.argmax(dim=-1, keepdim=True)
+                broadcast = broadcast_dist.probs.argmax(dim=-1, keepdim=True)
             else:
-                action = act_dist.sample().squeeze()[self.current_options]
+                action = act_dist.sample()[:,self.current_options[j].long()]
+                broadcast = broadcast_dist.sample()[:,self.current_options[j].long(), action].squeeze()
 
             #action = action[:, self.current_options].squeeze() #use self.current_options[j] if using DOC/OC
 
             if torch.cuda.is_available():
                 action = action.cpu().numpy()
+                broadcast = broadcast.cpu().numpy()
 
+            #print('self.current_options', self.current_options)
+            options.append(self.current_options)
             actions.append(action)
+            broadcasts.append(broadcast)
 
-        return actions
+        return options, actions, broadcasts
 
     def get_action(self, obss):
         new_obss = []

@@ -10,7 +10,7 @@ import utils
 
 def get_obss_preprocessor(env_id, obs_space, save_dir, use_teamgrid=False):
     # Check if it is a MiniGrid environment
-    prefix = "TEAMGrid" if use_teamgrid else "MiniGrid"
+    prefix = "TEAMGrid" if use_teamgrid else "simple" #"MiniGrid"
     if re.match(f"{prefix}-.*", env_id):
         obs_space = {"image": obs_space.spaces['image'].shape, "text": 100}
 

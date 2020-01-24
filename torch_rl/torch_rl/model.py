@@ -2,6 +2,7 @@ from abc import abstractmethod, abstractproperty
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class ACModel:
     recurrent = False
 
