@@ -5,6 +5,7 @@ import copy
 
 from torch_rl.algos.base import BaseAlgo
 
+
 class DOCAlgo(BaseAlgo):
     """The class for the Distributed Option-Critic algorithm."""
 
@@ -26,7 +27,7 @@ class DOCAlgo(BaseAlgo):
                  termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None, always_broadcast = False, broadcast_penalty=-0.01):
 
         num_frames_per_proc = num_frames_per_proc or 8
-        #print('num', num_frames_per_proc)
+
         #num_frames_per_proc = 50
 
         # super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
@@ -39,7 +40,7 @@ class DOCAlgo(BaseAlgo):
                          reshape_reward=reshape_reward, broadcast_penalty=broadcast_penalty,
          termination_reg=termination_reg, termination_loss_coef=termination_loss_coef)
 
-        # a = self.acmodel.named_parameters()
+        # a = self.acmodel.parameters()
         # print('a', a)
         #print('Len_a', len(a))
 
@@ -413,10 +414,7 @@ class DOCAlgo(BaseAlgo):
         logs["actions"] = action_idxs
         logs["broadcasts"] = broadcast_idxs
 
-
-        #print('doc_ep_len', np.mean(logs["num_frames_per_episode"]), 'return', np.mean(logs["return_per_episode_with_broadcast_penalties"]))
-        # print("steps: {}, episodes: {}, mean episode reward: {}".format(
-        #     train_step, len(logs["return_per_episode_with_broadcast_penalties"]), np.mean(episode_rewards[-arglist.save_rate:])))
+        #print('doc_log_return', logs["return_per_episode"])
 
         return logs
 

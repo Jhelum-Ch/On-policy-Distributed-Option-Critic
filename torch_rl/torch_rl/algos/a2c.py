@@ -3,6 +3,7 @@ import torch
 import torch.nn.functional as F
 
 
+
 from torch_rl.algos.base import BaseAlgo
 
 class A2CAlgo(BaseAlgo):
@@ -128,8 +129,13 @@ class A2CAlgo(BaseAlgo):
                     agent_act_log_probs = act_dist.log_prob(sbs[j].action.view(-1, 1).repeat(1, self.num_options))[range(sbs[j].action.shape[0]), sbs[j].current_options]
                     agent_values = act_values[range(sbs[j].action.shape[0]), sbs[j].current_options]
 
-                    #policy_loss = -(agent_act_log_probs * sbs[j].advantage).mean()
-                    policy_loss = (act_mlp.view(-1, 1, 1)[sbs[j].action.long()].squeeze() * sbs[j].advantage).mean() #a2c-mlp
+                    if self.acmodel.use_central_critic:
+                        policy_loss = -(agent_act_log_probs * (sbs[j].value_swa - sbs[j].value_sw)).mean()
+                        #policy_loss = -(act_mlp.view(-1, 1, 1)[sbs[j].action.long()].squeeze() * (
+                                    #sbs[j].value_swa - sbs[j].value_sw)).mean()  # sbs[j].advantage
+                    else:
+                        policy_loss = -(agent_act_log_probs * sbs[j].advantage).mean()  # sbs[j].advantage
+                        #policy_loss = (act_mlp.view(-1, 1, 1)[sbs[j].action.long()].squeeze() * sbs[j].advantage).mean() #a2c-mlp
 
                     if not self.acmodel.always_broadcast:
                         broadcast_entropy = broadcast_dist.entropy().mean()
@@ -203,10 +209,15 @@ class A2CAlgo(BaseAlgo):
                 _, value_a_b, _ = self.acmodel.forward_central_critic(estimated_embeddings, option_idxs,
                                                                    action_idxs, broadcast_idxs, sbs_coord.memory)
 
-                avg_value_loss = 0
+                # avg_value_loss = 0
+                # for j in range(self.num_agents):
+                #     avg_value_loss = avg_value_loss + (value_a_b - sbs[j].returnn).pow(2).mean()
+                # value_loss = avg_value_loss / self.num_agents
+
+                value_losses = 0
                 for j in range(self.num_agents):
-                    avg_value_loss = avg_value_loss + (value_a_b - sbs[j].returnn).pow(2).mean()
-                value_loss = avg_value_loss / self.num_agents
+                    value_losses = value_losses + (value_a_b - sbs[j].target).pow(2).mean()
+                value_loss = value_losses / self.num_agents
 
 
                # update_value += coord_value_action.mean().item()

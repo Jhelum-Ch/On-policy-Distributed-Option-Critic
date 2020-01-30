@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from torch_rl.algos.base import BaseAlgo
 
+
 class OCAlgo(BaseAlgo):
     """The class for the Selfish Option-Critic algorithm."""
 
@@ -145,6 +146,8 @@ class OCAlgo(BaseAlgo):
             logs["policy_loss"].append(update_policy_loss)
             logs["value_loss"].append(update_value_loss)
             logs["grad_norm"].append(update_grad_norm)
+
+
 
             #print('oc_log_retun', logs["return_per_episode_with_broadcast_penalties"])
 

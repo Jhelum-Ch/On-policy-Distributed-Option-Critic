@@ -27,6 +27,7 @@ import argparse
 import gym
 import time
 from matplotlib import pyplot as plt
+import pickle
 import logging
 import torch
 import torch_rl
@@ -60,13 +61,13 @@ parser.add_argument("--env", default=None,
                     help="name of the environment to be run"
                          "if None, env will be taken from saved config.json"
                          "which is the env on which the model was trained")
-parser.add_argument("--num_episodes", type=int, default=10,
+parser.add_argument("--num_episodes", type=int, default=1,
                     help="number of episodes to show")
 parser.add_argument("--shift", type=int, default=0,
                     help="number of times the environment is reset at the beginning (default: 0)")
 parser.add_argument("--argmax", action="store_true", default=False,
                     help="select the action with highest probability")
-parser.add_argument("--fps", default=1, type=int,
+parser.add_argument("--fps", default=10, type=int,
                     help="speed at which frames are displayed")
 parser.add_argument("--save_gifs", type=parse_bool, default=False,
                         help="Saves gif of each episode into model directory")
@@ -77,7 +78,12 @@ parser.add_argument("--use_switch", type=parse_bool, default=True)
 parser.add_argument("--use_central_critic", type=parse_bool, default=True)
 parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
 parser.add_argument("--shared_rewards", type=parse_bool, default=True)
+parser.add_argument("--num_agents", type=parse_bool, default=None)
+parser.add_argument("--num_goals", type=parse_bool, default=None)
+parser.add_argument("--option_epsilon", type=parse_bool, default=0.05)
 args = parser.parse_args()
+
+print('storage_dir', args.storage_dir)
 
 # Set seed for all randomness sources
 
@@ -93,15 +99,23 @@ train_config = utils.load_config_from_json(filename=dir_manager.seed_dir / "conf
 
 if args.env is None:
     args.env = train_config.env
-#pdb.set_trace()
+
+if args.num_agents is None:
+    args.num_agents = train_config.num_agents
+
+if args.num_goals is None:
+    args.num_goals = train_config.num_goals
+
 
 envs =[]
 for i in range(train_config.procs):
     if args.use_teamgrid:
+
         if args.env == "TEAMGrid-DualSwitch-v0":
             env = gym.make(args.env, shared_rewards=args.shared_rewards)
         else:
             env = gym.make(args.env, num_goals= train_config.num_goals, num_agents= train_config.num_agents, shared_rewards=args.shared_rewards)
+
     else:
         env = make_env(train_config.scenario, train_config.benchmark)
     env.seed(args.seed)
@@ -113,12 +127,31 @@ for _ in range(args.shift):
 # Rendering parameters
 
 frames = []
-#num_frames = []
+
+graph_data = {
+        "num_frames": [],
+        "return_with_broadcast_penalties_mean": [],
+        "return_with_broadcast_penalties_std": [],
+        "mean_agent_return_with_broadcast_penalties_mean": [],
+        "mean_agent_return_with_broadcast_penalties_std": [],
+        "entropy": [],
+        "broadcast_entropy": [],
+        "policy_loss": [],
+        "broadcast_loss": [],
+        "value_loss": [],
+        "options": [],
+        "actions": [],
+        "broadcasts": []
+    }
+
+
+
 ifi = 1. / args.fps
 
 # Define agent
 
-agent = utils.Agent(args.env, env.observation_space, dir_manager.seed_dir, train_config.num_agents, args.argmax)
+agent = utils.Agent(args.env, env.observation_space, dir_manager.seed_dir, train_config.num_agents, args.option_epsilon, \
+                    args.argmax)
 acmodel = agent.acmodel
 preprocess_obss = agent.preprocess_obss
 # Run the agent
@@ -153,11 +186,12 @@ while True:
         if elapsed < ifi:
             time.sleep(ifi - elapsed)
 
-        renderer = env.render('human', close=False) # close=False for visualization
+        renderer = env.render('human', close=True) # close=False for visualization
+
     # action selection
 
-    actions = agent.get_action(obss)
-    #print('actions', actions)
+    options, actions, broadcasts = agent.get_action(obss)
+    #print('options', options, 'actions', actions, 'broadcasts', broadcasts)
 
     # environment step
 
@@ -233,6 +267,13 @@ while True:
     #
     # logs = algo.update_parameters()
     # #num_frames.append(i)
+
+    #save data
+
+
+
+    #logs = algo.update_parameters()
+    #num_frames.append(i)
     # return_per_episode = utils.synthesize(logs["return_per_episode"])
     # return_per_episode_with_broadcast_penalties = utils.synthesize(logs["return_per_episode_with_broadcast_penalties"])
     # mean_agent_return_per_episode_with_broadcast_penalties = utils.synthesize(
@@ -246,6 +287,7 @@ while True:
     #
     # # Saving data for graphs
     #
+
     # graph_data["num_frames"].append(i)
     # #graph_data["return_mean"].append(return_per_episode['mean'])
     # #graph_data["return_std"].append(return_per_episode['std'])
@@ -267,6 +309,8 @@ while True:
     # graph_data["actions"].append(actions)
     # graph_data["broadcasts"].append(broadcasts)
     #print("brd", graph_data["broadcasts"])
+    pickle.dump(graph_data, open("doc_final.p", "wb"))
+    #utils.save_graph_data(graph_data, save_dir=dir_manager.seed_dir)
 
 env.close()
 

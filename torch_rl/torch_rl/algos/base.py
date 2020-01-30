@@ -5,6 +5,7 @@ import itertools
 import copy
 from collections import defaultdict
 
+
 from torch_rl.format import default_preprocess_obss
 from torch_rl.utils import DictList, ParallelEnv
 
@@ -172,11 +173,11 @@ class BaseAlgo(ABC):
                 self.rollout_agent_embeddings = [torch.zeros(*self.shape, self.acmodel.semi_memory_size[j], device=self.device)
                                                  for j in range(self.num_agents)]
 
-            if not self.acmodel.use_teamgrid:
-                self.particle_agent_memories = [torch.zeros(self.shape[1], self.acmodel.memory_size_for_particle[j],
-                                                        device=self.device) for j in range(self.num_agents)]
-                self.rollout_particle_agent_memories = [torch.zeros(*self.shape, self.acmodel.memory_size_for_particle[j],
-                                                          device=self.device) for j in range(self.num_agents)]
+            # if not self.acmodel.use_teamgrid:
+            #     self.particle_agent_memories = [torch.zeros(self.shape[1], self.acmodel.memory_size_for_particle[j],
+            #                                             device=self.device) for j in range(self.num_agents)]
+            #     self.rollout_particle_agent_memories = [torch.zeros(*self.shape, self.acmodel.memory_size_for_particle[j],
+            #                                               device=self.device) for j in range(self.num_agents)]
 
             if self.acmodel.use_central_critic:
                 self.current_coord_memory = torch.zeros(self.shape[1], self.acmodel.coord_memory_size, device=self.device)
@@ -206,8 +207,8 @@ class BaseAlgo(ABC):
                 torch.zeros(*self.shape, self.acmodel.semi_memory_size[j], device=self.device)
                 for j
                 in range(self.num_agents)]
-            self.rollout_particle_agent_embeddings = [torch.zeros(*self.shape, self.acmodel.semi_memory_size_for_particle[j], device=self.device) \
-                                                      for j in range(self.num_agents)]
+            # self.rollout_particle_agent_embeddings = [torch.zeros(*self.shape, self.acmodel.semi_memory_size_for_particle[j], device=self.device) \
+            #                                           for j in range(self.num_agents)]
             self.rollout_actions_mlp = [torch.zeros(*self.shape, self.num_actions[j], device=self.device, dtype=torch.int) for j in
                                         range(self.num_agents)] #for current option
 
@@ -237,7 +238,9 @@ class BaseAlgo(ABC):
 
         self.current_joint_action = [torch.zeros(self.shape[1], device=self.device) for _ in range(self.num_agents)]
 
+        #print('self.acmodel.use_act_values', self.acmodel.use_act_values)
         if self.acmodel.use_act_values:
+
             # if self.acmodel.use_central_critic:
             #     self.rollout_coord_value_swa = torch.zeros(*shape, device=self.device)
             #     self.rollout_coord_value_sw = torch.zeros(*shape, device=self.device)
@@ -379,7 +382,6 @@ class BaseAlgo(ABC):
                             agents_broadcast_dist.append(broadcast_dist)
 
                         else:
-                            #print('obs', preprocessed_obs, 'memory', self.current_agent_memories[j].size())
                             act_mlp, act_dist, values, memory, term_dist, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
                                                                   * self.current_mask.unsqueeze(1), agent_index = j)
@@ -387,7 +389,7 @@ class BaseAlgo(ABC):
 
 
                     else:
-                        if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
+                        if not self.acmodel.always_broadcast:
                             act_mlp, act_dist, values, values_b, memory, broadcast_dist, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
                                                                   * self.current_mask.unsqueeze(1), agent_index = j)
@@ -693,8 +695,8 @@ class BaseAlgo(ABC):
 
 
                     self.rollout_agent_embeddings[j][i] = agents_embedding[j] #embedding
-                    if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
-                        self.rollout_particle_agent_embeddings[j][i] = particle_agents_embedding[j]  # embedding
+                    # if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
+                    #     self.rollout_particle_agent_embeddings[j][i] = particle_agents_embedding[j]  # embedding
 
 
                     #agent_broadcast_embedding_list = torch.zeros((self.num_procs,), self.acmodel.memory_size, device=self.device)
@@ -731,9 +733,9 @@ class BaseAlgo(ABC):
                     if self.acmodel.recurrent:
                         self.rollout_agent_memories[j][i] = self.current_agent_memories[j]
                         self.current_agent_memories[j] = agents_memory[j]
-                        if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
-                            self.rollout_particle_agent_memories[j][i] = self.particle_agent_memories[j]
-                            self.particle_agent_memories[j] = particle_agents_memory[j]
+                        # if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
+                        #     self.rollout_particle_agent_memories[j][i] = self.particle_agent_memories[j]
+                        #     self.particle_agent_memories[j] = particle_agents_memory[j]
 
                         if self.acmodel.use_central_critic:
                             self.rollout_coord_memories[i] = self.current_coord_memory
@@ -802,7 +804,6 @@ class BaseAlgo(ABC):
                     next_obss, rewards, done, _ = self.env.step(list(map(list, zip(*agents_action))))  # this list(map(list)) thing is used to transpose a list of lists
                 else:
                     next_obss, rewards, done, _ = self.env.step(list(map(list, zip(*agents_action_mlp))))
-                #print('per_step_reward', rewards)
 
                 #self.env_step += 1
                 #print('i', i, 'self.env_step', self.env_step)
@@ -825,7 +826,9 @@ class BaseAlgo(ABC):
 
 
                 self.rollout_masks[i] = self.current_mask
-                self.current_mask = 1. - torch.tensor(done, device=self.device, dtype=torch.float)
+                done_or_term = [item1 or item2 for (item1, item2) in zip(done, terminal)]
+                self.current_mask = 1. - torch.tensor(done_or_term, device=self.device, dtype=torch.float)
+                #print('done', done, 'terminal', terminal, 'done or term', done_or_term, 'self.current_mask', self.current_mask)
 
                 self.log_done_counter = [0 for _ in range(self.num_agents)]
 
@@ -840,6 +843,7 @@ class BaseAlgo(ABC):
                         # ], device=self.device)
                     else:
                         self.rollout_rewards[j][i] = torch.tensor(reward, device=self.device)
+                        #print('self.rollout_rewards[j][i]', self.rollout_rewards[j][i])
                         a = torch.tensor(reward, device=self.device)
 
                         b = torch.tensor(agents_broadcast[j].unsqueeze(1).float()*self.broadcast_penalty, device=self.device)
@@ -862,13 +866,13 @@ class BaseAlgo(ABC):
                     # update log values
 
                     self.log_episode_return[j] += self.rollout_rewards[j][i] #torch.tensor(reward, device=self.device, dtype=torch.float)
-                    #print('i', i, 'reward', self.rollout_rewards_plus_broadcast_penalties[j][i])
+                    #print('self.log_episode_return', self.log_episode_return)
                     self.log_episode_return_with_broadcast_penalties[j] += self.rollout_rewards_plus_broadcast_penalties[j][i]
                     self.log_episode_reshaped_return[j] += self.rollout_rewards[j][i]
                     self.log_episode_num_frames[j] += torch.ones(self.num_procs, device=self.device)
 
                     for k, done_ in enumerate(done):
-                        if done_: #or terminal
+                        if done_ or terminal:
                             #print('num_step', self.env_step)
                             #self.env_step = 0
                             self.log_done_counter[j] += 1
@@ -880,7 +884,7 @@ class BaseAlgo(ABC):
                             self.log_reshaped_return[j].append(self.log_episode_reshaped_return[j][k].item())
                             self.log_num_frames[j].append(self.log_episode_num_frames[j][k].item())
 
-                    #self.env_step += 1
+                    #print('self.log_return',  self.log_return, 'self.current_mask', self.current_mask)
 
                     self.log_episode_return[j] *= self.current_mask
                     self.log_episode_return_with_broadcast_penalties[j] *= self.current_mask
@@ -919,7 +923,7 @@ class BaseAlgo(ABC):
                         #     i + 1]
 
 
-                        # Centralized q learning (use self.rollout_rewards_plus_broadcast_penalties instead of self.rollout_rewards)
+                        # Centralized q learning for DOC
                         self.rollout_targets[j][i] = self.rollout_rewards_plus_broadcast_penalties[j][i] + \
                                                      self.rollout_masks[i + 1] * self.discount * \
                                                      (
@@ -933,29 +937,15 @@ class BaseAlgo(ABC):
 
                         self.rollout_advantages[j][i] = self.rollout_values_sw[j][i + 1] - self.rollout_values_s[j][
                             i + 1]
+                    elif not self.acmodel.use_term_fn and self.acmodel.use_act_values:
+                        # Centralized q learning for COMA
+                        self.rollout_targets[j][i] = self.rollout_rewards_plus_broadcast_penalties[j][i] + \
+                                                     self.rollout_masks[i + 1] * self.discount * self.rollout_values_sw[j][i + 1]
 
-                        # # q-learning for each agent's broadcast (decentralized): 'b' denotes broadcast
-                        #
-                        # self.rollout_targets_b[j][i] = self.rollout_rewards_plus_broadcast_penalties[j][i] + \
-                        #                                self.rollout_masks[i + 1] * self.discount * \
-                        #                                (
-                        #                                        (1. - self.rollout_terminates_prob[j][i + 1]) *
-                        #                                        self.rollout_values_sw_b[j][i + 1] + \
-                        #                                        self.rollout_terminates_prob[j][i + 1] *
-                        #                                        self.rollout_values_sw_b_max[j][i + 1]
-                        #                                )
-                        #
-                        # # option-advantage for broadcast
-                        #
-                        # self.rollout_advantages_b[j][i] = self.rollout_values_sw_b[j][i + 1] - self.rollout_values_s_b[j][
-                        #     i + 1]
-                        #
-                        # next_value_b = self.rollout_values_swa_b[j][i + 1]
-                        # next_advantage_b = self.rollout_advantages[j][i + 1] if i < self.num_frames_per_proc else 0
-                        #
-                        # self.rollout_targets_b[j][i] = self.rollout_rewards_plus_broadcast_penalties[j][i] + self.discount * next_value_b * self.rollout_masks[i + 1]
-                        # self.rollout_advantages_b[j][i] = self.rollout_targets_b[j][i] - self.rollout_values_swa_b[j][i]+ \
-                        #                                 self.discount * self.gae_lambda * next_advantage_b * self.rollout_masks[i + 1]
+                        # action-advantage for action
+
+                        self.rollout_advantages[j][i] = self.rollout_values_swa[j][i] - self.rollout_values_sw[j][
+                            i]
 
                     elif not self.acmodel.use_term_fn and not self.acmodel.use_act_values:
                         next_mask = self.rollout_masks[i+1]
@@ -1030,15 +1020,15 @@ class BaseAlgo(ABC):
                         coord_exps.memory = self.rollout_coord_memories[:-1].transpose(0, 1).reshape(-1, *self.rollout_coord_memories.shape[2:])
 
                     exps[j].memory = self.rollout_agent_memories[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_agent_memories[j].shape[2:])
-                    if not self.acmodel.use_teamgrid:
-                        exps[j].particle_agent_memory = self.rollout_particle_agent_memories[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_particle_agent_memories[j].shape[2:])
+                    # if not self.acmodel.use_teamgrid:
+                    #     exps[j].particle_agent_memory = self.rollout_particle_agent_memories[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_particle_agent_memories[j].shape[2:])
                     # T x P -> P x T -> (P * T) x 1
                     exps[j].mask = self.rollout_masks[:-1].transpose(0, 1).reshape(-1).unsqueeze(1)
 
                     # for all tensors below, T x P -> P x T -> P * T
                     exps[j].embedding = self.rollout_agent_embeddings[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_agent_embeddings[j].shape[2:])
-                    if not self.acmodel.use_teamgrid:
-                        exps[j].particle_agent_embedding = self.rollout_particle_agent_embeddings[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_particle_agent_embeddings[j].shape[2:])
+                    # if not self.acmodel.use_teamgrid:
+                    #     exps[j].particle_agent_embedding = self.rollout_particle_agent_embeddings[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_particle_agent_embeddings[j].shape[2:])
                     exps[j].masked_embedding = self.rollout_masked_embeddings[j][:-1].transpose(0, 1).reshape(-1, *
                     self.rollout_masked_embeddings[j].shape[2:])
                     exps[j].estimated_embedding = self.rollout_estimated_embeddings[j][:-1].transpose(0, 1).reshape(-1, *self.rollout_estimated_embeddings[j].shape[2:])
@@ -1174,6 +1164,7 @@ class BaseAlgo(ABC):
                 #print('self.log_return', self.log_return_with_broadcast_penalties, 'keep', keep)
 
                 logs["return_per_episode"].append(self.log_return[j][-keep:])
+                #print('logs["return_per_episode"]', logs["return_per_episode"])
                 logs["return_per_episode_with_broadcast_penalties"].append(self.log_return_with_broadcast_penalties[j][-keep:]) # this is what we plot
                 #print('keep', keep, 'base_log_return', logs["return_per_episode_with_broadcast_penalties"])
 

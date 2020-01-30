@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from torch_rl.algos.base import BaseAlgo
 
+
 class PPOAlgo(BaseAlgo):
     """The class for the Proximal Policy Optimization algorithm
     ([Schulman et al., 2015](https://arxiv.org/abs/1707.06347))."""
@@ -165,7 +166,7 @@ class PPOAlgo(BaseAlgo):
             logs["value_loss"].append(numpy.mean(log_value_losses))
             logs["grad_norm"].append(numpy.mean(log_grad_norms))
 
-        #print('ppo_log_return', logs["return_per_episode_with_broadcast_penalties"])
+        #print('ppo_log_return', logs["return_per_episode"])
 
         return logs
 
