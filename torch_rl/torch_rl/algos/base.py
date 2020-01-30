@@ -808,7 +808,7 @@ class BaseAlgo(ABC):
                 #self.env_step += 1
                 #print('i', i, 'self.env_step', self.env_step)
                 #print('num_frames',self.acmodel.frames_per_proc)
-                #terminal = [(i >= self.acmodel.frames_per_proc) for _ in range(self.shape[1])]
+                terminal = [(i >= self.acmodel.frames_per_proc) for _ in range(self.shape[1])]
 
 
 
