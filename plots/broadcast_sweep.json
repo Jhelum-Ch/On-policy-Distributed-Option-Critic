@@ -1,0 +1,4 @@
+{
+  "experiment_folders":["c2deda6_9165a18_4ROOMS_MADDPG_Broadcast_grid/experiment1","c2deda6_9165a18_4ROOMS_MADDPG_Broadcast_grid/experiment2","c2deda6_9165a18_4ROOMS_MADDPG_Broadcast_grid/experiment3"],
+  "names":["Broadcast_penalty:0.0","Broadcast_penalty:-0.01","Broadcast_penalty:-0.1"],
+}

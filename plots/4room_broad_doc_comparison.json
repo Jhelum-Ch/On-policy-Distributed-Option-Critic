@@ -1,0 +1,4 @@
+{
+  "experiment_folders": ["4rooms/2mil/094098d_9165a18_DOC_TRUE_4ROOMS/experiment1","094098d_9165a18_4ROOMS_DOC_Broadcast_grid/experiment3" ,"c2deda6_9165a18_4ROOMS_DOC_new_Broad_grid/experiment3"],
+  "names": ["No broadcast penalty","Broadcast penalty = -0.1", "Broadcast penalty = -0.5"]
+}

@@ -1,0 +1,8 @@
+{"experiment_folders":[
+  "4rooms/2mil/094098d_9165a18_DOC_TRUE_4ROOMS/experiment1",
+  "4rooms/2mil/c2deda6_9165a18_4ROOMS_MADDPG/experiment1"
+  ],
+  "names":[
+    "DOC",
+    "MADDPG"
+  ]}

@@ -1,0 +1,12 @@
+{"experiment_folders": [
+  "Julien_A2C_DualSwitch/experiment1",
+  "Julien_DOC_DualSwitch/experiment1",
+  "OC_DualSwitch_v3_sharedRewards_decentralisedCritics/experiment1",
+  "PPO_DualSwitch_v3_sharedRewards_decentralisedCritics/experiment1"
+  ],
+  "names":[
+    "A2C",
+    "DOC",
+    "OC",
+    "PPO"
+  ]}

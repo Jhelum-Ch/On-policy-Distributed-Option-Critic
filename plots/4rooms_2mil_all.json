@@ -1,0 +1,10 @@
+{"experiment_folders":["4rooms/2mil/094098d_9165a18_4ROOMS_A2C_NOCC/experiment1",
+  "4rooms/2mil/094098d_9165a18_4ROOMS_OC/experiment1",
+  "4rooms/2mil/094098d_9165a18_4ROOMS_PPO/experiment1",
+  "4rooms/2mil/094098d_9165a18_DOC_TRUE_4ROOMS/experiment1"
+  ],
+  "names":["A2C",
+    "OC",
+    "PPO",
+    "DOC"
+  ]}

@@ -1,0 +1,10 @@
+{"experiment_folders": [
+  "c2deda6_9fb4e8e_SwitchOneOne-doc/experiment1",
+  "c2deda6_9fb4e8e_SwitchOneOne-oc/experiment1",
+  "c2deda6_9fb4e8e_SwitchOneOne-a2c/experiment1"
+  ],
+  "names":[
+    "DOC",
+    "OC",
+    "A2C"
+  ]}
