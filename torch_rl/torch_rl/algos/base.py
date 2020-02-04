@@ -354,15 +354,21 @@ class BaseAlgo(ABC):
                 agents_term_dist = []
                 agents_broadcast_dist = []
                 agents_embedding = []
-                particle_agents_embedding = []
-                particle_agents_memory = []
                 agents_broadcast_embedding = []
                 agents_estimated_embedding = []
                 agents_next_estimated_embedding = []
 
 
 
-                total_broadcast_list = np.zeros(self.num_procs)
+                #total_broadcast_list = np.zeros(self.num_procs)
+                #print('curr', np.shape(self.current_obss[0]))
+
+                # if i==0:
+                #     for j, obs_j in enumerate(self.current_obss):
+                #         agent_preprocessed_obs = self.preprocess_obss(obs_j, device=self.device)
+                #         agent_embedding, new_agent_mem = self.acmodel._embed_observation(agent_preprocessed_obs, self.current_agent_memories[j],\
+                #                                                                          j)
+                #         agents_estimated_embedding.append(agent_embedding)
 
 
                 for j, obs_j in enumerate(self.current_obss):
@@ -370,6 +376,14 @@ class BaseAlgo(ABC):
                     # Do one agent's forward propagation
                     #print('LEN', np.shape(self.current_obss[0]))
                     preprocessed_obs = self.preprocess_obss(obs_j, device=self.device)
+
+                    # curr_copy = copy.deepcopy(self.current_obss)
+                    # del curr_copy[j]
+                    # others_current_obss = curr_copy
+                    # all_other_embeddings = []
+                    # for other, obs_other in enumerate(others_current_obss):
+                    #     other_est_obs = self.preprocess_obss(obs_other, device=self.device)
+                    #     all_other_obs.append(other_est_embedding)
 
                     #if self.acmodel.use_teamgrid:
                     if self.num_options is not None:
@@ -384,7 +398,7 @@ class BaseAlgo(ABC):
                         else:
                             act_mlp, act_dist, values, memory, term_dist, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
-                                                                  * self.current_mask.unsqueeze(1), agent_index = j)
+                                                                  * self.current_mask.unsqueeze(1), agent_index = j) #agents_estimated_embedding
 
 
 
@@ -470,6 +484,7 @@ class BaseAlgo(ABC):
 
                     estimated_embedding = esimate_embedding(agents_broadcast_embedding[j], agents_broadcast[j], self.rollout_agent_embeddings[j], agents_broadcast_idx[j])
                     agents_estimated_embedding.append(estimated_embedding)
+                    # agents_estimated_embedding[j] = estimated_embedding
 
 
 
@@ -590,6 +605,7 @@ class BaseAlgo(ABC):
                                         #                                                             broadcast_idxs,
                                         #                                                             self.current_coord_memory* self.current_mask.unsqueeze(1))
                                         if self.acmodel.use_central_critic:
+                                            #print('action_ind', action_idxs)
                                         #print('base_ac_idx', action_idxs)
                                             _, mod_agent_values, new_coord_memory = self.acmodel.forward_central_critic(
                                                 agents_broadcast_embedding,
@@ -937,7 +953,7 @@ class BaseAlgo(ABC):
                     elif not self.acmodel.use_term_fn and self.acmodel.use_act_values:
                         # Centralized q learning for COMA
                         self.rollout_targets[j][i] = self.rollout_rewards_plus_broadcast_penalties[j][i] + \
-                                                     self.rollout_masks[i + 1] * self.discount * self.rollout_values_sw[j][i + 1]
+                                                     self.rollout_masks[i + 1] * self.discount * self.rollout_values_swa[j][i + 1]
 
                         # action-advantage for action
 
