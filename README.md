@@ -39,10 +39,10 @@ pip3 install -e torch_rl
 
 To update the package, just do `git pull`. No need to install it again.
 
-The starter files presented just below are best suited for [MiniGrid](https://github.com/maximecb/gym-minigrid) environments that you can install with:
+The starter files presented just below are best suited for [TEAMGrid](https://github.com/maximecb/teamgrid) environments that you can install with:
 ```
-git clone https://github.com/maximecb/gym-minigrid.git
-cd gym-minigrid
+git clone https://github.com/maximecb/teamgrid.git
+cd teamgrid
 pip3 install -e .
 ```
 
