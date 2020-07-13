@@ -10,7 +10,7 @@ The package comes out of the box with starter files:
 - a default agent's model (in `model.py`)
 - CSV and Tensorboard logging for easy debugging
 
-These files use the `torch_rl` package to allow you to immediatly train an agent on [MiniGrid](https://github.com/maximecb/gym-minigrid) environments **without having to write any line of code** and they can be easily adapted to other environments.
+These files use the `torch_rl` package to allow you to immediatly train an agent on [TEAMGrid](https://github.com/maximecb/teamgrid) environments **without having to write any line of code** and they can be easily adapted to other environments.
 
 <p align="center">
     <img width="300" src="README-rsrc/visualize-keycorridor.gif">
