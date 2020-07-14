@@ -1,3 +1,14 @@
 # Don't track content of these folders
 __pycache__/
 .idea/
+.DS_Store
+
+storage/
+
+scripts/storage/
+
+scripts/.DS_Store
+torch_rl/.DS_Store
+torch_rl/torch_rl/.DS_Store
+
+baselines/
