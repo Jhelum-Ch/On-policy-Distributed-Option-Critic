@@ -4,6 +4,8 @@ import numpy as np
 import itertools
 import copy
 from collections import defaultdict
+from utils.buffer import *
+
 
 
 from torch_rl.format import default_preprocess_obss
@@ -40,7 +42,7 @@ def esimate_embedding(masked_embedding, broadcast, rollout_embedding, broadcast_
 class BaseAlgo(ABC):
     """The base class for RL algorithms."""
 
-    def __init__(self, num_agents=None, envs=None, acmodel=None, replay_buffer=None, \
+    def __init__(self, config=None, env_dims=None, num_agents=None, envs=None, acmodel=None, sil_model=None, replay_buffer=None, no_sil=None,\
                  num_frames_per_proc=None, discount=None, lr=None, gae_lambda=None, \
                  entropy_coef=None,
                  value_loss_coef=None, recurrence=None, \
@@ -110,7 +112,11 @@ class BaseAlgo(ABC):
         #self.recurrence_coord = recurrence_coord
         self.preprocess_obss = preprocess_obss or default_preprocess_obss
         self.reshape_reward = reshape_reward
+
         self.replay_buffer = replay_buffer
+        self.no_sil = no_sil
+        self.env_dims=env_dims
+
         self.always_broadcast = self.acmodel.always_broadcast
         self.broadcast_penalty = broadcast_penalty if not self.always_broadcast else 0.
         self.num_actions = self.acmodel.num_actions
@@ -139,6 +145,10 @@ class BaseAlgo(ABC):
         self.num_procs = len(envs)
         self.num_frames = self.num_frames_per_proc * self.num_procs
 
+        self.config = config
+        self.env_dims = env_dims
+        self.sil_model = sil_model
+
         # Control parameters
         # assert self.acmodel.recurrent or self.recurrence_agents == 1 and recurrence_coord == 1
         # assert self.num_frames_per_proc % self.recurrence_agents == 0 and self.num_frames_per_proc % self.recurrence_coord == 0
@@ -157,6 +167,16 @@ class BaseAlgo(ABC):
         self.current_obss = self.env.reset()
         self.rollout_obss = [None]*(self.shape[0])
         self.rollout_next_obss = [None] * (self.shape[0])
+
+        if self.replay_buffer:
+            self.rep_buffer = PrioritizedReplayBuffer(self.config.env, self.config.buffer_length,
+                                                         self.config.num_agents, self.env_dims[0], \
+                                                         self.env_dims[1], self.env_dims[2], self.env_dims[3], \
+                                                         self.config.sil_alpha, ep_buffer=False)
+            self.ep_buffer = PrioritizedReplayBuffer(self.config.env, self.config.buffer_length,
+                                                     self.config.num_agents, self.env_dims[0], \
+                                                     self.env_dims[1], self.env_dims[2], self.env_dims[3], \
+                                                     self.config.sil_alpha, ep_buffer=True)
 
 
         if self.acmodel.recurrent:
@@ -271,7 +291,7 @@ class BaseAlgo(ABC):
         # replay buffer for all agents
         #self.buffer = [[] for _ in range(self.num_agents)]
         # self.rollout_buffer = [None for i in range(self.shape[0]) for j in range(self.num_agents)]
-        self.rollout_buffer = [[None for i in range(self.shape[0])] for j in range(self.num_agents)]
+        #self.rollout_buffer = [[None for _ in range(self.shape[0])] for _ in range(self.num_agents)]
        # if self.acmodel.use_broadcasting:
 
         self.current_broadcast_state = [torch.ones(self.shape[1], device=self.device) for _ in range(self.num_agents)]
@@ -357,6 +377,7 @@ class BaseAlgo(ABC):
                 agents_broadcast_embedding = []
                 agents_estimated_embedding = []
                 agents_next_estimated_embedding = []
+                br_rewards = []
 
 
 
@@ -792,50 +813,58 @@ class BaseAlgo(ABC):
                     self.rollout_broadcast_masks[j][i] = agents_broadcast[j]
 
 
-
-
-
-
-                        # self.rollout_values_swa_b[j][i] = agents_values_b[j][
-                        #     range(self.num_procs), self.current_options[j].long(), agents_broadcast[j]].squeeze()
-                        # self.rollout_values_sw_b[j][i] = Qsw_b.squeeze()
-                        # self.rollout_values_s_b[j][i] = Vs_b.squeeze()
-                        # self.rollout_values_sw_b_max[j][i] = Qsw_b_max.squeeze()
-
-
-                    # if self.acmodel.use_central_critic:
-                    #
-                    #     self.rollout_coord_memories[i] = self.current_coord_memory
-                    #     # x = new_coord_memories[range(self.num_procs), self.current_options[j].long(), agents_action[j].long(), :]
-                    #     x = coord_new_memory
-                    #     self.current_coord_memory = x
-
-                #print('agents_action', agents_action, 'star_action', *agents_action_mlp)
-
                 # environment step
                 if self.acmodel.use_teamgrid:
                     next_obss, rewards, done, _ = self.env.step(list(map(list, zip(*agents_action))))  # this list(map(list)) thing is used to transpose a list of lists
                 else:
                     next_obss, rewards, done, _ = self.env.step(list(map(list, zip(*agents_action_mlp))))
 
-                #self.env_step += 1
-                #print('i', i, 'self.env_step', self.env_step)
-                #print('num_frames',self.acmodel.frames_per_proc)
+                for j, reward in enumerate(rewards):
+
+                    if self.reshape_reward is not None:
+                        # UNSUPPORTED for now
+                        raise NotImplemented  # TODO: figure out what is reshape_reward and support it
+                        # self.rewards[j][i] = torch.tensor([
+                        #     self.reshape_reward(obs_, action_, reward_, done_)
+                        #     for obs_, action_, reward_, done_ in zip(obs, action, reward, done)
+                        # ], device=self.device)
+                    else:
+                        self.rollout_rewards[j][i] = torch.tensor(reward, device=self.device)
+                        # print('self.rollout_rewards[j][i]', self.rollout_rewards[j][i])
+                        a = torch.tensor(reward, device=self.device)
+
+                        b = torch.tensor(agents_broadcast[j].unsqueeze(1).float() * self.broadcast_penalty,
+                                         device=self.device)
+
+                        if self.acmodel.use_teamgrid:
+                            self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a, b.squeeze().long())
+                        else:
+                            self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a, b.squeeze())
+
+                    br_rewards.append(self.rollout_rewards_plus_broadcast_penalties[j][i])
+
+                # if not self.no_sil:
+                #     if i == 0:
+                #         old_embeddings = self.rollout_obss[i]
+                #     else: # i > 0
+                #         old_embeddings = self.rollout_obss[i-1]
+                #     self.sil_model.sil_step(i, self.config, self.env_dims, old_embeddings, self.current_obss, \
+                #                             self.current_options[j], agents_action, \
+                #                             agents_broadcast, self.rollout_terminates_prob[i], \
+                #                             self.current_agent_memories, self.current_coord_memory,
+                #                             rewards, br_rewards, next_obss, done)
+
+
                 terminal = [(i >= self.acmodel.frames_per_proc) for _ in range(self.shape[1])]
-
-
 
                 if not self.acmodel.use_teamgrid:
                     done = [all(item) for item in done]
-                #print('done', done, 'terminal', terminal)
-                # done = not done or terminal
-                #done = [item1 or item2 for (item1, item2) in zip(done, terminal)]
-               # print('done1', done, )
-                    #print('i',i,'done_t', done)
 
                 self.rollout_obss[i] = self.current_obss
+                #self.old_obss = self.current_obss
                 self.rollout_next_obss[i] = next_obss
                 self.current_obss = next_obss
+
 
 
                 self.rollout_masks[i] = self.current_mask
@@ -847,24 +876,26 @@ class BaseAlgo(ABC):
 
                 for j, reward in enumerate(rewards):
 
-                    if self.reshape_reward is not None:
-                        # UNSUPPORTED for now
-                        raise NotImplemented # TODO: figure out what is reshape_reward and support it
-                        # self.rewards[j][i] = torch.tensor([
-                        #     self.reshape_reward(obs_, action_, reward_, done_)
-                        #     for obs_, action_, reward_, done_ in zip(obs, action, reward, done)
-                        # ], device=self.device)
-                    else:
-                        self.rollout_rewards[j][i] = torch.tensor(reward, device=self.device)
-                        #print('self.rollout_rewards[j][i]', self.rollout_rewards[j][i])
-                        a = torch.tensor(reward, device=self.device)
-
-                        b = torch.tensor(agents_broadcast[j].unsqueeze(1).float()*self.broadcast_penalty, device=self.device)
-
-                        if self.acmodel.use_teamgrid:
-                            self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a,b.squeeze().long())
-                        else:
-                            self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a, b.squeeze())
+                    # if self.reshape_reward is not None:
+                    #     # UNSUPPORTED for now
+                    #     raise NotImplemented # TODO: figure out what is reshape_reward and support it
+                    #     # self.rewards[j][i] = torch.tensor([
+                    #     #     self.reshape_reward(obs_, action_, reward_, done_)
+                    #     #     for obs_, action_, reward_, done_ in zip(obs, action, reward, done)
+                    #     # ], device=self.device)
+                    # else:
+                    #     self.rollout_rewards[j][i] = torch.tensor(reward, device=self.device)
+                    #     #print('self.rollout_rewards[j][i]', self.rollout_rewards[j][i])
+                    #     a = torch.tensor(reward, device=self.device)
+                    #
+                    #     b = torch.tensor(agents_broadcast[j].unsqueeze(1).float()*self.broadcast_penalty, device=self.device)
+                    #
+                    #     if self.acmodel.use_teamgrid:
+                    #         self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a,b.squeeze().long())
+                    #     else:
+                    #         self.rollout_rewards_plus_broadcast_penalties[j][i] = torch.add(a, b.squeeze())
+                    #
+                    # br_rewards.append(self.rollout_rewards_plus_broadcast_penalties[j][i])
 
 
                     if self.acmodel.use_term_fn:

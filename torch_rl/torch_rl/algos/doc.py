@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import copy
+from utils.sil_module import sil_module
 
 from torch_rl.algos.base import BaseAlgo
 
@@ -21,19 +22,28 @@ class DOCAlgo(BaseAlgo):
 
 
 
-    def __init__(self, num_agents=None, envs=None, acmodel=None, replay_buffer=None, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
+    def __init__(self, config=None, env_dims=None, num_agents=None, envs=None, acmodel=None, replay_buffer=None, \
+                 no_sil=None, num_frames_per_proc=None, discount=0.99, lr=7e-4, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence = 4,
                  rmsprop_alpha=0.99, rmsprop_eps=1e-5, preprocess_obss=None, num_options=3,
-                 termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None, always_broadcast = False, broadcast_penalty=-0.01):
+                 termination_loss_coef=0.5, termination_reg=0.01, reshape_reward=None, always_broadcast = False, \
+                 broadcast_penalty=-0.01):
 
         num_frames_per_proc = num_frames_per_proc or 8
+
+        self.config = config
+        self.env_dims = env_dims
+
+        self.sil_model = sil_module(self.config, self.env_dims, acmodel, self.config.num_options, self.config.discount, \
+                                    self.config.entropy_coef)
 
         #num_frames_per_proc = 50
 
         # super().__init__(num_agents, envs, acmodel, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
         #                  value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward, broadcast_penalty, always_broadcast,
         #                  termination_loss_coef, termination_reg)
-        super().__init__(num_agents=num_agents, envs=envs, acmodel=acmodel, replay_buffer=replay_buffer,\
+        super().__init__(config=config, env_dims=env_dims, num_agents=num_agents, envs=envs, acmodel=acmodel, \
+                         sil_model=self.sil_model, replay_buffer=replay_buffer, no_sil=no_sil,\
                          num_frames_per_proc=num_frames_per_proc, discount=discount, lr=lr, gae_lambda=gae_lambda, \
                          entropy_coef=entropy_coef,
          value_loss_coef=value_loss_coef, max_grad_norm=max_grad_norm, recurrence=recurrence, preprocess_obss=preprocess_obss, \
@@ -52,6 +62,7 @@ class DOCAlgo(BaseAlgo):
                                              alpha=rmsprop_alpha, eps=rmsprop_eps)
         # self.optimizer_critic = torch.optim.RMSprop(self.acmodel.parameters(), self.lr,
         #                                      alpha=rmsprop_alpha, eps=rmsprop_eps)
+
 
     def update_parameters(self):
 
@@ -401,6 +412,10 @@ class DOCAlgo(BaseAlgo):
         update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
         torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
         self.optimizer.step()
+
+        if not self.no_sil:
+            mean_advs, mean_br_advs, num_samples = self.sil_model.train_sil_teamgrid((coord_exps, exps, logs), self.acmodel)
+            #sil_max_reward = self.sil_model.get_best_reward()
 
         # Log some values
         logs["entropy"] = update_entropy

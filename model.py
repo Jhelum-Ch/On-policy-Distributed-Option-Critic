@@ -8,7 +8,7 @@ import gym
 import utils
 import copy
 import numpy as np
-from multiagent.multi_discrete import MultiDiscrete
+#from multiagent.multi_discrete import MultiDiscrete
 
 
 
@@ -69,9 +69,9 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
             #print('Hi1', action_space)
             self.num_actions = action_space.n
             self.agents_actions = self.num_actions
-        elif isinstance(action_space, MultiDiscrete):
-            pass
-            #print('Hi2')
+        # elif isinstance(action_space, MultiDiscrete):
+        #     pass
+        #     #print('Hi2')
         elif isinstance(action_space, list):
             #print('Hi3', action_space)
             list_actions = [action_space[i].n for i in range(len(action_space))]

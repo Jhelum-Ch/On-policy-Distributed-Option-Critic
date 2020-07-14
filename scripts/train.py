@@ -46,8 +46,9 @@ from utils.plots import *
 import numpy as np
 from utils.general import round_to_two
 import teamgrid
-import multiagent
-from make_env import make_env
+from gym.spaces import Box, Discrete
+# import multiagent
+# from make_env import make_env
 
 import utils
 from utils import parse_bool
@@ -146,9 +147,9 @@ from model import ACModel
 
 def get_training_args(overwritten_args=None):
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("--algo", default='ppo', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'],#required=True,
+    parser.add_argument("algo", default='doc', choices=['doc', 'oc', 'a2c', 'ppo', 'maddpg'], #required=True,
                         help="algorithm to use: a2c | ppo | oc (REQUIRED)")
-    parser.add_argument("--env", default='TEAMGrid-DoorBall-v0', #required=True,
+    parser.add_argument("env", default='TEAMGrid-Switch-v0', #required=True,
                         help="name of the environment to train on (REQUIRED)") # choose between 'TEAMGrid-FourRooms-v0' and 'TEAMGrid-Switch-v0'
     parser.add_argument("--desc", default="",
                         help="string added as suffix to git_hash to explain the experiments in this folder")
@@ -216,7 +217,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--termination_reg", type=float, default=0.01,
                         help="termination regularization constant (default: 0.01)")
     # Multi-Agent configs
-    parser.add_argument("--num_agents", type=int, default=2,
+    parser.add_argument("--num_agents", type=int, default=2, #keep it fixed to 2 except in fourrooms
                         help="number of trainable agents interacting with the teamgrid environment")
     parser.add_argument("--shared_rewards", type=parse_bool, default=True,
                          help="whether the reward is individual or shared as the sum of all rewards among agents")
@@ -224,10 +225,10 @@ def get_training_args(overwritten_args=None):
     #                     help="whether there is reward for turning on light switch in switch env")
     # parser.add_argument("--reward_all", type=parse_bool, default=False,
     #                     help="whether there is reward for turning on light switch in switch env")
-    parser.add_argument("--num_goals", type=int, default=3,
+    parser.add_argument("--num_goals", type=int, default=5,
                         help="number of goals the agents need to discover")
     # arguments to replace flag
-    parser.add_argument("--use_teamgrid", type=parse_bool, default=False)
+    parser.add_argument("--use_teamgrid", type=parse_bool, default=True)
     parser.add_argument("--use_switch", type=parse_bool, default=False)
     parser.add_argument("--use_fourrooms", type=parse_bool, default=False)
     parser.add_argument("--use_dualdoors", type=parse_bool, default=False)
@@ -247,6 +248,19 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--er_batch_size", type=int, default=1024,
                         help="experience replay sampling batch size for MADDPG (default: 1)")
     parser.add_argument("--replay_buffer", type=parse_bool, default=True)
+
+    # Self Imitation learning
+    parser.add_argument("--no_sil", default=True, type=bool)
+    parser.add_argument("--buffer_length", default=int(1e6), type=int)
+    parser.add_argument("--sil_alpha", default=0.01, type=float)
+    parser.add_argument("--sil_beta", default=0.01, type=float)
+    parser.add_argument('--max-nlogp', type=float, default=5, help='max nlogp')
+    parser.add_argument('--mini_batch_size', type=int, default=64, help='the minimal batch size')
+    parser.add_argument('--sil_num_batches', type=int, default=4, help='the number batches sampled from replay buffer')
+    parser.add_argument('--sil_clip', type=float, default=1, help='clip parameters')
+    parser.add_argument('--value_loss_coeff', type=float, default=0.01, help='the wloss coefficient')
+    parser.add_argument('--informed_exploration', default=False, help='informed exploration with SIL')
+
 
 
 
@@ -279,10 +293,12 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     # elif config.algo == 'oc':
     #     assert config.num_options >= config.num_agents # same set of options available to each agent
 
-    if config.algo == 'maddpg':
+    if config.algo == 'maddpg' or not config.no_sil:
         config.replay_buffer = True
-    else:
+    elif config.no_sil:
         config.replay_buffer = False
+    else:
+        raise NotImplementedError
 
     if dir_manager is None:
 
@@ -326,8 +342,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 #env = gym.make(config.env, num_agents=config.num_agents, num_goals=config.num_goals, shared_rewards=config.shared_rewards)
                 env = gym.make(config.env, shared_rewards=config.shared_rewards)
             elif config.use_fourrooms: #4rooms
-                env = gym.make(config.env, num_agents=config.num_agents, num_goals=config.num_goals,
-                               shared_rewards=config.shared_rewards)
+                env = gym.make(config.env, num_agents=config.num_agents, num_goals=config.num_goals,shared_rewards=config.shared_rewards)
             elif config.use_dualdoors:
                 env = gym.make(config.env)
             elif config.use_dualswitch:
@@ -336,13 +351,21 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 env = gym.make(config.env)
                 #env.render()
         else:
+            pass
             #print('num_agents', config.num_agents, 'num_goals', config.num_goals)
-            env = make_env(scenario_name=config.scenario, \
-                           benchmark=config.benchmark) #num_agents=config.num_agents, num_goals=config.num_goals, , shared_rewards=config.shared_rewards
+            # env = make_env(scenario_name=config.scenario, \
+            #                benchmark=config.benchmark) #num_agents=config.num_agents, num_goals=config.num_goals, , shared_rewards=config.shared_rewards
             #config.env = make_env('simple_speaker_listener')  # choose any scenario
             #env = config.env #gym.make(config.env)
         env.seed(config.seed + 10000 * i)
         envs.append(env)
+
+    env_dims = [[envs[0].observation_space.shape for _ in range(config.num_agents)], \
+                [config.num_options for _ in range(config.num_agents)], \
+                [envs[0].action_space.shape if isinstance(envs[0].action_space, Box) else envs[0].action_space.n \
+                 for _ in range(config.num_agents)], \
+                [2 if not config.use_always_broadcast else 1 for _ in range(config.num_agents)]
+                ]
 
 
     # Define obss preprocessor
@@ -455,7 +478,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                termination_reg=config.termination_reg)
     elif config.algo == "doc":
         #config.recurrence = 2
-        algo = torch_rl.DOCAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
+        algo = torch_rl.DOCAlgo(config=config, env_dims=env_dims, num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
                                 num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
                                 gae_lambda=config.gae_lambda,
                                entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, max_grad_norm=config.max_grad_norm, \
