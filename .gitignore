@@ -5,7 +5,7 @@ __pycache__/
 
 storage/
 
-scripts/storage/
+scripts/storage
 
 scripts/.DS_Store
 torch_rl/.DS_Store
