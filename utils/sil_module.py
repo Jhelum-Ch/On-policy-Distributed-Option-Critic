@@ -5,6 +5,7 @@ import torch.distributed as dist
 from torch.autograd import Variable
 import numpy as np
 import copy
+#from collections import defaultdict
 from utils.buffer import PrioritizedReplayBuffer
 #from utils.misc import evaluate_actions_sil
 
@@ -171,8 +172,8 @@ class sil_module:
             #     for j in range(len(obss[i])):
             #         o_a_map[obss[i][j]].append(acss[i][j])
             #     #informed_ent_wt[i] -=
-
             mean_advs, mean_br_advs, num_valid_sampless = [], [], []
+
             if obss is not None:
                 for agent_id in range(len(obss)):
                     retss[agent_id] = retss[agent_id].clone().unsqueeze(1)
@@ -210,7 +211,7 @@ class sil_module:
                     pi_prob = torch.stack([prediction['pi'][j, op_indx.squeeze(1)[j], :] \
                                 for j in range(prediction['pi'].shape[0])])
 
-
+                    print('no-sil', self.config.no_sil, 'informed', self.config.informed_exploration)
                     if self.config.informed_exploration:
                         pi = self.agents[agent_id].policy(obss[agent_id])
                         pi = pi.view(-1, self.config.num_options, self.agents[agent_id].num_ac)
@@ -413,20 +414,70 @@ class sil_module:
 
                 sbs[j] = exps[j][inds + i]
 
+                # Keep the components of sbs buffer where the advantage is positive.
+                adv1 = []
+                memories1 = []
+                obs1 = []
+                mask1 = []
+                acs1 = []
+                ops1  = []
+                brs1 = []
+                for l in range(len(sbs[j].advantage)):
+                    if sbs[j].advantage[l] > 0.0:
+                        adv1.append(sbs[j].advantage[l])
+                        memories1.append(memories[j][l])
+                        obs1.append(sbs[j].obs[l])
+                        mask1.append(sbs[j].mask[l])
+                        acs1.append(sbs[j].action[l])
+                        ops1.append(sbs[j].option[l])
+                        brs1.append(sbs[j].broadcast[l])
+
+                obs1 = torch.tensor(obs1)
+                adv1 = torch.tensor(adv1)
+                memories1 = torch.tensor(memories1)
+                mask1 = torch.tensor(mask1)
+                acs1 = torch.tensor(acs1)
+                ops1 = torch.tensor(ops1)
+                brs1 = torch.tensor(brs1)
+
+
+                # exp_dict = {str(ob):[] for ob in sbs[j].obs.image} #defaultdict()
+                #
+                # for l, ob in enumerate(sbs[j].obs.image):
+                #     exp_dict[str(ob)].append((sbs[j].action[l], sbs[j].option[l], sbs[j].broadcast[l]))
+
+
+
                 # Actor forward propagation
 
                 # print('i', i, 'inds + i', len(inds + i), 'sbs_em', sbs[j].embeddings.size())
 
-                if not acmodel.always_broadcast:
-                    act_mlp, act_dist, _, _, memory, term_dist, broadcast_dist, embedding = acmodel.forward_agent_critic(
-                        sbs[j].obs, \
-                        memories[j] * \
-                        sbs[j].mask, agent_index=j)
-                else:
-                    act_mlp, act_dist, _, memory, term_dist, embedding = acmodel.forward_agent_critic(
-                        sbs[j].obs, \
-                        memories[j] * \
-                        sbs[j].mask, agent_index=j)
+                if len(obs1) > 0: # if any component of sbs[j].advantage is positive
+
+                    if not acmodel.always_broadcast:
+                        act_mlp, act_dist, _, _, memory, term_dist, broadcast_dist, embedding = acmodel.forward_agent_critic(
+                            obs1, \
+                            memories1 * \
+                            mask1, agent_index=j)
+                    else:
+                        act_mlp, act_dist, _, memory, term_dist, embedding = acmodel.forward_agent_critic(
+                            obs1, \
+                            memories1 * \
+                            mask1, agent_index=j)
+
+
+
+                else: # use sbs[j] entirely. In this case SIL will have no effect
+                    if not acmodel.always_broadcast:
+                        act_mlp, act_dist, _, _, memory, term_dist, broadcast_dist, embedding = acmodel.forward_agent_critic(
+                            sbs[j].obs, \
+                            memories[j] * \
+                            sbs[j].mask, agent_index=j)
+                    else:
+                        act_mlp, act_dist, _, memory, term_dist, embedding = acmodel.forward_agent_critic(
+                            sbs[j].obs, \
+                            memories[j] * \
+                            sbs[j].mask, agent_index=j)
 
                 # compute MC returns
                 rets[j], br_rets[j] = self.monte_carlo_return(sbs[j].reward, sbs[j].broadcast, sbs[j].mask, self.config.discount)
@@ -464,7 +515,27 @@ class sil_module:
             for j in range(self.config.num_agents):
                 # Actor losses
 
+                # print('no-sil', self.config.no_sil, 'informed', self.config.informed_exploration)
+                # if self.config.informed_exploration:
+                #     pi = self.agents[agent_id].policy(obss[agent_id])
+                #     pi = pi.view(-1, self.config.num_options, self.agents[agent_id].num_ac)
+                #     pi = F.softmax(-pi, dim=-1)
+                #     pi_inf_exp = torch.stack([pi[j, op_indx.squeeze(1)[j], :] \
+                #                               for j in range(pi.shape[0])])
+                #     # import pdb;
+                #     # pdb.set_trace()
+                #     # pi_inf_exp = pi_inf_exp.detach()
+                #     pi_inf_exp = (pi_inf_exp * pi_prob) / torch.sum(pi_inf_exp * pi_prob, dim=1).unsqueeze(1)
+                #
+                #     # TODO:now pi_inf_exp becoming 0.5 everywhere (highest possible entropy).\
+                #     # Check if we should modify this
+                #
+                #     pi_dist = torch.distributions.Categorical(probs=pi_inf_exp)
+                # else:
+                #     pi_dist = torch.distributions.Categorical(probs=pi_prob)
+
                 entropy = act_dist.entropy().mean()
+
                 # if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
                 if not acmodel.always_broadcast:
                     broadcast_entropy = broadcast_dist.entropy().mean()

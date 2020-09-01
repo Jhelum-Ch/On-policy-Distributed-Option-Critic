@@ -162,7 +162,7 @@ def get_training_args(overwritten_args=None):
     #                     help="Maximum length of each poisode")
     parser.add_argument("--procs", type=int, default=16,
                         help="number of processes (default: 16)")
-    parser.add_argument("--frames", type=int, default=3000000,
+    parser.add_argument("--frames", type=int, default=100000,
                         help="number of frames of training (default: 10e6)")
     parser.add_argument("--log_interval", type=int, default=1,
                         help="number of updates between two logs (default: 1)")
@@ -172,7 +172,7 @@ def get_training_args(overwritten_args=None):
                         help="log into Tensorboard")
 
 
-    parser.add_argument("--frames_per_proc", type=int, default=50,
+    parser.add_argument("--frames_per_proc", type=int, default=26,
                         help="number of frames per process before update (default: 5 for A2C and 128 for PPO)")
     parser.add_argument("--discount", type=float, default=0.99,
                         help="discount factor (default: 0.99)")
@@ -235,7 +235,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--use_dualswitch", type=parse_bool, default=False)
     parser.add_argument("--use_doorball", type=parse_bool, default=False)
 
-    parser.add_argument("--use_central_critic", type=parse_bool, default=False)
+    parser.add_argument("--use_central_critic", type=parse_bool, default=True)
     parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
 
     # Multiagent Particle Env
@@ -250,7 +250,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--replay_buffer", type=parse_bool, default=True)
 
     # Self Imitation learning
-    parser.add_argument("--no_sil", default=True, type=bool)
+    parser.add_argument("--no_sil", default=False, type=bool)
     parser.add_argument("--buffer_length", default=int(1e6), type=int)
     parser.add_argument("--sil_alpha", default=0.01, type=float)
     parser.add_argument("--sil_beta", default=0.01, type=float)
@@ -259,7 +259,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument('--sil_num_batches', type=int, default=4, help='the number batches sampled from replay buffer')
     parser.add_argument('--sil_clip', type=float, default=1, help='clip parameters')
     parser.add_argument('--value_loss_coeff', type=float, default=0.01, help='the wloss coefficient')
-    parser.add_argument('--informed_exploration', default=False, help='informed exploration with SIL')
+    parser.add_argument('--informed_exploration', default=True, help='informed exploration with SIL')
 
 
 
@@ -478,7 +478,8 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                termination_reg=config.termination_reg)
     elif config.algo == "doc":
         #config.recurrence = 2
-        algo = torch_rl.DOCAlgo(config=config, env_dims=env_dims, num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
+        algo = torch_rl.DOCAlgo(config=config, env_dims=env_dims, num_agents=config.num_agents, envs=envs, acmodel=acmodel, \
+                                replay_buffer=config.replay_buffer, no_sil=config.no_sil, \
                                 num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
                                 gae_lambda=config.gae_lambda,
                                entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, max_grad_norm=config.max_grad_norm, \

@@ -413,6 +413,8 @@ class DOCAlgo(BaseAlgo):
         torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
         self.optimizer.step()
 
+        #print('no-sil', self.no_sil)
+
         if not self.no_sil:
             mean_advs, mean_br_advs, num_samples = self.sil_model.train_sil_teamgrid((coord_exps, exps, logs), self.acmodel)
             #sil_max_reward = self.sil_model.get_best_reward()

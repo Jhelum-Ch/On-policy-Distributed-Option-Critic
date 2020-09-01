@@ -60,7 +60,7 @@ def get_csv_writer(save_dir):
     return csv_file, csv.writer(csv_file)
 
 def get_git_hash(path):
-    print(path)
+    #print(path)
     return subprocess.check_output(["git", "-C", path, "rev-parse", "--short", "HEAD"]).decode("utf-8").strip()
 
 def create_logger(name, loglevel, logfile=None, streamHandle=True):
