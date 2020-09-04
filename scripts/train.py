@@ -235,7 +235,7 @@ def get_training_args(overwritten_args=None):
     parser.add_argument("--use_dualswitch", type=parse_bool, default=False)
     parser.add_argument("--use_doorball", type=parse_bool, default=False)
 
-    parser.add_argument("--use_central_critic", type=parse_bool, default=True)
+    parser.add_argument("--use_central_critic", type=parse_bool, default=False)
     parser.add_argument("--use_always_broadcast", type=parse_bool, default=True)
 
     # Multiagent Particle Env
@@ -293,12 +293,23 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     # elif config.algo == 'oc':
     #     assert config.num_options >= config.num_agents # same set of options available to each agent
 
-    if config.algo == 'maddpg' or not config.no_sil:
-        config.replay_buffer = True
-    elif config.no_sil:
-        config.replay_buffer = False
+    # if config.algo == 'maddpg' or not config.no_sil:
+    #     config.replay_buffer = True
+    # elif config.no_sil:
+    #     config.replay_buffer = False
+    # else:
+    #     raise NotImplementedError
+
+    if config.algo == 'doc':
+        if not config.no_sil:
+            config.replay_buffer = True
+        else:
+            config.replay_buffer = False
     else:
-        raise NotImplementedError
+        config.no_sil = True
+        config.replay_buffer = False
+
+
 
     if dir_manager is None:
 
@@ -417,24 +428,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                 use_teamgrid=config.use_teamgrid,
                 always_broadcast=config.use_always_broadcast
                           )
-        # else:
-        #     acmodel = [ACModel(obs_space=obs_space,
-        #                       action_space=envs[0].action_space,
-        #                       use_memory_agents=config.mem_agents,
-        #                       use_memory_coord = config.mem_coord,
-        #                       use_text=config.text,
-        #                       num_agents=config.num_agents,
-        #                       num_options=config.num_options,
-        #                       use_act_values=True if config.algo in ["oc", "doc"] else False,
-        #                       use_term_fn=True if config.algo in ["oc", "doc"] else False,
-        #                       #use_central_critic=True if config.algo == "doc" else False,
-        #                       use_central_critic=USE_CENTRAL_CRITIC,
-        #                       use_broadcasting=True if config.algo == "doc" else False,
-        #                       termination_reg = config.termination_reg,
-        #                       use_teamgrid=USE_TEAMGRID,
-        #                       always_broadcast= USE_ALWAYS_BROADCAST,
-        #                       agent_index = j
-        #                       ) for j in range(config.num_agents)]
+
 
 
         logger.debug("Model successfully created\n")
@@ -452,7 +446,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
     # Define actor-critic algo
 
     if config.algo == "a2c":
-        algo = torch_rl.A2CAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
+        algo = torch_rl.A2CAlgo(config=config, num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
                                 num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
                                 gae_lambda=config.gae_lambda,
                                 entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, \
@@ -460,7 +454,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                 rmsprop_alpha=config.optim_alpha, rmsprop_eps=config.optim_eps, \
                                 preprocess_obss=preprocess_obss, num_options=config.num_options)
     elif config.algo == "ppo":
-        algo = torch_rl.PPOAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
+        algo = torch_rl.PPOAlgo(config=config, num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
                                 num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
                                 gae_lambda=config.gae_lambda,
                                 entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, max_grad_norm=config.max_grad_norm, \
@@ -468,7 +462,7 @@ def train(config, dir_manager=None, logger=None, pbar="default_pbar"):
                                 adam_eps=config.optim_eps, clip_eps=config.clip_eps, epochs=config.epochs, batch_size=config.batch_size, \
                                 preprocess_obss=preprocess_obss)
     elif config.algo == "oc":
-        algo = torch_rl.OCAlgo(num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
+        algo = torch_rl.OCAlgo(config=config, num_agents=config.num_agents, envs=envs, acmodel=acmodel, replay_buffer=config.replay_buffer, \
                                num_frames_per_proc=config.frames_per_proc, discount=config.discount, lr=config.lr, \
                                gae_lambda=config.gae_lambda,
                                entropy_coef=config.entropy_coef, value_loss_coef=config.value_loss_coef, \

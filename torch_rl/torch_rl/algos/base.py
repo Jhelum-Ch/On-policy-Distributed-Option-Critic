@@ -169,14 +169,16 @@ class BaseAlgo(ABC):
         self.rollout_next_obss = [None] * (self.shape[0])
 
         if self.replay_buffer:
-            self.rep_buffer = PrioritizedReplayBuffer(self.config.env, self.config.buffer_length,
+            #print(self.replay_buffer, self.config)
+            if self.config.algo == 'doc': #use only for doc
+                self.rep_buffer = PrioritizedReplayBuffer(self.config.env, self.config.buffer_length,
+                                                             self.config.num_agents, self.env_dims[0], \
+                                                             self.env_dims[1], self.env_dims[2], self.env_dims[3], \
+                                                             self.config.sil_alpha, ep_buffer=False)
+                self.ep_buffer = PrioritizedReplayBuffer(self.config.env, self.config.buffer_length,
                                                          self.config.num_agents, self.env_dims[0], \
                                                          self.env_dims[1], self.env_dims[2], self.env_dims[3], \
-                                                         self.config.sil_alpha, ep_buffer=False)
-            self.ep_buffer = PrioritizedReplayBuffer(self.config.env, self.config.buffer_length,
-                                                     self.config.num_agents, self.env_dims[0], \
-                                                     self.env_dims[1], self.env_dims[2], self.env_dims[3], \
-                                                     self.config.sil_alpha, ep_buffer=True)
+                                                         self.config.sil_alpha, ep_buffer=True)
 
 
         if self.acmodel.recurrent:
