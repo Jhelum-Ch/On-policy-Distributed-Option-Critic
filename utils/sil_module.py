@@ -10,6 +10,8 @@ from utils.buffer import PrioritizedReplayBuffer
 #from utils.misc import evaluate_actions_sil
 
 
+
+
 # self-imitation learning
 class sil_module:
     def __init__(self, config, env_dims, agents, num_options, gamma, ent_wt):
@@ -27,6 +29,18 @@ class sil_module:
         self.episode_buffer = PrioritizedReplayBuffer(self.config.env, self.config.buffer_length, self.config.num_agents, self.env_dims[0], \
                                               self.env_dims[1], self.env_dims[2], self.env_dims[3], \
                                                      self.config.sil_alpha, ep_buffer=True)
+        #self.acmodel = acmodel
+
+        # super().__init__(config=config, env_dims=env_dims, num_agents=num_agents, envs=envs, acmodel=acmodel, \
+        #                  sil_model=self.sil_model, replay_buffer=replay_buffer, no_sil=no_sil, \
+        #                  num_frames_per_proc=num_frames_per_proc, discount=discount, lr=lr, gae_lambda=gae_lambda, \
+        #                  entropy_coef=entropy_coef,
+        #                  value_loss_coef=value_loss_coef, max_grad_norm=max_grad_norm, recurrence=recurrence,
+        #                  preprocess_obss=preprocess_obss, \
+        #                  reshape_reward=reshape_reward, broadcast_penalty=broadcast_penalty,
+        #                  termination_reg=termination_reg, termination_loss_coef=termination_loss_coef)
+        #
+
 
 
         # self.policies = [self.agents[i].policy for i in range(len(self.agents))]
@@ -441,6 +455,8 @@ class sil_module:
                 brs1 = torch.tensor(brs1)
 
 
+
+
                 # exp_dict = {str(ob):[] for ob in sbs[j].obs.image} #defaultdict()
                 #
                 # for l, ob in enumerate(sbs[j].obs.image):
@@ -465,6 +481,10 @@ class sil_module:
                             memories1 * \
                             mask1, agent_index=j)
 
+                    if self.config.informed_exploration:
+                        ac_prob = torch.bincount(sbs[j].action, minlength=acmodel.num_actions).float()
+                        pi_inf_exp = F.softmax(-ac_prob, dim=-1).unsqueeze(0)
+                        pi_inf_exp_categorical = torch.distributions.Categorical(probs=pi_inf_exp)
 
 
                 else: # use sbs[j] entirely. In this case SIL will have no effect
@@ -478,6 +498,12 @@ class sil_module:
                             sbs[j].obs, \
                             memories[j] * \
                             sbs[j].mask, agent_index=j)
+
+                    if self.config.informed_exploration:
+                        ac_prob = torch.bincount(sbs[j].action, minlength=acmodel.num_actions).float()
+                        pi_inf_exp = F.softmax(-ac_prob, dim=-1).unsqueeze(0)
+                        pi_inf_exp_categorical = torch.distributions.Categorical(probs=pi_inf_exp)
+
 
                 # compute MC returns
                 rets[j], br_rets[j] = self.monte_carlo_return(sbs[j].reward, sbs[j].broadcast, sbs[j].mask, self.config.discount)
@@ -498,7 +524,6 @@ class sil_module:
                     # estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].embedding
                     # estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].estimated_embedding
                     estimated_embeddings[j] = sbs[j].estimated_embedding
-                    # print('check1', estimated_embeddings[j] == masked_embeddings[j], 'check2', estimated_embeddings[j] == embedding)
 
 
             # Central-critic forward propagation
@@ -515,26 +540,12 @@ class sil_module:
             for j in range(self.config.num_agents):
                 # Actor losses
 
-                # print('no-sil', self.config.no_sil, 'informed', self.config.informed_exploration)
-                # if self.config.informed_exploration:
-                #     pi = self.agents[agent_id].policy(obss[agent_id])
-                #     pi = pi.view(-1, self.config.num_options, self.agents[agent_id].num_ac)
-                #     pi = F.softmax(-pi, dim=-1)
-                #     pi_inf_exp = torch.stack([pi[j, op_indx.squeeze(1)[j], :] \
-                #                               for j in range(pi.shape[0])])
-                #     # import pdb;
-                #     # pdb.set_trace()
-                #     # pi_inf_exp = pi_inf_exp.detach()
-                #     pi_inf_exp = (pi_inf_exp * pi_prob) / torch.sum(pi_inf_exp * pi_prob, dim=1).unsqueeze(1)
-                #
-                #     # TODO:now pi_inf_exp becoming 0.5 everywhere (highest possible entropy).\
-                #     # Check if we should modify this
-                #
-                #     pi_dist = torch.distributions.Categorical(probs=pi_inf_exp)
-                # else:
-                #     pi_dist = torch.distributions.Categorical(probs=pi_prob)
-
                 entropy = act_dist.entropy().mean()
+                if self.config.informed_exploration:
+                    informed_exploration_entropy = pi_inf_exp_categorical.entropy().mean()
+                    informed_exploration_entropy = torch.tensor(informed_exploration_entropy, requires_grad=True)
+                    entropy += informed_exploration_entropy
+                #print('entropy', entropy, 'informed_entropy', informed_exploration_entropy)
 
                 # if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
                 if not acmodel.always_broadcast:
@@ -542,7 +553,7 @@ class sil_module:
                     if acmodel.use_teamgrid:
                         broadcast_log_probs = broadcast_dist.log_prob(
                             sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.config.num_options,
-                                                                   self.config.num_actions))[
+                                                                   acmodel.num_actions))[
                             range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
                         clipped_nlogp_br = torch.min(broadcast_log_probs, max_nlogp)
 
@@ -550,9 +561,10 @@ class sil_module:
                         br_advantages = br_advantages.detach()
 
                     else:
-                        broadcast_log_probs = broadcast_dist.log_prob(
-                            sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions[j]))[
-                            range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
+                        pass
+                        # broadcast_log_probs = broadcast_dist.log_prob(
+                        #     sbs[j].broadcast.view(-1, 1, 1).repeat(1, self.num_options, self.num_actions[j]))[
+                        #     range(sbs[j].broadcast.shape[0]), sbs[j].current_options, sbs[j].action.long()]
 
                     broadcast_loss = -(broadcast_log_probs * (sbs[j].value_swa - sbs[j].value_sw)).mean()
                     # broadcast_loss = -(broadcast_log_probs * (sbs[j].value_swa_b - sbs[j].value_sw_b)).mean()
