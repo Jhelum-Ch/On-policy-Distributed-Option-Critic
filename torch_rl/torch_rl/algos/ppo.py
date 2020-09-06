@@ -30,15 +30,15 @@ class PPOAlgo(BaseAlgo):
         self.epochs = epochs
         self.batch_size = batch_size
 
-        #assert self.batch_size % self.recurrence == 0
+        # assert self.batch_size % self.recurrence == 0
 
         if not self.acmodel.use_teamgrid and not self.acmodel.use_central_critic:
             a = self.acmodel.parametersList
             self.optimizer = torch.optim.Adam(a, lr, eps=adam_eps)
         else:
             self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=adam_eps)
-        #a = self.acmodel.parametersList
-        #self.optimizer = torch.optim.Adam(a, lr, eps=adam_eps)
+        # a = self.acmodel.parametersList
+        # self.optimizer = torch.optim.Adam(a, lr, eps=adam_eps)
         # self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=adam_eps)
         self.batch_num = 0
 
@@ -48,7 +48,6 @@ class PPOAlgo(BaseAlgo):
         exps, logs = self.collect_experiences()
 
         # Compute starting indexes
-
 
         for j in range(self.num_agents):
 
@@ -91,21 +90,23 @@ class PPOAlgo(BaseAlgo):
                             if not self.acmodel.always_broadcast:
                                 # act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
                                 act_mlp, act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
-                                    sb.obs, memory * sb.mask, agent_index=j)
+                                    sb.obs, memory * sb.mask, agent_index=j, sil_module=False)
                             else:
                                 act_mlp, act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(
-                                    sb.obs, memory * sb.mask, agent_index=j)
+                                    sb.obs, memory * sb.mask, agent_index=j, sil_module=False)
                         else:
                             if not self.acmodel.always_broadcast:
                                 # act_dist, values = self.acmodel(sb.obs)
                                 act_mlp, act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
-                                    sb.obs, memory * sb.mask, agent_index=j)
+                                    sb.obs, memory * sb.mask, agent_index=j, sil_module=False)
                             else:
-                                act_mlp, act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(sb.obs, agent_index=j)
+                                act_mlp, act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(
+                                    sb.obs, agent_index=j, sil_module=False)
 
                         entropy = act_dist.entropy().mean()
 
-                        agent_act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, self.num_options))[range(sb.action.shape[0]), sb.current_options]
+                        agent_act_log_probs = act_dist.log_prob(sb.action.view(-1, 1).repeat(1, self.num_options))[
+                            range(sb.action.shape[0]), sb.current_options]
                         agent_values = act_values[range(sb.action.shape[0]), sb.current_options]
 
                         ratio = torch.exp(agent_act_log_probs - sb.log_prob)
@@ -166,7 +167,7 @@ class PPOAlgo(BaseAlgo):
             logs["value_loss"].append(numpy.mean(log_value_losses))
             logs["grad_norm"].append(numpy.mean(log_grad_norms))
 
-        #print('ppo_log_return', logs["return_per_episode"])
+        # print('ppo_log_return', logs["return_per_episode"])
 
         return logs
 
@@ -194,6 +195,7 @@ class PPOAlgo(BaseAlgo):
         self.batch_num += 1
 
         num_indexes = self.batch_size // self.recurrence
-        batches_starting_indexes = [indexes[i:i+num_indexes] for i in range(0, len(indexes), num_indexes)]
+        batches_starting_indexes = [indexes[i:i + num_indexes] for i in range(0, len(indexes), num_indexes)]
 
         return batches_starting_indexes
+

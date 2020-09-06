@@ -413,7 +413,8 @@ class BaseAlgo(ABC):
                         if not self.acmodel.always_broadcast:
                             act_mlp, act_dist, values, values_b, memory, term_dist, broadcast_dist, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
-                                                                  * self.current_mask.unsqueeze(1), agent_index = j)
+                                                                  * self.current_mask.unsqueeze(1), agent_index = j, \
+                                                                  sil_module=False)
 
                             agents_values_b.append(values_b)
                             agents_broadcast_dist.append(broadcast_dist)
@@ -421,7 +422,8 @@ class BaseAlgo(ABC):
                         else:
                             act_mlp, act_dist, values, memory, term_dist, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
-                                                                  * self.current_mask.unsqueeze(1), agent_index = j) #agents_estimated_embedding
+                                                                  * self.current_mask.unsqueeze(1), agent_index = j,\
+                                                                  sil_module=False) #agents_estimated_embedding
 
 
 
@@ -429,13 +431,13 @@ class BaseAlgo(ABC):
                         if not self.acmodel.always_broadcast:
                             act_mlp, act_dist, values, values_b, memory, broadcast_dist, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
-                                                                  * self.current_mask.unsqueeze(1), agent_index = j)
+                                                                  * self.current_mask.unsqueeze(1), agent_index = j, sil_module=False)
                             agents_values_b.append(values_b)
                             agents_broadcast_dist.append(broadcast_dist)
                         else:
                             act_mlp, act_dist, values, memory, embedding = \
                                 self.acmodel.forward_agent_critic(preprocessed_obs, self.current_agent_memories[j] \
-                                                                  * self.current_mask.unsqueeze(1), agent_index = j)
+                                                                  * self.current_mask.unsqueeze(1), agent_index = j, sil_module=False)
                     # else:
                     #     if self.num_options is not None:
                     #         if not self.acmodel[j].always_broadcast:
@@ -675,7 +677,8 @@ class BaseAlgo(ABC):
                                 # Qsw_all = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
                                 Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
                                 Qsw = Qsw_all[range(self.num_procs), self.current_options[j].long()]
-                                Vs = Qsw_max
+                                # Vs = Qsw_max
+                                Vs = torch.mean(Qsw, dim=self.opt_dim, keepdim=True)
                             else:
                                 Q_avgd_brd = torch.mean(agents_values[j], dim=self.brd_dim,
                                                        keepdim=True)
@@ -684,7 +687,10 @@ class BaseAlgo(ABC):
                                 # Qsw_all = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
                                 Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
                                 Qsw = Qsw_all[range(self.num_procs), self.current_options[j].long()]
-                                Vs = Qsw_max
+                                #print('Qs', Q_avgd_brd, Qsw_all, Qsw)
+                                #Vs = Qsw_max
+
+                                Vs = torch.mean(Qsw_all.squeeze(), dim=self.opt_dim, keepdim=True)
                         else:
                             if self.acmodel.use_broadcasting and not self.acmodel.always_broadcast:
                                 Q_avgd_brd = torch.sum(agents_broadcast_dist[j].probs * agents_values[j], dim=self.brd_dim, keepdim=True)
@@ -693,7 +699,8 @@ class BaseAlgo(ABC):
                                 # Qsw_all = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
                                 Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
                                 Qsw = Qsw_all[range(self.num_procs), self.current_options[j].long()]
-                                Vs = Qsw_max
+                                #Vs = Qsw_max
+                                Vs = torch.mean(Qsw_all.squeeze(), dim=self.opt_dim, keepdim=True)
                             else:
                                 Q_avgd_brd = torch.mean(agents_values[j], dim=self.brd_dim,
                                                        keepdim=True)
@@ -703,7 +710,8 @@ class BaseAlgo(ABC):
                                 # Qsw_all = torch.sum(agents_act_dist[j].probs * agents_values[j], dim=self.act_dim, keepdim=True)
                                 Qsw_max, Qsw_argmax = torch.max(Qsw_all, dim=self.opt_dim, keepdim=True)
                                 Qsw = Qsw_all[range(self.num_procs), self.current_options[j].long()]
-                                Vs = Qsw_max
+                                #Vs = Qsw_max
+                                Vs = torch.mean(Qsw_all.squeeze(), dim=self.opt_dim, keepdim=True)
 
 
 

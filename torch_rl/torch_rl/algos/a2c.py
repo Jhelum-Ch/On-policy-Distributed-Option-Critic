@@ -73,15 +73,9 @@ class A2CAlgo(BaseAlgo):
         update_broadcast_loss = [0 for _ in range(self.num_agents)]
         update_actor_loss = [0 for _ in range(self.num_agents)]
 
-
-
-
-
-
         for i in range(self.recurrence):
             if self.acmodel.use_central_critic:
                 sbs_coord = coord_exps[inds + i]
-
 
             for j in range(self.num_agents):
 
@@ -94,17 +88,15 @@ class A2CAlgo(BaseAlgo):
                 # update_actor_loss = 0
                 # update_critic_loss = 0
 
-
                 # Initialize memory
 
                 if self.acmodel.recurrent:
-                    #memory = exps[j].memory[inds]
+                    # memory = exps[j].memory[inds]
                     memory = memories[j]
 
-                #for i in range(self.recurrence):
+                    # for i in range(self.recurrence):
 
                     # Create a sub-batch of experience
-
 
                     sbs[j] = exps[j][inds + i]
 
@@ -112,30 +104,34 @@ class A2CAlgo(BaseAlgo):
 
                     if self.acmodel.recurrent:
                         if not self.acmodel.always_broadcast:
-                        # act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
-                            act_mlp, act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, memory * sbs[j].mask, agent_index=j)
+                            # act_dist, values, memory, term_dist, _ = self.acmodel(sb.obs, memory * sb.mask)
+                            act_mlp, act_dist, act_values, act_values_b, memory, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
+                                sbs[j].obs, memory * sbs[j].mask, agent_index=j, sil_module=False)
                         else:
-                            act_mlp, act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(sbs[j].obs, memory * sbs[j].mask,agent_index=j)
+                            act_mlp, act_dist, act_values, memory, _, embedding = self.acmodel.forward_agent_critic(
+                                sbs[j].obs, memory * sbs[j].mask, agent_index=j, sil_module=False)
                     else:
                         if not self.acmodel.always_broadcast:
-                            #act_dist, values = self.acmodel(sb.obs)
+                            # act_dist, values = self.acmodel(sb.obs)
                             act_mlp, act_dist, act_values, act_values_b, _, _, broadcast_dist, embedding = self.acmodel.forward_agent_critic(
-                                sbs[j].obs, memory * sbs[j].mask,agent_index=j)
+                                sbs[j].obs, memory * sbs[j].mask, agent_index=j, sil_module=False)
                         else:
-                            act_mlp, act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(sbs[j].obs,agent_index=j)
+                            act_mlp, act_dist, act_values, _, _, embedding = self.acmodel.forward_agent_critic(
+                                sbs[j].obs, agent_index=j, sil_module=False)
 
                     entropy = act_dist.entropy().mean()
 
-                    agent_act_log_probs = act_dist.log_prob(sbs[j].action.view(-1, 1).repeat(1, self.num_options))[range(sbs[j].action.shape[0]), sbs[j].current_options]
+                    agent_act_log_probs = act_dist.log_prob(sbs[j].action.view(-1, 1).repeat(1, self.num_options))[
+                        range(sbs[j].action.shape[0]), sbs[j].current_options]
                     agent_values = act_values[range(sbs[j].action.shape[0]), sbs[j].current_options]
 
                     if self.acmodel.use_central_critic:
                         policy_loss = -(agent_act_log_probs * (sbs[j].value_swa - sbs[j].value_sw)).mean()
-                        #policy_loss = -(act_mlp.view(-1, 1, 1)[sbs[j].action.long()].squeeze() * (
-                                    #sbs[j].value_swa - sbs[j].value_sw)).mean()  # sbs[j].advantage
+                        # policy_loss = -(act_mlp.view(-1, 1, 1)[sbs[j].action.long()].squeeze() * (
+                        # sbs[j].value_swa - sbs[j].value_sw)).mean()  # sbs[j].advantage
                     else:
                         policy_loss = -(agent_act_log_probs * sbs[j].advantage).mean()  # sbs[j].advantage
-                        #policy_loss = (act_mlp.view(-1, 1, 1)[sbs[j].action.long()].squeeze() * sbs[j].advantage).mean() #a2c-mlp
+                        # policy_loss = (act_mlp.view(-1, 1, 1)[sbs[j].action.long()].squeeze() * sbs[j].advantage).mean() #a2c-mlp
 
                     if not self.acmodel.always_broadcast:
                         broadcast_entropy = broadcast_dist.entropy().mean()
@@ -155,8 +151,6 @@ class A2CAlgo(BaseAlgo):
                     else:
                         loss = policy_loss - self.entropy_coef * entropy
 
-
-
                     # Update batch values
 
                     update_entropy[j] += entropy.item()
@@ -167,8 +161,6 @@ class A2CAlgo(BaseAlgo):
                     update_policy_loss[j] += policy_loss.item()
                     update_actor_loss[j] += loss
 
-
-
                     if not self.acmodel.use_central_critic:
                         value_loss = (agent_values - sbs[j].returnn).pow(2).mean()
 
@@ -176,7 +168,6 @@ class A2CAlgo(BaseAlgo):
 
                         update_value[j] += agent_values.mean().item()
                         update_value_loss[j] += value_loss.item()
-
 
                     if self.acmodel.use_central_critic:
                         # Collect agent embedding
@@ -195,19 +186,18 @@ class A2CAlgo(BaseAlgo):
                             estimated_embeddings[j] = embedding
                         else:
                             masked_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding
-                            # estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].embedding
                             estimated_embeddings[j] = sbs[j].estimated_embedding
 
             if self.acmodel.use_central_critic:
-               # Central-critic forward propagation
-               #  option_idxs =[sbs[j].current_options for j in range(self.num_agents)]
-               #  action_idxs = [sbs[j].action for j in range(self.num_agents)]
+                # Central-critic forward propagation
+                #  option_idxs =[sbs[j].current_options for j in range(self.num_agents)]
+                #  action_idxs = [sbs[j].action for j in range(self.num_agents)]
 
                 # if self.acmodel.use_broadcasting:
                 #     broadcast_idxs = [sbs[j].broadcast for j in range(self.num_agents)]
 
                 _, value_a_b, _ = self.acmodel.forward_central_critic(estimated_embeddings, option_idxs,
-                                                                   action_idxs, broadcast_idxs, sbs_coord.memory)
+                                                                      action_idxs, broadcast_idxs, sbs_coord.memory)
 
                 # avg_value_loss = 0
                 # for j in range(self.num_agents):
@@ -219,8 +209,7 @@ class A2CAlgo(BaseAlgo):
                     value_losses = value_losses + (value_a_b - sbs[j].target).pow(2).mean()
                 value_loss = value_losses / self.num_agents
 
-
-               # update_value += coord_value_action.mean().item()
+                # update_value += coord_value_action.mean().item()
                 update_value += value_a_b.mean().item()
                 update_value_loss += value_loss.item()
                 update_critic_loss += self.value_loss_coef * value_loss
@@ -244,19 +233,17 @@ class A2CAlgo(BaseAlgo):
 
             update_actor_loss[j].backward(retain_graph=True)
 
+        # Update update values
 
+        # update_entropy /= self.recurrence
+        # update_value /= self.recurrence
+        # update_policy_loss /= self.recurrence
+        # update_value_loss /= self.recurrence
+        # update_loss /= self.recurrence
 
-           # Update update values
+        # Update actor-critic
 
-            # update_entropy /= self.recurrence
-            # update_value /= self.recurrence
-            # update_policy_loss /= self.recurrence
-            # update_value_loss /= self.recurrence
-            # update_loss /= self.recurrence
-
-            # Update actor-critic
-
-            #update_loss.backward()
+        # update_loss.backward()
 
         # Critic back propagation
         if self.acmodel.use_central_critic:
@@ -271,15 +258,13 @@ class A2CAlgo(BaseAlgo):
                 update_critic_loss[j] /= self.recurrence
                 update_critic_loss[j].backward(retain_graph=True)
 
-
         for name, param in self.acmodel.named_parameters():
-            #print('name', name, 'param.data', param.data, 'param_grad', param.grad)
+            # print('name', name, 'param.data', param.data, 'param_grad', param.grad)
             if param.grad is None:
                 print('Grad_none', name)
         update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
         torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
         self.optimizer.step()
-
 
         # Log some values
         logs["entropy"] = update_entropy
@@ -294,7 +279,7 @@ class A2CAlgo(BaseAlgo):
             logs["options"] = option_idxs
             logs["actions"] = action_idxs
 
-        #print('a2c_log_retun', logs["return_per_episode_with_broadcast_penalties"])
+        # print('a2c_log_retun', logs["return_per_episode_with_broadcast_penalties"])
         # print('a2c_ep_len', numpy.mean(logs["num_frames_per_episode"]), 'return',
         #       numpy.mean(logs["return_per_episode_with_broadcast_penalties"]))
 
@@ -316,3 +301,4 @@ class A2CAlgo(BaseAlgo):
 
         starting_indexes = numpy.arange(0, self.num_frames, self.recurrence)
         return starting_indexes
+

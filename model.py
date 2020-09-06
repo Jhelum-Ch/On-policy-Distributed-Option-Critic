@@ -580,10 +580,10 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
 
 
     # Forward path for agent_critics to learn intra-option policies and broadcasts   
-    def forward_agent_critic(self, obs, agent_memory, agent_index): # other_agents_actions = list, for particle_env
+    def forward_agent_critic(self, obs, agent_memory, agent_index, sil_module): # other_agents_actions = list, for particle_env
         #print('agent_memory_size',  agent_memory.size())
         #print('modl-obs', obs.image.size())
-        embedding, new_agent_memory = self._embed_observation(obs, agent_memory, agent_index)
+        embedding, new_agent_memory = self._embed_observation(obs, agent_memory, agent_index, sil_module)
         #print('agent_index', agent_index)
         if self.use_teamgrid:
             x = self.actor(embedding).view((-1, self.num_options, self.num_actions))
@@ -796,12 +796,18 @@ class ACModel(nn.Module, torch_rl.RecurrentACModel):
         _, hidden = self.text_rnn(self.word_embedding(text))
         return hidden[-1]
 
-    def _embed_observation(self, obs, agent_memory, agent_index):
+    def _embed_observation(self, obs, agent_memory, agent_index, sil_module):
         if self.use_teamgrid:
-            #print('obs_size', obs.image.size())
-            x = torch.transpose(torch.transpose(obs.image, 1, 3), 2, 3)
-            x = self.image_conv(x)
-            x = x.reshape(x.shape[0], -1)
+            if sil_module:
+                #print('obs_size', obs.image.size())
+                x = torch.transpose(torch.transpose(obs['image'], 1, 3), 2, 3)
+                x = self.image_conv(x)
+                x = x.reshape(x.shape[0], -1)
+            else:
+                # print('obs_size', obs.image.size())
+                x = torch.transpose(torch.transpose(obs.image, 1, 3), 2, 3)
+                x = self.image_conv(x)
+                x = x.reshape(x.shape[0], -1)
 
         else:
             x = obs.image

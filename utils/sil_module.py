@@ -385,6 +385,10 @@ class sil_module:
         masked_embeddings = [None for _ in range(self.config.num_agents)]
         estimated_embeddings = [None for _ in range(self.config.num_agents)]
 
+        acss1 = [None for _ in range(self.config.num_agents)]
+        opss1 = [None for _ in range(self.config.num_agents)]
+        brdss1 = [None for _ in range(self.config.num_agents)]
+
         # last_broadcasts     = [None for _ in range(self.num_agents)]
         # last_masked_embeddings = [None for _ in range(self.num_agents)]
 
@@ -422,6 +426,7 @@ class sil_module:
             if acmodel.use_central_critic:
                 sbs_coord = coord_exps[inds + i]
 
+
             for j in range(self.config.num_agents):
 
                 # Create a sub-batch of experience
@@ -436,23 +441,43 @@ class sil_module:
                 acs1 = []
                 ops1  = []
                 brs1 = []
-                for l in range(len(sbs[j].advantage)):
+                idxs = []
+                for idx, l in enumerate(range(len(sbs[j].advantage))):
                     if sbs[j].advantage[l] > 0.0:
+                        idxs.append(idx)
                         adv1.append(sbs[j].advantage[l])
                         memories1.append(memories[j][l])
-                        obs1.append(sbs[j].obs[l])
+                        obs1.append(sbs[j].obs.image[l])
                         mask1.append(sbs[j].mask[l])
                         acs1.append(sbs[j].action[l])
                         ops1.append(sbs[j].option[l])
                         brs1.append(sbs[j].broadcast[l])
+                    else: #replace with zeros
+                        adv1.append(torch.zeros_like(sbs[j].advantage[l]))
+                        memories1.append(torch.zeros_like(memories[j][l]))
+                        obs1.append(torch.zeros_like(sbs[j].obs.image[l]))
+                        mask1.append(torch.zeros_like(sbs[j].mask[l]))
+                        acs1.append(torch.zeros_like(sbs[j].action[l]))
+                        ops1.append(torch.zeros_like(sbs[j].option[l]))
+                        brs1.append(torch.zeros_like(sbs[j].broadcast[l]))
 
-                obs1 = torch.tensor(obs1)
+
+                obs1 = torch.stack(obs1)
+                obs1 = {'image' : obs1}
+
                 adv1 = torch.tensor(adv1)
-                memories1 = torch.tensor(memories1)
-                mask1 = torch.tensor(mask1)
+
+                memories1 = torch.stack(memories1)
+                mask1 = torch.tensor(mask1).unsqueeze(1)
+
                 acs1 = torch.tensor(acs1)
+                acss1[j] = acs1
+
                 ops1 = torch.tensor(ops1)
+                opss1[j] = ops1
+
                 brs1 = torch.tensor(brs1)
+                brdss1[j] = brs1
 
 
 
@@ -474,12 +499,12 @@ class sil_module:
                         act_mlp, act_dist, _, _, memory, term_dist, broadcast_dist, embedding = acmodel.forward_agent_critic(
                             obs1, \
                             memories1 * \
-                            mask1, agent_index=j)
+                            mask1, agent_index=j, sil_module=True)
                     else:
                         act_mlp, act_dist, _, memory, term_dist, embedding = acmodel.forward_agent_critic(
                             obs1, \
                             memories1 * \
-                            mask1, agent_index=j)
+                            mask1, agent_index=j, sil_module=True)
 
                     if self.config.informed_exploration:
                         ac_prob = torch.bincount(sbs[j].action, minlength=acmodel.num_actions).float()
@@ -492,12 +517,12 @@ class sil_module:
                         act_mlp, act_dist, _, _, memory, term_dist, broadcast_dist, embedding = acmodel.forward_agent_critic(
                             sbs[j].obs, \
                             memories[j] * \
-                            sbs[j].mask, agent_index=j)
+                            sbs[j].mask, agent_index=j, sil_module=True)
                     else:
                         act_mlp, act_dist, _, memory, term_dist, embedding = acmodel.forward_agent_critic(
                             sbs[j].obs, \
                             memories[j] * \
-                            sbs[j].mask, agent_index=j)
+                            sbs[j].mask, agent_index=j, sil_module=True)
 
                     if self.config.informed_exploration:
                         ac_prob = torch.bincount(sbs[j].action, minlength=acmodel.num_actions).float()
@@ -517,24 +542,50 @@ class sil_module:
 
                 # if self.acmodel.use_broadcasting and self.acmodel.always_broadcast:
                 if acmodel.always_broadcast:
+                    # import pdb;
+                    # pdb.set_trace()
                     masked_embeddings[j] = embedding
                     estimated_embeddings[j] = embedding
                 else:
                     masked_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding
-                    # estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].embedding
-                    # estimated_embeddings[j] = sbs[j].broadcast.unsqueeze(1) * embedding + (1. - sbs[j].broadcast.unsqueeze(1)) * sbs[j].estimated_embedding
-                    estimated_embeddings[j] = sbs[j].estimated_embedding
 
+                    if len(obs1) > 0:
+                        agent_est_embed = copy.deepcopy(sbs[j].estimated_embedding)
+                        for idx in range(len(agent_est_embed)):
+                            if idx not in idxs:
+                                agent_est_embed[idx] = torch.zeros_like(sbs[j].estimated_embedding[idx])
+                        #agent_est_embed = torch.tensor(agent_est_embed)
+                        estimated_embeddings[j] = agent_est_embed
+                    else:
+                        estimated_embeddings[j] = sbs[j].estimated_embedding
+
+
+            max_len = np.max([len(estimated_embeddings[j]) for j in range(self.config.num_agents)])
 
             # Central-critic forward propagation
-            option_idxs = [sbs[j].current_options for j in range(self.config.num_agents)]
-            action_idxs = [sbs[j].action for j in range(self.config.num_agents)]
+            if len(obs1) > 0:
+                #option_idxs = [ops1[j] for j in range(self.config.num_agents)]
+                #action_idxs = [sbs[j].action for j in range(self.config.num_agents)]
 
-            if acmodel.use_broadcasting:
-                broadcast_idxs = [sbs[j].broadcast for j in range(self.config.num_agents)]
+                #if acmodel.use_broadcasting:
+                    #broadcast_idxs = [sbs[j].broadcast for j in range(self.config.num_agents)]
+                coord_mem = copy.deepcopy(sbs_coord.memory)
+                for idx in range(len(coord_mem)):
+                    if idx not in idxs:
+                        coord_mem[idx] = torch.zeros_like(sbs_coord.memory[idx])
 
-            _, value_a_b, _ = acmodel.forward_central_critic(estimated_embeddings, option_idxs, action_idxs,
-                                                                  broadcast_idxs, sbs_coord.memory)
+
+                _, value_a_b, _ = acmodel.forward_central_critic(estimated_embeddings, opss1, acss1,
+                                                                      brdss1, coord_mem)
+            else:
+                option_idxs = [sbs[j].current_options for j in range(self.config.num_agents)]
+                action_idxs = [sbs[j].action for j in range(self.config.num_agents)]
+
+                if acmodel.use_broadcasting:
+                    broadcast_idxs = [sbs[j].broadcast for j in range(self.config.num_agents)]
+
+                _, value_a_b, _ = acmodel.forward_central_critic(estimated_embeddings, option_idxs, action_idxs,
+                                                                 broadcast_idxs, sbs_coord.memory)
 
             value_losses = 0
             for j in range(self.config.num_agents):
