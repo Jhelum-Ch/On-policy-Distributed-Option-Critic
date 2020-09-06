@@ -560,8 +560,6 @@ class sil_module:
                         estimated_embeddings[j] = sbs[j].estimated_embedding
 
 
-            max_len = np.max([len(estimated_embeddings[j]) for j in range(self.config.num_agents)])
-
             # Central-critic forward propagation
             if len(obs1) > 0:
                 #option_idxs = [ops1[j] for j in range(self.config.num_agents)]
